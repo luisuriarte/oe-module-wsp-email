@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
   `logo_email`          varchar(255)  DEFAULT NULL               COMMENT 'Absolute server path of the logo embedded in emails',
   `latitude`            decimal(10,6) DEFAULT NULL               COMMENT 'Facility geographic latitude',
   `longitude`           decimal(10,6) DEFAULT NULL               COMMENT 'Facility geographic longitude',
-  `website_url`         varchar(255)  DEFAULT NULL               COMMENT 'Facility website URL',
   `geoapify_key`        varchar(255)  DEFAULT NULL               COMMENT 'Geoapify API key for static maps in email',
   `wsp_message`         text          DEFAULT NULL               COMMENT 'WhatsApp message template (supports token replacement)',
   `email_message`       text          DEFAULT NULL               COMMENT 'HTML body template for the notification email',
@@ -80,3 +79,17 @@ CREATE TABLE IF NOT EXISTS `wsp_email_notification_schedule` (
   UNIQUE KEY `uq_facility_seq` (`facility_id`, `seq`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   COMMENT='Per-facility notification schedule: when and how many times to notify per appointment';
+
+-- ---------------------------------------------------------------------------
+-- Status history table — tracks every event/transition for a notification.
+-- Allows viewing a timeline: Sent -> Delivered -> Read.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `wsp_email_status_history` (
+  `id`         int(11)     NOT NULL AUTO_INCREMENT,
+  `log_id`     int(11)     NOT NULL COMMENT 'FK -> notification_log.iLogId',
+  `status`     varchar(50) NOT NULL COMMENT 'Status string (sent, DELIVERED, READ, error, etc.)',
+  `created_at` datetime    DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_log_id` (`log_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='Timeline of status transitions for each notification';

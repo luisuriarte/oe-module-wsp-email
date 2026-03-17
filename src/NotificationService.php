@@ -188,7 +188,7 @@ class NotificationService
 
         $result = $this->wspSender->send($config, $patient);
         $msgId  = $result['msgId'] ?? null;
-        $status = $result['status'] === 'success' ? 'in_progress' : 'error';
+        $status = $result['status'] ?? 'error'; // Capture actual vendor status (sent, queue, etc.)
 
         $this->insertLog('WSP', $patient, $config, $msgId, $status, $seq);
 
@@ -347,6 +347,11 @@ class NotificationService
             $patient['pc_startTime'],
             $patient['pc_endTime'],
         ]);
+
+        $logId = (int)$GLOBALS['adodb']->Insert_ID();
+        if ($logId > 0) {
+            $this->log->addStatusHistory($logId, $status);
+        }
     }
 
     /** Updates the calendar event flag so legacy compatibility is maintained. */
@@ -380,5 +385,30 @@ class NotificationService
                 ''
             );
         }
+    }
+
+    /**
+     * Manually syncs the status of a specific log entry from the vendor API.
+     */
+    public function syncLogStatus(int $logId): array
+    {
+        $sql = "SELECT nl.*, fc.* 
+                FROM notification_log nl
+                LEFT JOIN openemr_postcalendar_events pe ON pe.pc_eid = nl.pc_eid
+                LEFT JOIN wsp_email_facility_config fc ON fc.facility_id = pe.pc_facility
+                WHERE nl.iLogId = ?";
+        $data = sqlQuery($sql, [$logId]);
+
+        if (!$data || empty($data['msg_id'])) {
+            return ['success' => false, 'message' => 'Notification not found or has no message ID.'];
+        }
+
+        $sync = $this->wspSender->syncStatus($data, $data['msg_id']);
+        if (!empty($sync['status'])) {
+            $this->log->updateStatus($data['msg_id'], $sync['status']);
+            return ['success' => true, 'status' => $sync['status']];
+        }
+
+        return ['success' => false, 'message' => 'Status not updated from vendor.'];
     }
 }

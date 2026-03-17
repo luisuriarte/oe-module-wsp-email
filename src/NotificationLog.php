@@ -49,16 +49,26 @@ class NotificationLog
 
     /**
      * Updates the delivery status of a notification identified by its vendor message ID.
+     * Also records the event in the history table.
      */
     public function updateStatus(string $msgId, string $status): bool
     {
         if (empty($msgId)) {
             return false;
         }
+
+        // 1. Update main record
         sqlStatement(
             "UPDATE notification_log SET status = ? WHERE msg_id = ?",
             [$status, $msgId]
         );
+
+        // 2. Add to history
+        $log = sqlQuery("SELECT iLogId FROM notification_log WHERE msg_id = ?", [$msgId]);
+        if ($log) {
+            $this->addStatusHistory((int)$log['iLogId'], $status);
+        }
+
         return true;
     }
 
@@ -71,29 +81,77 @@ class NotificationLog
             "UPDATE notification_log SET msg_id = ?, status = ? WHERE iLogId = ?",
             [$msgId, $status, $logId]
         );
+        $this->addStatusHistory($logId, $status);
     }
 
     /**
-     * Searches notification records by patient name, PID, or patient_info field.
+     * Records a specific status transition in the history table.
      */
-    public function searchByPatient(string $search, int $limit = 100, int $offset = 0): array
+    public function addStatusHistory(int $logId, string $status): void
+    {
+        sqlStatement(
+            "INSERT INTO wsp_email_status_history (log_id, status, created_at) VALUES (?, ?, NOW())",
+            [$logId, $status]
+        );
+    }
+
+    /**
+     * Returns the timeline of status changes for a specific notification.
+     */
+    public function getStatusHistory(int $logId): array
+    {
+        $res = sqlStatement(
+            "SELECT status, created_at FROM wsp_email_status_history WHERE log_id = ? ORDER BY created_at ASC",
+            [$logId]
+        );
+        $rows = [];
+        while ($row = sqlFetchArray($res)) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    /**
+     * Searches notification records by patient name, PID, phone or patient_info field.
+     */
+    public function searchByPatient(string $search, int $limit = 100, int $offset = 0, ?string $dateFrom = null, ?string $dateTo = null, ?string $type = null): array
     {
         $like      = '%' . $search . '%';
         $pidSearch = is_numeric($search) ? (int)$search : 0;
+        $params    = [$like, $like, $like, $like, $like, $like, $pidSearch];
+        
+        $where = "(nl.patient_info LIKE ? 
+                   OR pd.fname LIKE ? 
+                   OR pd.lname LIKE ? 
+                   OR pd.phone_cell LIKE ?
+                   OR pd.phone_home LIKE ?
+                   OR pd.phone_biz LIKE ?
+                   OR nl.pid = ?)";
+
+        if ($dateFrom && $dateTo) {
+            $where .= " AND DATE(nl.dSentDateTime) BETWEEN ? AND ?";
+            $params[] = $dateFrom;
+            $params[] = $dateTo;
+        }
+
+        if ($type && in_array($type, ['WSP', 'Email'])) {
+            $where .= " AND nl.type = ?";
+            $params[] = $type;
+        }
 
         $sql = "SELECT nl.*, pd.fname, pd.lname, pd.phone_cell,
                        pe.pc_title, pe.pc_eventDate AS event_date_cal
                 FROM notification_log nl
                 LEFT JOIN patient_data pd ON pd.pid = nl.pid
                 LEFT JOIN openemr_postcalendar_events pe ON pe.pc_eid = nl.pc_eid
-                WHERE nl.patient_info LIKE ?
-                   OR pd.fname LIKE ?
-                   OR pd.lname LIKE ?
-                   OR nl.pid = ?
+                WHERE $where
                 ORDER BY nl.dSentDateTime DESC
                 LIMIT ? OFFSET ?";
 
-        $res  = sqlStatement($sql, [$like, $like, $like, $pidSearch, $limit, $offset]);
+        $params[] = $limit;
+        $params[] = $offset;
+
+        $res  = sqlStatement($sql, $params);
         $rows = [];
         while ($row = sqlFetchArray($res)) {
             $rows[] = $row;

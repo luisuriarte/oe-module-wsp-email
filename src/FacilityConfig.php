@@ -19,6 +19,7 @@ class FacilityConfig
     {
         $sql = "SELECT wfc.*, f.name AS facility_name, f.street, f.city, f.state,
                        f.phone AS facility_phone, f.email AS facility_email,
+                       f.website AS website_url,
                        CONCAT(f.street, ', ', f.city, ', ', f.state) AS facility_address
                 FROM wsp_email_facility_config wfc
                 INNER JOIN facility f ON f.id = wfc.facility_id
@@ -38,7 +39,7 @@ class FacilityConfig
                        CONCAT(f.street, ', ', f.city, ', ', f.state) AS facility_address,
                        wfc.id, wfc.vendor, wfc.vendor_instance, wfc.vendor_api_key,
                        wfc.webhook_secret, wfc.logo_wsp, wfc.logo_email,
-                       wfc.latitude, wfc.longitude, wfc.website_url,
+                       wfc.latitude, wfc.longitude, f.website AS website_url,
                        wfc.wsp_message, wfc.email_message, wfc.email_subject,
                        wfc.enabled_wsp, wfc.enabled_email
                 FROM facility f
@@ -77,7 +78,6 @@ class FacilityConfig
             'logo_email'       => $data['logo_email']       ?? null,
             'latitude'         => $data['latitude']         ?? null,
             'longitude'        => $data['longitude']        ?? null,
-            'website_url'      => $data['website_url']      ?? null,
             'wsp_message'      => $data['wsp_message']      ?? null,
             'email_message'    => $data['email_message']    ?? null,
             'email_subject'    => $data['email_subject']    ?? null,

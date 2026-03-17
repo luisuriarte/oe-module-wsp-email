@@ -113,7 +113,21 @@ if ($event === 'messages.update') {
     if (!empty($msgId) && !empty($status)) {
         $notifLog = new NotificationLog();
         $notifLog->updateStatus($msgId, $status);
-        webhookLog("Updated notification_log: msgId=$msgId → status=$status");
+        webhookLog("messages.update — updated: msgId=$msgId → status=$status");
+    }
+}
+
+// --- Handle messages.upsert (often used for both incoming and outgoing status) ---
+if ($event === 'messages.upsert') {
+    $data = $webhookData['data']['messages'][0] ?? null;
+    if ($data) {
+        $msgId  = $data['key']['id'] ?? '';
+        $status = $data['status'] ?? '';
+        if (!empty($msgId) && !empty($status)) {
+            $notifLog = new NotificationLog();
+            $notifLog->updateStatus($msgId, (string)$status);
+            webhookLog("messages.upsert — updated: msgId=$msgId → status=$status");
+        }
     }
 }
 

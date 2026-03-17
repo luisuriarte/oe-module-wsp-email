@@ -29,17 +29,20 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // Collect and sanitise POST fields
+$facilityId = (int)($_POST['facility_id'] ?? 0);
+if ($facilityId === 0) {
+    echo json_encode(['success' => false, 'error' => 'Missing facility_id']);
+    exit;
+}
+
 $data = [
-    'facility_id'         => (int)($_POST['facility_id']         ?? 0),
+    'facility_id'         => $facilityId,
     'vendor'              => trim($_POST['vendor']               ?? 'wasenderapi'),
     'vendor_instance'     => trim($_POST['vendor_instance']      ?? ''),
     'vendor_api_key'      => trim($_POST['vendor_api_key']       ?? ''),
     'webhook_secret'      => trim($_POST['webhook_secret']       ?? ''),
-    'logo_wsp'            => trim($_POST['logo_wsp']             ?? ''),
-    'logo_email'          => trim($_POST['logo_email']           ?? ''),
     'latitude'            => trim($_POST['latitude']             ?? ''),
     'longitude'           => trim($_POST['longitude']            ?? ''),
-    'website_url'         => trim($_POST['website_url']          ?? ''),
     'wsp_message'         => $_POST['wsp_message']               ?? '',
     'email_message'       => $_POST['email_message']             ?? '',
     'email_subject'       => trim($_POST['email_subject']        ?? ''),
@@ -48,8 +51,37 @@ $data = [
     'enabled_email'       => (int)($_POST['enabled_email']       ?? 0),
 ];
 
-if ($data['facility_id'] === 0) {
-    echo json_encode(['success' => false, 'error' => 'Missing facility_id']);
+// Handle File Uploads
+$uploadDir = __DIR__ . '/../../public/images/';
+$types = ['logo_wsp', 'logo_email'];
+$uploadErrors = [];
+
+foreach ($types as $type) {
+    if (isset($_FILES[$type]) && $_FILES[$type]['error'] === UPLOAD_ERR_OK) {
+        $ext = pathinfo($_FILES[$type]['name'], PATHINFO_EXTENSION);
+        // User requested: logo_wsp.png (or jpg). We'll use logo_wsp_f{id}.ext to distinguish facilities.
+        $filename = "{$type}_f{$facilityId}." . $ext;
+        $targetPath = $uploadDir . $type . '/' . $filename;
+        
+        if (move_uploaded_file($_FILES[$type]['tmp_name'], $targetPath)) {
+            $data[$type] = $filename;
+        } else {
+            $uploadErrors[] = "Failed to move uploaded file for {$type}. Check directory permissions.";
+        }
+    } else {
+        // Fetch current to keep if not uploaded
+        if (!isset($fc)) $fc = new FacilityConfig();
+        $current = $fc->getByFacilityId($facilityId);
+        if (!empty($current[$type])) {
+            $data[$type] = $current[$type];
+        } else {
+            $data[$type] = null;
+        }
+    }
+}
+
+if (!empty($uploadErrors)) {
+    echo json_encode(['success' => false, 'error' => implode(' | ', $uploadErrors)]);
     exit;
 }
 
@@ -60,7 +92,7 @@ if (!in_array($data['vendor'], $allowedVendors, true)) {
     exit;
 }
 
-$fc      = new FacilityConfig();
+if (!isset($fc)) $fc = new FacilityConfig();
 $success = $fc->save($data);
 
-echo json_encode(['success' => $success]);
+echo json_encode(['success' => $success, 'debug_data' => $data]);

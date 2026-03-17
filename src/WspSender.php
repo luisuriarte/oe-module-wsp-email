@@ -44,7 +44,13 @@ class WspSender
         $instance = $config['vendor_instance'] ?? '';
         $apiKey   = $config['vendor_api_key'] ?? '';
         $message  = $patient['_message'] ?? '';  // pre-built message body
-        $logoUrl  = $config['logo_wsp'] ?? '';
+        $logoFilename = $config['logo_wsp'] ?? '';
+        $logoUrl      = '';
+        if (!empty($logoFilename)) {
+            $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host  = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            $logoUrl = "{$proto}://{$host}{$GLOBALS['webroot']}/interface/modules/custom_modules/oe-module-wsp-email/public/images/logo_wsp/{$logoFilename}";
+        }
         $icsUrl   = $patient['_ics_url'] ?? '';  // URL of a pre-generated .ics file
 
         if (empty($phone) || strlen($phone) < 8 || empty($vendor) || empty($apiKey)) {
@@ -86,13 +92,13 @@ class WspSender
         $to = '+549' . $phone;
         $ultramsg = new WhatsAppApi($apiKey, $instance);
         $msgId = null;
+        $status = 'invalid';
 
         // 1. Send logo image with caption
         if (!empty($logoUrl)) {
             $resp = $ultramsg->sendImage($to, $logoUrl, $message);
             $log[] = 'UltraMsg: image sent. Response: ' . json_encode($resp);
         } else {
-            // Optional: fallback to text message if no image logo
             $resp = $ultramsg->sendChatMessage($to, $message);
             $log[] = 'UltraMsg: text message sent. Response: ' . json_encode($resp);
         }
@@ -101,20 +107,29 @@ class WspSender
         if (!empty($icsUrl)) {
             $caption = ($config['facility_name'] ?? '') . ': Press the attachment to save your appointment.';
             $resp = $ultramsg->sendDocument($to, 'appointment.ics', $icsUrl, $caption);
-            
-            // UltraMsg SDK sometimes returns an array or an object
-            if (is_array($resp) && isset($resp['id'])) {
-                $msgId = $resp['id'];
-            } elseif (is_object($resp) && isset($resp->id)) {
-                $msgId = $resp->id;
-            } elseif (is_string($resp)) {
-                $body = json_decode($resp, true);
-                $msgId = $body['id'] ?? null;
-            }
             $log[] = 'UltraMsg: .ics sent. Response: ' . json_encode($resp);
+
+            // Capture message ID and status from last action (the document)
+            if (is_array($resp)) {
+                $msgId  = $resp['id'] ?? null;
+                $status = $resp['status'] ?? ($msgId ? 'sent' : 'invalid');
+            } elseif (is_object($resp)) {
+                $msgId  = $resp->id ?? null;
+                $status = $resp->status ?? ($msgId ? 'sent' : 'invalid');
+            } elseif (is_string($resp)) {
+                $body   = json_decode($resp, true);
+                $msgId  = $body['id'] ?? null;
+                $status = $body['status'] ?? ($msgId ? 'sent' : 'invalid');
+            }
+        } else {
+            // If no ICS, use the response from previous message
+            if (is_array($resp)) {
+                $msgId  = $resp['id'] ?? null;
+                $status = $resp['status'] ?? ($msgId ? 'sent' : 'invalid');
+            }
         }
 
-        return ['status' => $msgId ? 'success' : 'error', 'msgId' => $msgId, 'log' => ''];
+        return ['status' => $status, 'msgId' => $msgId, 'log' => ''];
     }
 
     // -------------------------------------------------------------------------
@@ -125,7 +140,10 @@ class WspSender
         string $message, string $logoUrl, string $icsUrl,
         array  $config,  array  &$log
     ): array {
-        $to      = '+549' . $phone;
+        // Ensure E.164 format (International)
+        $cleanPhone = preg_replace('/\D/', '', $phone);
+        $to = '+' . $cleanPhone;
+
         $headers = [
             'Authorization' => "Bearer $apiKey",
             'Content-Type'  => 'application/json',
@@ -163,6 +181,7 @@ class WspSender
                         'to'          => $to,
                         'text'        => ($config['facility_name'] ?? '') . ': Press the attachment to save your appointment.',
                         'documentUrl' => $icsUrl,
+                        'fileName'    => 'appointment.ics',
                         'mimeType'    => 'text/calendar',
                     ],
                 ]);
@@ -170,9 +189,9 @@ class WspSender
                 if (!empty($body['success']) && isset($body['data']['msgId'])) {
                     $msgId = $body['data']['msgId'];
                 }
-                $log[] = 'WaSenderAPI (iCalendar): .ics sent. msgId=' . $msgId;
+                $log[] = 'WaSenderAPI (.ics): success. msgId=' . $msgId;
             } catch (RequestException $e) {
-                $log[] = "Error en WaSenderAPI (iCalendar): " . $e->getMessage();
+                $log[] = "Error en WaSenderAPI (.ics): " . $e->getMessage();
                 if ($e->hasResponse()) {
                     $log[] = "Respuesta: " . $e->getResponse()->getBody();
                 }
@@ -212,6 +231,41 @@ class WspSender
         }
 
         return ['status' => $msgId ? 'success' : 'error', 'msgId' => $msgId, 'log' => ''];
+    }
+
+    public function syncStatus(array $config, string $msgId): array
+    {
+        $vendor = strtolower($config['vendor'] ?? '');
+        $apiKey = $config['vendor_api_key'] ?? '';
+        $instance = $config['vendor_instance'] ?? '';
+
+        if ($vendor === 'ultramsg') {
+            try {
+                $params = [
+                    'token' => $apiKey,
+                    'id'    => $msgId
+                ];
+                $url = "https://api.ultramsg.com/{$instance}/messages?" . http_build_query($params);
+                $resp = $this->http->get($url);
+                $body = json_decode((string)$resp->getBody(), true);
+                
+                // UltraMsg returns a list of messages. We take the first match.
+                $msg = $body[0] ?? null;
+                if ($msg && isset($msg['ack'])) {
+                    return ['status' => $msg['ack'], 'raw' => $body];
+                }
+            } catch (\Exception $e) {
+                return ['status' => 'error', 'error' => $e->getMessage()];
+            }
+        }
+
+        if ($vendor === 'wasenderapi') {
+            // For WaSenderAPI, we'll try to get-message if they have such endpoint,
+            // otherwise we return current status as-is or error.
+            // Placeholder: currently returning null as research didn't confirm a polling endpoint by ID for wasender yet.
+        }
+
+        return ['status' => null];
     }
 
     // -------------------------------------------------------------------------

@@ -23,14 +23,19 @@ if (!AclMain::aclCheckCore('patients', 'demo')) {
     exit;
 }
 
-$q = trim($_GET['q'] ?? '');
-if (strlen($q) < 2) {
-    echo json_encode(['rows' => [], 'error' => 'Search term too short']);
+$q       = trim($_GET['q'] ?? '');
+$from    = $_GET['from']    ?? null;
+$to      = $_GET['to']      ?? null;
+$channel = $_GET['channel'] ?? null;
+
+// Require at least search term OR date range
+if (strlen($q) < 2 && (!$from || !$to)) {
+    echo json_encode(['rows' => [], 'error' => 'Search term or date range required']);
     exit;
 }
 
 $log  = new NotificationLog();
-$rows = $log->searchByPatient($q, 200);
+$rows = $log->searchByPatient($q, 200, 0, $from, $to, $channel);
 
 // Sanitise output — remove sensitive fields
 $safe = array_map(function (array $row): array {

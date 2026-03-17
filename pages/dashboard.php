@@ -48,8 +48,11 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo xlt('WSP / Email Notifications'); ?></title>
-    <?php Header::setupHeader(['bootstrap', 'jquery', 'fontawesome']); ?>
+    <?php Header::setupHeader(['bootstrap', 'jquery', 'fontawesome', 'datepicker']); ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Leaflet for Map Picker -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <style>
         body { background: #f5f7fa; }
         .module-header {
@@ -58,6 +61,14 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
             margin-bottom: 26px;
         }
         .module-header h1 { font-size: 1.5rem; margin: 0; }
+        .form-switch .form-check-input:checked {
+            background-color: #25D366;
+            border-color: #25D366;
+        }
+        .form-switch .form-check-input {
+            width: 2.5em;
+            height: 1.25em;
+        }
         .module-header p  { margin: 4px 0 0; opacity: .85; font-size: .9rem; }
         .stat-card {
             border: none; border-radius: 12px; padding: 20px 22px;
@@ -195,13 +206,35 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
     ==================================================================== -->
     <div id="tab-patients" class="<?php echo $activeTab === 'patients' ? '' : 'd-none'; ?>">
         <div class="chart-card">
-            <div class="row align-items-end mb-3 g-2">
-                <div class="col-md-5">
-                    <input type="text" id="patientSearch" class="form-control"
-                           placeholder="<?php echo attr(xlt('Search by name, surname or PID')); ?>">
+            <div class="row align-items-end mb-3 g-3">
+                <div class="col-md-4">
+                    <label class="form-label small mb-1"><?php echo xlt('Search Patient'); ?></label>
+                    <input type="text" id="patientSearch" class="form-control form-control-sm"
+                           placeholder="<?php echo attr(xlt('Name, Phone or PID...')); ?>">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('From'); ?></label>
+                    <input type="text" id="patientFrom" class="form-control form-control-sm datepicker" value="<?php echo attr($weekAgo); ?>">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('To'); ?></label>
+                    <input type="text" id="patientTo" class="form-control form-control-sm datepicker" value="<?php echo attr($today); ?>">
                 </div>
                 <div class="col-auto">
-                    <button id="btnSearch" class="btn btn-success">
+                    <label class="form-label small mb-1 d-block"><?php echo xlt('Channels'); ?></label>
+                    <div class="d-flex gap-3 pt-1">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="filterWsp" checked>
+                            <label class="form-check-label small" for="filterWsp">WSP</label>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="filterEmail" checked>
+                            <label class="form-check-label small" for="filterEmail">Email</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <button id="btnSearch" class="btn btn-sm btn-success px-4">
                         <i class="fas fa-search me-1"></i><?php echo xlt('Search'); ?>
                     </button>
                 </div>
@@ -213,11 +246,11 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                         <tr>
                             <th><?php echo xlt('Patient'); ?></th>
                             <th><?php echo xlt('Phone'); ?></th>
-                            <th><?php echo xlt('Appt. Date'); ?></th>
-                            <th><?php echo xlt('Type'); ?></th>
-                            <th><?php echo xlt('Sent'); ?></th>
-                            <th><?php echo xlt('Status'); ?></th>
-                            <th><?php echo xlt('Actions'); ?></th>
+                            <th><?php echo xlt('Appt. Details'); ?></th>
+                            <th class="text-center"><?php echo xlt('Channel'); ?></th>
+                            <th><?php echo xlt('Sent Date'); ?></th>
+                            <th><?php echo xlt('Last Status'); ?></th>
+                            <th class="text-center"><?php echo xlt('Actions'); ?></th>
                         </tr>
                     </thead>
                     <tbody id="patientTableBody">
@@ -255,7 +288,7 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
             <div class="col-md-8">
                 <div id="facilityConfigCard" class="chart-card" style="display:none;">
                     <h5 id="facilityConfigTitle" class="mb-3"></h5>
-                    <form id="facilityConfigForm">
+                    <form id="facilityConfigForm" enctype="multipart/form-data">
                         <input type="hidden" id="cfgFacilityId" name="facility_id">
 
                         <!-- Vendor settings -->
@@ -281,32 +314,44 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                                 <input type="text" name="webhook_secret" id="cfgWebhookSecret" class="form-control form-control-sm"
                                        placeholder="<?php echo attr(xlt('Bridge / vendor webhook secret')); ?>">
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label"><?php echo xlt('WSP Logo URL'); ?></label>
-                                <input type="url" name="logo_wsp" id="cfgLogoWsp" class="form-control form-control-sm"
-                                       placeholder="https://your-site/logo_wsp.png">
+                            <div class="col-md-6" id="logoWspContainer">
+                                <label class="form-label"><?php echo xlt('WSP Logo'); ?> <small class="text-muted">(Logo Actual: <span id="currentLogoWspName">None</span>)</small></label>
+                                <input type="file" name="logo_wsp" id="cfgLogoWsp" class="form-control form-control-sm" accept="image/*">
+                                <div id="previewWsp" class="mt-2" style="max-height: 100px; display: none;"></div>
                             </div>
                         </div>
 
                         <hr>
                         <h6 class="text-primary"><?php echo xlt('Email'); ?></h6>
                         <div class="row g-2 mb-3">
-                            <div class="col-md-8">
-                                <label class="form-label"><?php echo xlt('Email Logo (server path)'); ?></label>
-                                <input type="text" name="logo_email" id="cfgLogoEmail" class="form-control form-control-sm"
-                                       placeholder="/var/www/html/openemr/modules/wsp-email/public/logo_email.png">
+                            <div class="col-md-12" id="logoEmailContainer">
+                                <label class="form-label"><?php echo xlt('Email Logo'); ?> <small class="text-muted">(Logo Actual: <span id="currentLogoEmailName">None</span>)</small></label>
+                                <input type="file" name="logo_email" id="cfgLogoEmail" class="form-control form-control-sm" accept="image/*">
+                                <div id="previewEmail" class="mt-2" style="max-height: 100px; display: none;"></div>
                             </div>
                             <div class="col-md-12 text-muted small">
-                                <i class="fas fa-info-circle me-1"></i><?php echo xlt('Maps: used to generate Google Maps / OSM links in messages.'); ?>
+                                <i class="fas fa-info-circle me-1"></i><?php echo xlt('Logos will be saved in images/logo_wsp and images/logo_email/'); ?>
                             </div>
                         </div>
 
                         <hr>
                         <h6 class="text-secondary"><?php echo xlt('Facility Details'); ?></h6>
                         <div class="row g-2 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label"><?php echo xlt('Website URL'); ?></label>
-                                <input type="url" name="website_url" id="cfgWebsite" class="form-control form-control-sm">
+                             <div class="col-md-12 mb-3">
+                                <label class="form-label d-flex justify-content-between">
+                                    <span><i class="fas fa-map-marker-alt me-1"></i><?php echo xlt('Location Picker'); ?></span>
+                                    <small class="text-muted"><?php echo xlt('Click on the map to select coordinates'); ?></small>
+                                </label>
+                                <div class="input-group input-group-sm mb-2">
+                                    <input type="text" id="mapSearchInput" class="form-control" placeholder="<?php echo attr(xlt('Search address or city...')); ?>">
+                                    <button class="btn btn-outline-secondary" type="button" id="btnMapSearch">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                </div>
+                                <div id="facilityMap" style="height: 300px; border-radius: 8px; border: 1px solid #ddd; z-index: 1;"></div>
+                            </div>
+                             <div class="col-md-6 text-muted py-2 small">
+                                <i class="fas fa-info-circle me-1"></i> <?php echo xlt('Website URL is taken from the standard facility configuration.'); ?>
                             </div>
                              <div class="col-md-3">
                                 <label class="form-label"><?php echo xlt('Latitude'); ?></label>
@@ -393,6 +438,9 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                             <button type="submit" class="btn btn-success">
                                 <i class="fas fa-save me-1"></i><?php echo xlt('Save Configuration'); ?>
                             </button>
+                            <button type="button" id="btnCancelConfig" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i><?php echo xlt('Cancel'); ?>
+                            </button>
                             <span id="cfgSaveMsg" class="align-self-center text-success" style="display:none;">
                                 <i class="fas fa-check-circle"></i> <?php echo xlt('Saved!'); ?>
                             </span>
@@ -459,37 +507,97 @@ document.getElementById('btnLoadStats')?.addEventListener('click', loadStats);
    Patient Status Tab
    ========================================================================= */
 function renderStatus(status) {
-    const map = { sent: 'sent', DELIVERED: 'delivered', READ: 'read', error: 'error', in_progress: 'pending', '': 'pending' };
-    const cls = map[status] || 'pending';
-    const lbl = status || 'pending';
-    return `<span class="badge-status badge-${cls}">${lbl}</span>`;
+    status = (status || 'pending').toLowerCase();
+    let badgeClass = 'bg-secondary';
+    let icon = 'fa-clock';
+    let label = status;
+
+    if (status === 'delivered' || status === 'read' || status === 'sent' || status === 'success') {
+        badgeClass = 'bg-success';
+        icon = 'fa-check-circle';
+    } else if (status === 'error' || status === 'failed' || status === 'invalid' || status === 'unsent') {
+        badgeClass = 'bg-danger';
+        icon = 'fa-exclamation-triangle';
+    } else if (status === 'in_progress' || status === 'pending' || status === 'queue') {
+        badgeClass = 'bg-warning text-dark';
+        icon = 'fa-spinner fa-spin';
+    }
+
+    return `<span class="badge ${badgeClass} d-inline-flex align-items-center gap-1 shadow-sm">
+                <i class="fas ${icon}"></i> ${label.toUpperCase()}
+            </span>`;
 }
 
 function searchPatients() {
-    const q   = document.getElementById('patientSearch').value.trim();
+    const q     = document.getElementById('patientSearch').value.trim();
+    const from  = document.getElementById('patientFrom').value;
+    const to    = document.getElementById('patientTo').value;
+    const wsp   = document.getElementById('filterWsp').checked;
+    const email = document.getElementById('filterEmail').checked;
     const tbody = document.getElementById('patientTableBody');
-    if (!q) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Enter a search term above.</td></tr>'; return; }
 
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3"><i class="fas fa-spinner fa-spin"></i></td></tr>';
-    fetch(`${moduleRoot}/pages/ajax/get_patient_logs.php?q=${encodeURIComponent(q)}`)
+    if (!q && (!from || !to)) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><?php echo js_escape(xlt('Enter a search term or select a date range.')); ?></td></tr>';
+        return;
+    }
+
+    let channel = '';
+    if (wsp && !email) channel = 'WSP';
+    if (!wsp && email) channel = 'Email';
+
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x text-success"></i></td></tr>';
+
+    const params = new URLSearchParams({
+        q: q,
+        from: from,
+        to: to,
+        channel: channel
+    });
+
+    fetch(`${moduleRoot}/pages/ajax/get_patient_logs.php?${params.toString()}`)
         .then(r => r.json())
         .then(data => {
             const rows = data.rows || [];
-            if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No records found.</td></tr>'; return; }
-            tbody.innerHTML = rows.map(r => `
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><?php echo js_escape(xlt('No records found for the selected criteria.')); ?></td></tr>';
+                return;
+            }
+            tbody.innerHTML = rows.map(r => {
+                const typeIcon = r.type === 'WSP' 
+                    ? '<i class="fab fa-whatsapp text-success fa-lg" title="WhatsApp"></i>' 
+                    : '<i class="fas fa-envelope text-primary fa-lg" title="Email"></i>';
+                
+                const apptInfo = `<strong>${escHtml(r.pc_title || 'Appt')}</strong><br><small class="text-muted">${escHtml(r.pc_eventDate)} ${r.pc_startTime}</small>`;
+                
+                return `
                 <tr>
-                    <td>${escHtml(r.fname + ' ' + r.lname)}</td>
-                    <td>${escHtml(r.phone_cell || '')}</td>
-                    <td>${escHtml(r.pc_eventDate || '')}</td>
-                    <td><span class="badge ${r.type==='WSP' ? 'bg-success' : 'bg-primary'}">${escHtml(r.type)}</span></td>
-                    <td><small>${escHtml(r.dSentDateTime || '')}</small></td>
-                    <td>${renderStatus(r.status)}</td>
                     <td>
-                        <button class="btn btn-xs btn-outline-secondary" onclick="resend(${r.iLogId})">
-                            <i class="fas fa-redo"></i>
-                        </button>
+                        <div class="fw-bold text-dark">${escHtml(r.fname + ' ' + r.lname)}</div>
+                        <div class="small text-muted">PID: ${r.pid}</div>
                     </td>
-                </tr>`).join('');
+                    <td>${escHtml(r.phone_cell || '-')}</td>
+                    <td>${apptInfo}</td>
+                    <td class="text-center">${typeIcon}</td>
+                    <td><small class="text-muted">${escHtml(r.dSentDateTime || '')}</small></td>
+                    <td>${renderStatus(r.status)}</td>
+                    <td class="text-center">
+                        <div class="btn-group">
+                            <button class="btn btn-xs btn-outline-info" onclick="viewLogDetail(${r.iLogId})" title="<?php echo attr(xlt('View Details')); ?>">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-xs btn-outline-warning" onclick="syncStatus(${r.iLogId})" id="syncBtn_${r.iLogId}" title="<?php echo attr(xlt('Sync Status')); ?>">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                            <button class="btn btn-xs btn-outline-secondary" onclick="resend(${r.iLogId})" title="<?php echo attr(xlt('Resend')); ?>">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        })
+        .catch(err => {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">Error: ${err}</td></tr>`;
         });
 }
 
@@ -497,7 +605,73 @@ function resend(logId) {
     if (!confirm('Resend this notification?')) return;
     fetch(`${moduleRoot}/pages/ajax/resend_notification.php?log_id=${logId}`, { method: 'POST' })
         .then(r => r.json())
-        .then(d => alert(d.message || 'Done'));
+        .then(d => {
+            alert(d.message || 'Done');
+            searchPatients();
+        });
+}
+
+function syncStatus(logId) {
+    const btn = document.getElementById(`syncBtn_${logId}`);
+    const icon = btn.querySelector('i');
+    
+    icon.classList.add('fa-spin');
+    btn.disabled = true;
+
+    fetch(`${moduleRoot}/pages/ajax/sync_status.php?log_id=${logId}`)
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                searchPatients(); // Refresh list to see new status
+            } else {
+                alert(d.message || 'Sync failed');
+            }
+        })
+        .finally(() => {
+            icon.classList.remove('fa-spin');
+            btn.disabled = false;
+        });
+}
+
+function viewLogDetail(logId) {
+    const modal = new bootstrap.Modal(document.getElementById('modalLogDetail'));
+    const container = document.getElementById('logHistoryTimeline');
+    container.innerHTML = '<div class="text-center p-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+    modal.show();
+
+    fetch(`${moduleRoot}/pages/ajax/get_status_history.php?log_id=${logId}`)
+        .then(r => r.json())
+        .then(data => {
+            const history = data.history || [];
+            if (!history.length) {
+                container.innerHTML = '<div class="alert alert-info"><?php echo js_escape(xlt('No history recorded for this notification.')); ?></div>';
+                return;
+            }
+
+            let html = '<div class="timeline-v2">';
+            history.forEach(h => {
+                const status = h.status.toLowerCase();
+                let icon = 'fa-circle';
+                let color = 'text-secondary';
+                if (['delivered','read','sent','success'].includes(status)) { icon = 'fa-check-circle'; color = 'text-success'; }
+                if (['error','failed','invalid','unsent'].includes(status)) { icon = 'fa-exclamation-circle'; color = 'text-danger'; }
+                if (['queue','pending'].includes(status)) { icon = 'fa-clock'; color = 'text-warning'; }
+
+                html += `
+                <div class="d-flex gap-3 mb-3">
+                    <div class="${color} pt-1"><i class="fas ${icon} fa-lg"></i></div>
+                    <div>
+                        <div class="fw-bold text-uppercase small">${escHtml(h.status)}</div>
+                        <div class="text-muted extra-small">${escHtml(h.created_at)}</div>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        })
+        .catch(err => {
+            container.innerHTML = `<div class="alert alert-danger">Error: ${err}</div>`;
+        });
 }
 
 document.getElementById('btnSearch')?.addEventListener('click', searchPatients);
@@ -518,11 +692,35 @@ function loadFacilityConfig(facilityId) {
             document.getElementById('cfgInstance').value        = c.vendor_instance     || '';
             document.getElementById('cfgApiKey').value          = c.vendor_api_key      || '';
             document.getElementById('cfgWebhookSecret').value   = c.webhook_secret      || '';
-            document.getElementById('cfgLogoWsp').value         = c.logo_wsp            || '';
-            document.getElementById('cfgLogoEmail').value       = c.logo_email          || '';
-            document.getElementById('cfgWebsite').value         = c.website_url         || '';
+            
+            // Logo previews
+            const prevWsp = document.getElementById('previewWsp');
+            const nameWsp = document.getElementById('currentLogoWspName');
+            if (c.logo_wsp) {
+                nameWsp.textContent = c.logo_wsp;
+                prevWsp.innerHTML = `<img src="${moduleRoot}/public/images/logo_wsp/${c.logo_wsp}" style="max-height:60px; border:1px solid #ddd; padding:2px;">`;
+                prevWsp.style.display = 'block';
+            } else {
+                nameWsp.textContent = 'None';
+                prevWsp.style.display = 'none';
+            }
+
+            const prevEmail = document.getElementById('previewEmail');
+            const nameEmail = document.getElementById('currentLogoEmailName');
+            if (c.logo_email) {
+                nameEmail.textContent = c.logo_email;
+                prevEmail.innerHTML = `<img src="${moduleRoot}/public/images/logo_email/${c.logo_email}" style="max-height:60px; border:1px solid #ddd; padding:2px;">`;
+                prevEmail.style.display = 'block';
+            } else {
+                nameEmail.textContent = 'None';
+                prevEmail.style.display = 'none';
+            }
+
             document.getElementById('cfgLat').value             = c.latitude            || '';
             document.getElementById('cfgLon').value             = c.longitude           || '';
+            
+            // Initialize or update map
+            initFacilityMap(c.latitude || -34.6037, c.longitude || -58.3816);
             document.getElementById('cfgEnabledWsp').checked    = parseInt(c.enabled_wsp   ?? 1) === 1;
             document.getElementById('cfgEnabledEmail').checked  = parseInt(c.enabled_email ?? 1) === 1;
             document.getElementById('cfgWspMsg').value          = c.wsp_message         || '';
@@ -542,6 +740,11 @@ function loadFacilityConfig(facilityId) {
             }
         });
 }
+
+document.getElementById('btnCancelConfig')?.addEventListener('click', function() {
+    document.getElementById('facilityConfigCard').style.display = 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+});
 
 /* =========================================================================
    Notification Schedule helpers
@@ -603,6 +806,11 @@ function renumberSchedule() {
 
 document.getElementById('facilityConfigForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+
     const fd = new FormData(this);
     fd.set('enabled_wsp',   document.getElementById('cfgEnabledWsp').checked   ? 1 : 0);
     fd.set('enabled_email', document.getElementById('cfgEnabledEmail').checked ? 1 : 0);
@@ -621,10 +829,21 @@ document.getElementById('facilityConfigForm')?.addEventListener('submit', functi
     fetch(`${moduleRoot}/pages/ajax/save_facility_config.php`, { method: 'POST', body: fd })
         .then(r => r.json())
         .then(d => {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
             const msg = document.getElementById('cfgSaveMsg');
             msg.style.display = d.success ? 'inline' : 'none';
             if (!d.success) alert('Error saving: ' + (d.error || 'Unknown'));
+            else {
+                // Refresh to show new logo previews if uploaded
+                loadFacilityConfig(document.getElementById('cfgFacilityId').value);
+            }
             setTimeout(() => msg.style.display = 'none', 3000);
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = oldHtml;
+            alert('Error: ' + err);
         });
 });
 
@@ -639,6 +858,105 @@ function escHtml(s) {
 <?php if ($activeTab === 'dashboard'): ?>
 loadStats();
 <?php endif; ?>
+/**
+ * Leaflet Map Picker Initialization
+ */
+let facilityMap = null;
+let facilityMarker = null;
+
+function initFacilityMap(lat, lon) {
+    lat = parseFloat(lat);
+    lon = parseFloat(lon);
+
+    if (!facilityMap) {
+        facilityMap = L.map('facilityMap').setView([lat, lon], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(facilityMap);
+
+        facilityMap.on('click', function(e) {
+            updateMarker(e.latlng.lat, e.latlng.lng);
+        });
+
+        // Search button event
+        document.getElementById('btnMapSearch').addEventListener('click', function() {
+            const query = document.getElementById('mapSearchInput').value;
+            if (!query) return;
+
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        const res = data[0];
+                        updateMarker(res.lat, res.lon, true);
+                    } else {
+                        alert(<?php echo js_escape(xlt('Location not found')); ?>);
+                    }
+                });
+        });
+
+        // Input sync
+        ['cfgLat', 'cfgLon'].forEach(id => {
+            document.getElementById(id).addEventListener('change', () => {
+                const newLat = document.getElementById('cfgLat').value;
+                const newLon = document.getElementById('cfgLon').value;
+                updateMarker(newLat, newLon, true);
+            });
+        });
+    } else {
+        facilityMap.setView([lat, lon], 13);
+    }
+
+    updateMarker(lat, lon);
+    
+    // Fix for Leaflet in tabs
+    setTimeout(() => {
+        facilityMap.invalidateSize();
+    }, 200);
+}
+
+function updateMarker(lat, lon, center = false) {
+    if (!lat || !lon) return;
+    
+    document.getElementById('cfgLat').value = parseFloat(lat).toFixed(6);
+    document.getElementById('cfgLon').value = parseFloat(lon).toFixed(6);
+
+    if (facilityMarker) {
+        facilityMarker.setLatLng([lat, lon]);
+    } else {
+        facilityMarker = L.marker([lat, lon]).addTo(facilityMap);
+    }
+
+    if (center) {
+        facilityMap.setView([lat, lon], 15);
+    }
+}
 </script>
+
+<!-- Modal: Notification Details / Timeline -->
+<div class="modal fade" id="modalLogDetail" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold"><?php echo xlt('Notification Lifecycle'); ?></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-4">
+                <div id="logHistoryTimeline">
+                    <!-- Loaded via AJAX -->
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal"><?php echo xlt('Close'); ?></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.extra-small { font-size: 0.75rem; }
+.timeline-v2 { position: relative; padding-left: 5px; }
+</style>
+
 </body>
 </html>
