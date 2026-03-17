@@ -17,6 +17,7 @@
     },
     "require": {
         "guzzlehttp/guzzle": "^7.0",
-        "phpmailer/phpmailer": "^6.0"
+        "phpmailer/phpmailer": "^6.0",
+        "ultramsg/whatsapp-php-sdk": "^2.0"
     }
 }

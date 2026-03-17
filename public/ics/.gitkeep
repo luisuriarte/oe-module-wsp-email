@@ -1,0 +1,3 @@
+Temporary iCalendar (.ics) files directory.
+Files here are created during WhatsApp sends and deleted automatically after delivery.
+Excluded from version control — kept only to ensure the directory exists.
