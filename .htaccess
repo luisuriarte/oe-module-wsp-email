@@ -1,0 +1,17 @@
+# Deny direct access to PHP files except those in public-facing pages
+<Files ~ "\.php$">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Allow specific entry points
+<FilesMatch "^(index|moduleConfig|openemr\.bootstrap)\.php$">
+    Order allow,deny
+    Allow from all
+</FilesMatch>
+
+# Allow pages, ajax, webhook, and cron directories
+<FilesMatch "^$">
+    Order allow,deny
+    Allow from all
+</FilesMatch>

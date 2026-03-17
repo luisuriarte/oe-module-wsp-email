@@ -1,0 +1,22 @@
+{
+    "name": "openemr/oe-module-wsp-email",
+    "description": "OpenEMR WhatsApp & Email Appointment Notification Module",
+    "type": "openemr-module",
+    "license": "GPL-3.0",
+    "authors": [
+        {
+            "name": "Luis A. Uriarte",
+            "email": "luis.uriarte@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "autoload": {
+        "psr-4": {
+            "OpenEMR\\Modules\\WspEmail\\": "src/"
+        }
+    },
+    "require": {
+        "guzzlehttp/guzzle": "^7.0",
+        "phpmailer/phpmailer": "^6.0"
+    }
+}
