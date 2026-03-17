@@ -20,6 +20,7 @@ require_once __DIR__ . '/../../../../globals.php';
 
 require_once __DIR__ . '/../src/FacilityConfig.php';
 require_once __DIR__ . '/../src/NotificationLog.php';
+require_once $GLOBALS['srcdir'] . '/formatting.inc.php';
 
 use OpenEMR\Core\Header;
 use OpenEMR\Common\Acl\AclMain;
@@ -48,7 +49,7 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?php echo xlt('WSP / Email Notifications'); ?></title>
-    <?php Header::setupHeader(['bootstrap', 'jquery', 'fontawesome', 'datepicker']); ?>
+    <?php Header::setupHeader(['bootstrap', 'jquery', 'fontawesome', 'datetime-picker', 'datetime-picker-translated']); ?>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Leaflet for Map Picker -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -61,13 +62,26 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
             margin-bottom: 26px;
         }
         .module-header h1 { font-size: 1.5rem; margin: 0; }
-        .form-switch .form-check-input:checked {
-            background-color: #25D366;
-            border-color: #25D366;
-        }
+        /* Sliding Green Switches */
         .form-switch .form-check-input {
-            width: 2.5em;
-            height: 1.25em;
+            width: 3.2em !important;
+            height: 1.62em !important;
+            cursor: pointer;
+            background-color: #cbd5e0;
+            border-color: #cbd5e0;
+        }
+        .form-switch .form-check-input:checked {
+            background-color: #25D366 !important;
+            border-color: #25D366 !important;
+        }
+        .form-switch .form-check-input:focus {
+            box-shadow: 0 0 0 0.2rem rgba(37, 211, 102, 0.25);
+        }
+        .form-check-label {
+            padding-left: 0.5rem;
+            padding-top: 0.2rem;
+            cursor: pointer;
+            font-weight: 500;
         }
         .module-header p  { margin: 4px 0 0; opacity: .85; font-size: .9rem; }
         .stat-card {
@@ -103,6 +117,58 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
         .facility-card:hover { box-shadow: 0 3px 14px rgba(0,0,0,.12); }
         #facilityConfigForm { display:none; }
         textarea.mono { font-family: monospace; font-size: .88rem; }
+        .form-check-input:checked { background-color: #25D366; border-color: #25D366; }
+        .form-check-input:focus { border-color: #25D366; box-shadow: 0 0 0 0.25rem rgba(37, 211, 102, 0.25); }
+        .btn-check:checked + .btn-outline-success { background-color: #25D366; border-color: #25D366; color: white; }
+        
+        /* Highlight match in search */
+        .search-match { background-color: #fff3cd; padding: 0 2px; border-radius: 2px; }
+
+        /* Custom Sliding Toggle Switches */
+        .custom-checkbox {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+
+        .custom-checkbox input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 20px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        .custom-checkbox input:checked + .slider {
+            background-color: #28a745;
+        }
+
+        .custom-checkbox input:checked + .slider:before {
+            transform: translateX(20px);
+        }
     </style>
 </head>
 <body>
@@ -174,11 +240,11 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
             <div class="row align-items-end mb-3">
                 <div class="col-auto">
                     <label class="form-label mb-1"><?php echo xlt('From'); ?></label>
-                    <input type="date" id="statsFrom" class="form-control form-control-sm" value="<?php echo attr($weekAgo); ?>">
+                    <input type="text" id="statsFrom" class="form-control form-control-sm datepicker" value="<?php echo attr(oeFormatShortDate($weekAgo)); ?>">
                 </div>
                 <div class="col-auto">
                     <label class="form-label mb-1"><?php echo xlt('To'); ?></label>
-                    <input type="date" id="statsTo" class="form-control form-control-sm" value="<?php echo attr($today); ?>">
+                    <input type="text" id="statsTo" class="form-control form-control-sm datepicker" value="<?php echo attr(oeFormatShortDate($today)); ?>">
                 </div>
                 <div class="col-auto">
                     <label class="form-label mb-1"><?php echo xlt('Facility'); ?></label>
@@ -214,22 +280,28 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small mb-1"><?php echo xlt('From'); ?></label>
-                    <input type="text" id="patientFrom" class="form-control form-control-sm datepicker" value="<?php echo attr($weekAgo); ?>">
+                    <input type="text" id="patientFrom" class="form-control form-control-sm datepicker" value="<?php echo attr(oeFormatShortDate($weekAgo)); ?>">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small mb-1"><?php echo xlt('To'); ?></label>
-                    <input type="text" id="patientTo" class="form-control form-control-sm datepicker" value="<?php echo attr($today); ?>">
+                    <input type="text" id="patientTo" class="form-control form-control-sm datepicker" value="<?php echo attr(oeFormatShortDate($today)); ?>">
                 </div>
                 <div class="col-auto">
                     <label class="form-label small mb-1 d-block"><?php echo xlt('Channels'); ?></label>
-                    <div class="d-flex gap-3 pt-1">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="filterWsp" checked>
-                            <label class="form-check-label small" for="filterWsp">WSP</label>
+                    <div class="d-flex gap-4 pt-1 align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="custom-checkbox">
+                                <input type="checkbox" id="filterWsp" checked onchange="searchPatients()">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="small">WhatsApp</span>
                         </div>
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="filterEmail" checked>
-                            <label class="form-check-label small" for="filterEmail">Email</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="custom-checkbox">
+                                <input type="checkbox" id="filterEmail" checked onchange="searchPatients()">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="small">E-Mail</span>
                         </div>
                     </div>
                 </div>
@@ -365,17 +437,23 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
 
                         <hr>
                         <h6><?php echo xlt('Channel Enable/Disable'); ?></h6>
-                        <div class="row g-2 mb-3">
+                         <div class="row g-2 mb-3">
                             <div class="col-md-4">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" name="enabled_wsp" id="cfgEnabledWsp" value="1" checked>
-                                    <label class="form-check-label" for="cfgEnabledWsp"><?php echo xlt('WhatsApp enabled'); ?></label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <label class="custom-checkbox">
+                                        <input type="checkbox" name="enabled_wsp" id="cfgEnabledWsp" value="1" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                    <label class="form-label mb-0" for="cfgEnabledWsp"><?php echo xlt('WhatsApp enabled'); ?></label>
                                 </div>
                             </div>
                             <div class="col-md-4">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" name="enabled_email" id="cfgEnabledEmail" value="1" checked>
-                                    <label class="form-check-label" for="cfgEnabledEmail"><?php echo xlt('Email enabled'); ?></label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <label class="custom-checkbox">
+                                        <input type="checkbox" name="enabled_email" id="cfgEnabledEmail" value="1" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                    <label class="form-label mb-0" for="cfgEnabledEmail"><?php echo xlt('Email enabled'); ?></label>
                                 </div>
                             </div>
                         </div>
@@ -536,14 +614,15 @@ function searchPatients() {
     const email = document.getElementById('filterEmail').checked;
     const tbody = document.getElementById('patientTableBody');
 
-    if (!q && (!from || !to)) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><?php echo js_escape(xlt('Enter a search term or select a date range.')); ?></td></tr>';
-        return;
-    }
-
+    // If both unchecked, show nothing or show both? Usually both.
+    // But if they clicked some, we filter.
     let channel = '';
     if (wsp && !email) channel = 'WSP';
-    if (!wsp && email) channel = 'Email';
+    else if (!wsp && email) channel = 'Email';
+    else if (!wsp && !email) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><?php echo js_escape(xlt('Please select at least one channel.')); ?></td></tr>';
+        return;
+    }
 
     tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x text-success"></i></td></tr>';
 
@@ -764,10 +843,11 @@ function appendScheduleRow(slot) {
     tr.innerHTML = `
         <td class="text-center fw-bold text-muted">${n}</td>
         <td class="text-center">
-            <div class="form-check form-switch d-flex justify-content-center">
-                <input class="form-check-input sob-check" type="checkbox" name="schedule[${n}][send_on_booking]" value="1"
+            <label class="custom-checkbox">
+                <input class="sob-check" type="checkbox" name="schedule[${n}][send_on_booking]" value="1"
                        ${sob ? 'checked' : ''} onchange="toggleHoursCell(this)">
-            </div>
+                <span class="slider"></span>
+            </label>
         </td>
         <td>
             <input type="number" class="form-control form-control-sm hours-input" min="1" max="8760"
@@ -775,10 +855,16 @@ function appendScheduleRow(slot) {
                    ${sob ? 'disabled style="opacity:.4"' : ''}>
         </td>
         <td class="text-center">
-            <input class="form-check-input" type="checkbox" name="schedule[${n}][enabled_wsp]" value="1" ${wsp ? 'checked' : ''}>
+            <label class="custom-checkbox">
+                <input type="checkbox" name="schedule[${n}][enabled_wsp]" value="1" ${wsp ? 'checked' : ''}>
+                <span class="slider"></span>
+            </label>
         </td>
         <td class="text-center">
-            <input class="form-check-input" type="checkbox" name="schedule[${n}][enabled_email]" value="1" ${em ? 'checked' : ''}>
+            <label class="custom-checkbox">
+                <input type="checkbox" name="schedule[${n}][enabled_email]" value="1" ${em ? 'checked' : ''}>
+                <span class="slider"></span>
+            </label>
         </td>
         <td class="text-center">
             <button type="button" class="btn btn-xs btn-outline-danger" onclick="this.closest('tr').remove(); renumberSchedule();">
@@ -931,6 +1017,56 @@ function updateMarker(lat, lon, center = false) {
         facilityMap.setView([lat, lon], 15);
     }
 }
+
+$(function() {
+    // Initial load
+    searchPatients();
+
+    // Standard OpenEMR mouseover datepicker initialization
+    // Required because datetime-picker assets can sometimes be finicky with static initialization
+    $(document).on('mouseover', '.datepicker', function() {
+        if (!$(this).data('initialized')) {
+            const inputId = $(this).attr('id');
+            $(this).datetimepicker({
+                <?php $datetimepicker_timepicker = false; ?>
+                <?php $datetimepicker_showseconds = false; ?>
+                <?php $datetimepicker_formatInput = true; ?>
+                <?php require($GLOBALS['srcdir'] . '/js/xl/jquery-datetimepicker-2-5-4.js.php'); ?>
+                , onSelectDate: function() {
+                    if (inputId === 'statsFrom' || inputId === 'statsTo') {
+                        setTimeout(loadStats, 200);
+                    } else {
+                        setTimeout(searchPatients, 200);
+                    }
+                }
+            });
+            $(this).data('initialized', true);
+        }
+    });
+
+    // Fallback/Standard initialization attempt
+    if (typeof datetimepickerTranslated !== 'undefined') {
+        datetimepickerTranslated('.datepicker', {
+            timepicker: false,
+            formatInput: true,
+            onSelectDate: function() {
+                const inputId = $(this).attr('id');
+                if (inputId === 'statsFrom' || inputId === 'statsTo') {
+                    setTimeout(loadStats, 200);
+                } else {
+                    setTimeout(searchPatients, 200);
+                }
+            }
+        });
+    }
+
+    // Auto-search on typing (with debounce)
+    let searchTimer;
+    document.getElementById('patientSearch')?.addEventListener('input', function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(searchPatients, 500);
+    });
+});
 </script>
 
 <!-- Modal: Notification Details / Timeline -->

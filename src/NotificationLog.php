@@ -118,20 +118,26 @@ class NotificationLog
     {
         $like      = '%' . $search . '%';
         $pidSearch = is_numeric($search) ? (int)$search : 0;
-        $params    = [$like, $like, $like, $like, $like, $like, $pidSearch];
         
+        // Base conditions: Search in patient_info (log), then name fields, phones, email and pid
         $where = "(nl.patient_info LIKE ? 
                    OR pd.fname LIKE ? 
                    OR pd.lname LIKE ? 
+                   OR pd.mname LIKE ?
+                   OR CONCAT(pd.fname, ' ', pd.mname, ' ', pd.lname) LIKE ?
+                   OR CONCAT(pd.lname, ' ', pd.fname, ' ', pd.mname) LIKE ?
                    OR pd.phone_cell LIKE ?
                    OR pd.phone_home LIKE ?
                    OR pd.phone_biz LIKE ?
+                   OR pd.email LIKE ?
                    OR nl.pid = ?)";
+        
+        $params = [$like, $like, $like, $like, $like, $like, $like, $like, $like, $like, $pidSearch];
 
-        if ($dateFrom && $dateTo) {
-            $where .= " AND DATE(nl.dSentDateTime) BETWEEN ? AND ?";
-            $params[] = $dateFrom;
-            $params[] = $dateTo;
+        if (!empty($dateFrom) && !empty($dateTo)) {
+            $where .= " AND nl.dSentDateTime >= ? AND nl.dSentDateTime <= ?";
+            $params[] = $dateFrom . ' 00:00:00';
+            $params[] = $dateTo . ' 23:59:59';
         }
 
         if ($type && in_array($type, ['WSP', 'Email'])) {
@@ -146,10 +152,7 @@ class NotificationLog
                 LEFT JOIN openemr_postcalendar_events pe ON pe.pc_eid = nl.pc_eid
                 WHERE $where
                 ORDER BY nl.dSentDateTime DESC
-                LIMIT ? OFFSET ?";
-
-        $params[] = $limit;
-        $params[] = $offset;
+                LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
 
         $res  = sqlStatement($sql, $params);
         $rows = [];

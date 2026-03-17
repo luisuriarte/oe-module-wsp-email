@@ -11,6 +11,7 @@
 $sessionAllowWrite = false;
 require_once __DIR__ . '/../../../../../globals.php';
 require_once __DIR__ . '/../../src/NotificationLog.php';
+require_once $GLOBALS['srcdir'] . '/formatting.inc.php';
 
 use OpenEMR\Modules\WspEmail\NotificationLog;
 
@@ -23,11 +24,15 @@ if (!AclMain::aclCheckCore('patients', 'demo')) {
     exit;
 }
 
-$from       = $_GET['from']        ?? date('Y-m-d', strtotime('-7 days'));
-$to         = $_GET['to']          ?? date('Y-m-d');
+$from       = $_GET['from']        ?? '';
+$to         = $_GET['to']          ?? '';
 $facilityId = isset($_GET['facility_id']) && $_GET['facility_id'] !== '' ? (int)$_GET['facility_id'] : null;
 
-// Basic date validation
+// Parse localized dates
+$from = !empty($from) ? DateToYYYYMMDD($from) : date('Y-m-d', strtotime('-7 days'));
+$to   = !empty($to)   ? DateToYYYYMMDD($to)   : date('Y-m-d');
+
+// Basic date validation fallback
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $from = date('Y-m-d', strtotime('-7 days'));
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to))   $to   = date('Y-m-d');
 
