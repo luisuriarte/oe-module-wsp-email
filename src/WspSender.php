@@ -178,50 +178,89 @@ class WspSender
         array  $config,  array  &$log
     ): array {
         $to      = '+549' . $phone;
-        $headers = ['Authorization' => "Bearer $apiKey", 'Content-Type' => 'application/json', 'Accept' => 'application/json'];
+        $headers = [
+            'Authorization' => "Bearer $apiKey",
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json'
+        ];
         $url     = 'https://www.wasenderapi.com/api/send-message';
         $msgId   = null;
 
         // 1. Send image + message
         if (!empty($logoUrl)) {
-            $resp = $this->http->post($url, [
-                'headers' => $headers,
-                'json'    => ['to' => $to, 'text' => $message, 'imageUrl' => $logoUrl],
-            ]);
-            $log[] = 'WaSenderAPI: image+text sent.';
+            try {
+                $resp = $this->http->post($url, [
+                    'headers' => $headers,
+                    'json'    => ['to' => $to, 'text' => $message, 'imageUrl' => $logoUrl],
+                ]);
+                $log[] = 'WaSenderAPI (imagen): image+text sent.';
+            } catch (RequestException $e) {
+                $log[] = "Error en WaSenderAPI (imagen): " . $e->getMessage();
+                if ($e->hasResponse()) {
+                    $log[] = "Respuesta: " . $e->getResponse()->getBody();
+                }
+                return ['status' => 'error', 'msgId' => null, 'log' => implode("\n", $log)];
+            }
         }
 
         // 2. Send iCalendar document
         if (!empty($icsUrl)) {
-            $resp  = $this->http->post($url, [
-                'headers' => $headers,
-                'json'    => [
-                    'to'          => $to,
-                    'text'        => ($config['facility_name'] ?? '') . ': Press the attachment to save your appointment.',
-                    'documentUrl' => $icsUrl,
-                    'mimeType'    => 'text/calendar',
-                ],
-            ]);
-            $body  = json_decode((string)$resp->getBody(), true);
-            $msgId = $body['data']['msgId'] ?? null;
-            $log[] = 'WaSenderAPI: .ics sent. msgId=' . $msgId;
+            $log[] = "WaSenderAPI: Esperando 60 segundos antes de enviar el archivo .ics (restricción de la versión de prueba)";
+            sleep(60);
+
+            try {
+                $resp  = $this->http->post($url, [
+                    'headers' => $headers,
+                    'json'    => [
+                        'to'          => $to,
+                        'text'        => ($config['facility_name'] ?? '') . ': Press the attachment to save your appointment.',
+                        'documentUrl' => $icsUrl,
+                        'mimeType'    => 'text/calendar',
+                    ],
+                ]);
+                $body  = json_decode((string)$resp->getBody(), true);
+                if (!empty($body['success']) && isset($body['data']['msgId'])) {
+                    $msgId = $body['data']['msgId'];
+                }
+                $log[] = 'WaSenderAPI (iCalendar): .ics sent. msgId=' . $msgId;
+            } catch (RequestException $e) {
+                $log[] = "Error en WaSenderAPI (iCalendar): " . $e->getMessage();
+                if ($e->hasResponse()) {
+                    $log[] = "Respuesta: " . $e->getResponse()->getBody();
+                }
+            }
         }
 
         // 3. Send location (if coordinates available)
         if (!empty($config['latitude']) && !empty($config['longitude'])) {
-            $this->http->post($url, [
-                'headers' => $headers,
-                'json'    => [
-                    'to'       => $to,
-                    'location' => [
-                        'latitude'  => (float)$config['latitude'],
-                        'longitude' => (float)$config['longitude'],
-                        'name'      => $config['facility_name'] ?? '',
-                        'address'   => $config['facility_address'] ?? '',
+            $log[] = "WaSenderAPI: Esperando 60 segundos antes de enviar la ubicación (restricción de la versión de prueba)";
+            sleep(60);
+
+            try {
+                $resp = $this->http->post($url, [
+                    'headers' => $headers,
+                    'json'    => [
+                        'to'       => $to,
+                        'text'     => "Ubicación de " . ($config['facility_name'] ?? 'Facility'),
+                        'location' => [
+                            'latitude'  => (float)$config['latitude'],
+                            'longitude' => (float)$config['longitude'],
+                            'name'      => $config['facility_name'] ?? '',
+                            'address'   => ($config['facility_address'] ?? '') . ', ' . ($config['facility_name'] ?? ''),
+                        ],
                     ],
-                ],
-            ]);
-            $log[] = 'WaSenderAPI: location sent.';
+                ]);
+                $body = json_decode((string)$resp->getBody(), true);
+                if (!empty($body['success']) && isset($body['data']['msgId'])) {
+                    $msgId = $body['data']['msgId'];
+                }
+                $log[] = 'WaSenderAPI (ubicación): location sent. msgId=' . $msgId;
+            } catch (RequestException $e) {
+                $log[] = "Error en WaSenderAPI (ubicación): " . $e->getMessage();
+                if ($e->hasResponse()) {
+                    $log[] = "Respuesta: " . $e->getResponse()->getBody();
+                }
+            }
         }
 
         return ['status' => $msgId ? 'success' : 'error', 'msgId' => $msgId, 'log' => ''];
