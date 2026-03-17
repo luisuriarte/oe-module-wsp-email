@@ -54,12 +54,10 @@ class EmailSender
         // Build Google Calendar link
         $gcalUrl = $this->buildGoogleCalendarUrl($subject, $messageBody, $startDate, $endDate, $facilityAddr);
 
-        // Build static map URL (Geoapify)
-        $mapImgUrl  = '';
+        // Build map URL
         $mapLinkUrl = '';
-        if ($latitude && $longitude && $geoapifyKey) {
-            $mapImgUrl  = $this->buildStaticMapUrl((float)$latitude, (float)$longitude, $geoapifyKey);
-            $mapLinkUrl = "https://www.openstreetmap.org/?mlat={$latitude}&mlon={$longitude}#map=15/{$latitude}/{$longitude}";
+        if ($latitude && $longitude) {
+            $mapLinkUrl = "https://www.google.com/maps/search/?api=1&query={$latitude},{$longitude}";
         }
 
         // Build iCalendar content
@@ -68,7 +66,7 @@ class EmailSender
 
         // Build HTML email body
         $htmlBody = $this->buildHtmlBody($messageBody, $facilityName, $facilityAddr, $facilityPhone,
-                                          $facilityEmail, $facilityUrl, $gcalUrl, $mapImgUrl, $mapLinkUrl);
+                                          $facilityEmail, $facilityUrl, $gcalUrl, $mapLinkUrl);
 
         // Configure and send via PHPMailer
         return $this->dispatch($to, $patientName, $facilityEmail, $facilityName, $subject,
@@ -140,18 +138,17 @@ class EmailSender
     private function buildHtmlBody(
         string $messageBody, string $facilityName, string $facilityAddr,
         string $facilityPhone, string $facilityEmail, string $facilityUrl,
-        string $gcalUrl, string $mapImgUrl, string $mapLinkUrl
+        string $gcalUrl, string $mapLinkUrl
     ): string {
         $logoTag  = '<img src="cid:logo" alt="' . htmlspecialchars($facilityName) . '" style="max-width:200px;">';
         $mapBlock = '';
-        if ($mapImgUrl && $mapLinkUrl) {
+        if ($mapLinkUrl) {
             $mapBlock = '
             <p style="margin-top:24px;">
-                <a href="' . htmlspecialchars($mapLinkUrl) . '" target="_blank">
-                    <img src="' . htmlspecialchars($mapImgUrl) . '" alt="Facility location map"
-                         style="max-width:100%;border-radius:8px;border:1px solid #ddd;">
+                <a href="' . htmlspecialchars($mapLinkUrl) . '" target="_blank"
+                   style="display:inline-block;padding:10px 20px;background-color:#007bff;color:#fff;text-decoration:none;border-radius:5px;">
+                   View Location on Google Maps
                 </a>
-                <br><small>Click the map to open interactive directions.</small>
             </p>';
         }
         $gcalLink = $gcalUrl ? '<p><a href="' . htmlspecialchars($gcalUrl) . '" target="_blank">Add to Google Calendar</a></p>' : '';
@@ -181,9 +178,6 @@ class EmailSender
 </html>';
     }
 
-    // -------------------------------------------------------------------------
-    // iCalendar content builder (RFC 5545)
-    // -------------------------------------------------------------------------
     private function buildIcsContent(
         string $startDate, string $endDate, string $summary, string $description,
         string $organizer, string $organizerEmail, string $location, string $url,
@@ -234,9 +228,6 @@ class EmailSender
              . "END:VCALENDAR\r\n";
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
     private function escapeIcal(string $value): string
     {
         return str_replace(['\\', "\n", "\r", ',', ';'], ['\\\\', '\\n', '', '\\,', '\\;'], $value);
@@ -250,15 +241,5 @@ class EmailSender
              . '&dates='    . date('Ymd\THis', strtotime($start)) . '/' . date('Ymd\THis', strtotime($end))
              . '&details='  . rawurlencode($details)
              . '&location=' . rawurlencode($location);
-    }
-
-    private function buildStaticMapUrl(float $lat, float $lon, string $apiKey, int $zoom = 15): string
-    {
-        return 'https://maps.geoapify.com/v1/staticmap'
-             . '?style=osm-carto&width=600&height=300'
-             . '&center=lonlat:' . $lon . ',' . $lat
-             . '&zoom=' . $zoom
-             . '&marker=lonlat:' . $lon . ',' . $lat . ';color:red;size:medium'
-             . '&apiKey=' . rawurlencode($apiKey);
     }
 }

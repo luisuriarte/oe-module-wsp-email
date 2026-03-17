@@ -9,7 +9,7 @@ tracks delivery status via webhook, and provides a dashboard with charts.
 
 ## Features
 
-- **Multi-vendor WhatsApp** support: WaSenderAPI, WaApi, UltraMsg
+- **Multi-vendor WhatsApp** support: WaSenderAPI, UltraMsg
 - **Email** with HTML template, static map (Geoapify), Google Calendar link, and iCal attachment
 - **Dashboard** — Charts (Chart.js) + summary cards for sent/pending/failed messages
 - **Patient Status** tab — Search notification history + webhook delivery status

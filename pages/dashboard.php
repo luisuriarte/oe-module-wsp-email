@@ -14,17 +14,20 @@
  * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
  */
 
-$sessionAllowWrite = true;
+$ignoreAuth = false;
+$fake_session_allow_write = true; // backward compat
 require_once __DIR__ . '/../../../../globals.php';
+
 require_once __DIR__ . '/../src/FacilityConfig.php';
 require_once __DIR__ . '/../src/NotificationLog.php';
 
 use OpenEMR\Core\Header;
+use OpenEMR\Common\Acl\AclMain;
 use OpenEMR\Modules\WspEmail\FacilityConfig;
 use OpenEMR\Modules\WspEmail\NotificationLog;
 
 // ACL check
-if (!acl_check('patients', 'demo')) {
+if (!AclMain::aclCheckCore('patients', 'demo')) {
     die(xlt('Access Denied'));
 }
 
@@ -230,7 +233,7 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
     ==================================================================== -->
     <div id="tab-facility" class="<?php echo in_array($activeTab, ['facility','config']) ? '' : 'd-none'; ?>">
 
-        <?php if (acl_check('admin', 'docs')): ?>
+        <?php if (AclMain::aclCheckCore('admin', 'super')): ?>
         <div class="row">
             <!-- Facility list -->
             <div class="col-md-4" id="facilityList">
@@ -262,7 +265,6 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                                 <label class="form-label"><?php echo xlt('Vendor'); ?></label>
                                 <select name="vendor" id="cfgVendor" class="form-select form-select-sm">
                                     <option value="wasenderapi">WaSenderAPI</option>
-                                    <option value="waapi">WaApi</option>
                                     <option value="ultramsg">UltraMsg</option>
                                 </select>
                             </div>
@@ -294,9 +296,8 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                                 <input type="text" name="logo_email" id="cfgLogoEmail" class="form-control form-control-sm"
                                        placeholder="/var/www/html/openemr/modules/wsp-email/public/logo_email.png">
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label"><?php echo xlt('Geoapify Key (maps)'); ?></label>
-                                <input type="text" name="geoapify_key" id="cfgGeoapifyKey" class="form-control form-control-sm">
+                            <div class="col-md-12 text-muted small">
+                                <i class="fas fa-info-circle me-1"></i><?php echo xlt('Maps: used to generate Google Maps / OSM links in messages.'); ?>
                             </div>
                         </div>
 
@@ -307,13 +308,13 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                                 <label class="form-label"><?php echo xlt('Website URL'); ?></label>
                                 <input type="url" name="website_url" id="cfgWebsite" class="form-control form-control-sm">
                             </div>
-                            <div class="col-md-3">
+                             <div class="col-md-3">
                                 <label class="form-label"><?php echo xlt('Latitude'); ?></label>
-                                <input type="number" step="0.000001" name="latitude" id="cfgLat" class="form-control form-control-sm">
+                                <input type="number" step="0.000001" name="latitude" id="cfgLat" class="form-control form-control-sm" placeholder="-34.6037">
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label"><?php echo xlt('Longitude'); ?></label>
-                                <input type="number" step="0.000001" name="longitude" id="cfgLon" class="form-control form-control-sm">
+                                <input type="number" step="0.000001" name="longitude" id="cfgLon" class="form-control form-control-sm" placeholder="-58.3816">
                             </div>
                         </div>
 
@@ -372,8 +373,8 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                             <code>***DATE***</code> &mdash; <?php echo xlt('Appointment date'); ?><br>
                             <code>***STARTTIME***</code> / <code>***ENDTIME***</code> &mdash; <?php echo xlt('Appointment start/end time'); ?><br>
                             <code>***FACILITY_NAME***</code> / <code>***FACILITY_ADDRESS***</code> /
-                            <code>***FACILITY_PHONE***</code> / <code>***FACILITY_EMAIL***</code>
-                            &mdash; <?php echo xlt('Taken from the Facility record in OpenEMR'); ?>
+                             <code>***FACILITY_PHONE***</code> / <code>***FACILITY_EMAIL***</code> / <code>***FACILITY_MAP_LINK***</code>
+                            &mdash; <?php echo xlt('Taken from the Facility record in OpenEMR / coordinates'); ?>
                         </p>
                         <div class="mb-3">
                             <label class="form-label"><?php echo xlt('WhatsApp message template'); ?></label>
@@ -519,7 +520,6 @@ function loadFacilityConfig(facilityId) {
             document.getElementById('cfgWebhookSecret').value   = c.webhook_secret      || '';
             document.getElementById('cfgLogoWsp').value         = c.logo_wsp            || '';
             document.getElementById('cfgLogoEmail').value       = c.logo_email          || '';
-            document.getElementById('cfgGeoapifyKey').value     = c.geoapify_key        || '';
             document.getElementById('cfgWebsite').value         = c.website_url         || '';
             document.getElementById('cfgLat').value             = c.latitude            || '';
             document.getElementById('cfgLon').value             = c.longitude           || '';

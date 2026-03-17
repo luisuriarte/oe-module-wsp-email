@@ -16,7 +16,8 @@ use OpenEMR\Modules\WspEmail\FacilityConfig;
 
 header('Content-Type: application/json');
 
-if (!acl_check('admin', 'docs')) {
+use OpenEMR\Common\Acl\AclMain;
+if (!AclMain::aclCheckCore('admin', 'super')) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Access denied — admin required']);
     exit;
@@ -39,7 +40,6 @@ $data = [
     'latitude'            => trim($_POST['latitude']             ?? ''),
     'longitude'           => trim($_POST['longitude']            ?? ''),
     'website_url'         => trim($_POST['website_url']          ?? ''),
-    'geoapify_key'        => trim($_POST['geoapify_key']         ?? ''),
     'wsp_message'         => $_POST['wsp_message']               ?? '',
     'email_message'       => $_POST['email_message']             ?? '',
     'email_subject'       => trim($_POST['email_subject']        ?? ''),
@@ -54,7 +54,7 @@ if ($data['facility_id'] === 0) {
 }
 
 // Validate vendor value
-$allowedVendors = ['wasenderapi', 'waapi', 'ultramsg'];
+$allowedVendors = ['wasenderapi', 'ultramsg'];
 if (!in_array($data['vendor'], $allowedVendors, true)) {
     echo json_encode(['success' => false, 'error' => 'Invalid vendor']);
     exit;

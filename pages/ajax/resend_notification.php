@@ -24,7 +24,8 @@ use OpenEMR\Modules\WspEmail\NotificationService;
 
 header('Content-Type: application/json');
 
-if (!acl_check('patients', 'demo')) {
+use OpenEMR\Common\Acl\AclMain;
+if (!AclMain::aclCheckCore('patients', 'demo')) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Access denied']);
     exit;

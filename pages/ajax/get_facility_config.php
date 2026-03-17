@@ -16,7 +16,8 @@ use OpenEMR\Modules\WspEmail\FacilityConfig;
 
 header('Content-Type: application/json');
 
-if (!acl_check('admin', 'docs')) {
+use OpenEMR\Common\Acl\AclMain;
+if (!AclMain::aclCheckCore('admin', 'super')) {
     http_response_code(403);
     echo json_encode(['error' => 'Access denied — admin required']);
     exit;

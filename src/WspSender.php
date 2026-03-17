@@ -2,8 +2,7 @@
 /**
  * WspSender — Sends WhatsApp notifications via multiple vendor APIs.
  *
- * Supported vendors: waapi, ultramsg, wasenderapi
- * Each vendor receives: a media image (logo), the message body, and
+ * Supported vendors: ultramsg, wasenderapi
  * optionally an iCalendar (.ics) file and a location pin.
  *
  * @package   OpenEMR\Modules\WspEmail
@@ -54,13 +53,8 @@ class WspSender
         }
 
         $log[] = "WspSender::send() — vendor=$vendor, phone=$phone";
-
         try {
             switch ($vendor) {
-                case 'waapi':
-                    $result = $this->sendViaWaApi($instance, $apiKey, $phone, $message, $logoUrl, $icsUrl, $config, $log);
-                    break;
-
                 case 'ultramsg':
                     $result = $this->sendViaUltraMsg($instance, $apiKey, $phone, $message, $logoUrl, $icsUrl, $config, $log);
                     break;
@@ -79,52 +73,6 @@ class WspSender
 
         $result['log'] = implode("\n", $log);
         return $result;
-    }
-
-    // -------------------------------------------------------------------------
-    // WaApi  (https://waapi.app)
-    // -------------------------------------------------------------------------
-    private function sendViaWaApi(
-        string $instance, string $apiKey, string $phone,
-        string $message,  string $logoUrl, string $icsUrl,
-        array  $config,   array  &$log
-    ): array {
-        $chatId  = '549' . $phone . '@c.us';
-        $baseUrl = "https://waapi.app/api/v1/instances/$instance/client/action/send-media";
-        $headers = [
-            'accept'        => 'application/json',
-            'content-type'  => 'application/json',
-            'authorization' => "Bearer $apiKey",
-        ];
-
-        // 1. Send logo image with caption
-        if (!empty($logoUrl)) {
-            $this->http->post($baseUrl, [
-                'headers' => $headers,
-                'json'    => ['chatId' => $chatId, 'mediaUrl' => $logoUrl, 'mediaCaption' => $message],
-            ]);
-            $log[] = 'WaApi: image sent.';
-        }
-
-        // 2. Send iCalendar file
-        $msgId = null;
-        if (!empty($icsUrl)) {
-            $resp  = $this->http->post($baseUrl, [
-                'headers' => $headers,
-                'json'    => [
-                    'chatId'       => $chatId,
-                    'mediaUrl'     => $icsUrl,
-                    'mediaName'    => 'appointment.ics',
-                    'mediaCaption' => ($config['facility_name'] ?? '') . ': Press the attachment to save your appointment.',
-                ],
-            ]);
-            $body  = json_decode((string)$resp->getBody(), true);
-            $msgId = $body['data']['msgId'] ?? null;
-            $log[] = 'WaApi: .ics sent. msgId=' . $msgId;
-        }
-
-        $status = $msgId ? 'in_progress' : 'error';
-        return ['status' => $msgId ? 'success' : 'error', 'msgId' => $msgId, 'log' => ''];
     }
 
     // -------------------------------------------------------------------------
@@ -309,7 +257,12 @@ class WspSender
 
         $find    = ['***NAME***','***PROVIDER***','***USER_PREFFIX***','***DATE***',
                     '***STARTTIME***','***ENDTIME***','***FACILITY_NAME***',
-                    '***FACILITY_ADDRESS***','***FACILITY_PHONE***','***FACILITY_EMAIL***'];
+                    '***FACILITY_ADDRESS***','***FACILITY_PHONE***','***FACILITY_EMAIL***','***FACILITY_MAP_LINK***'];
+        $mapLink = '';
+        if (!empty($patient['latitude']) && !empty($patient['longitude'])) {
+            $mapLink = "https://www.google.com/maps/search/?api=1&query=" . $patient['latitude'] . "," . $patient['longitude'];
+        }
+
         $replace = [
             $name,
             trim(($patient['user_name'] ?? '')),
@@ -321,6 +274,7 @@ class WspSender
             $patient['facility_address'] ?? '',
             $patient['facility_phone']   ?? '',
             $patient['facility_email']   ?? '',
+            $mapLink
         ];
 
         return str_replace($find, $replace, $template);

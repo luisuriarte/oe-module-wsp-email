@@ -38,7 +38,7 @@ class FacilityConfig
                        CONCAT(f.street, ', ', f.city, ', ', f.state) AS facility_address,
                        wfc.id, wfc.vendor, wfc.vendor_instance, wfc.vendor_api_key,
                        wfc.webhook_secret, wfc.logo_wsp, wfc.logo_email,
-                       wfc.latitude, wfc.longitude, wfc.website_url, wfc.geoapify_key,
+                       wfc.latitude, wfc.longitude, wfc.website_url,
                        wfc.wsp_message, wfc.email_message, wfc.email_subject,
                        wfc.enabled_wsp, wfc.enabled_email
                 FROM facility f
@@ -78,7 +78,6 @@ class FacilityConfig
             'latitude'         => $data['latitude']         ?? null,
             'longitude'        => $data['longitude']        ?? null,
             'website_url'      => $data['website_url']      ?? null,
-            'geoapify_key'     => $data['geoapify_key']     ?? null,
             'wsp_message'      => $data['wsp_message']      ?? null,
             'email_message'    => $data['email_message']    ?? null,
             'email_subject'    => $data['email_subject']    ?? null,
