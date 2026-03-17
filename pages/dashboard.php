@@ -166,9 +166,28 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
             background-color: #28a745;
         }
 
-        .custom-checkbox input:checked + .slider:before {
-            transform: translateX(20px);
+        /* Inactive Facility Styles */
+        .facility-card.inactive {
+            opacity: 0.6;
+            filter: grayscale(40%);
+            border: 1px dashed #adb5bd;
         }
+        .facility-card.inactive .card-body {
+            background-color: #f8f9fa;
+        }
+        .inactive-legend {
+            color: #dc3545;
+            font-weight: 600;
+            font-size: 0.85rem;
+            display: block;
+            margin-top: 5px;
+        }
+        .chart-inactive { opacity: 0.45; pointer-events: none; transition: opacity 0.3s ease; }
+
+    /* Configuration Lockout */
+    .facility-config-inactive { opacity: 0.7; pointer-events: none !important; }
+    .facility-config-inactive .btn-save { display: none !important; }
+    .facility-config-inactive .btn-cancel { pointer-events: auto !important; opacity: 1; }
     </style>
 </head>
 <body>
@@ -249,10 +268,11 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                 <div class="col-auto">
                     <label class="form-label mb-1"><?php echo xlt('Facility'); ?></label>
                     <select id="statsFacility" class="form-select form-select-sm">
-                        <option value=""><?php echo xlt('All facilities'); ?></option>
-                        <?php foreach ($facilities as $f): ?>
-                        <option value="<?php echo attr($f['facility_id']); ?>">
-                            <?php echo text($f['facility_name']); ?>
+                        <option value=""><?php echo xlt('All Facilities'); ?></option>
+                        <?php foreach ($facilities as $sf): ?>
+                        <option value="<?php echo attr((string)$sf['facility_id']); ?>" 
+                                data-inactive="<?php echo (int)($sf['inactive'] ?? 0); ?>">
+                            <?php echo text($sf['facility_name']); ?>
                         </option>
                         <?php endforeach; ?>
                     </select>
@@ -343,10 +363,20 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
             <!-- Facility list -->
             <div class="col-md-4" id="facilityList">
                 <h6 class="text-muted mb-2"><i class="fas fa-hospital me-1"></i><?php echo xlt('Select a facility to configure'); ?></h6>
-                <?php foreach ($facilities as $f): ?>
-                <div class="facility-card" onclick="loadFacilityConfig(<?php echo attr_js((string)$f['facility_id']); ?>)">
+                <?php foreach ($facilities as $f): 
+                    $isInactive = (int)($f['inactive'] ?? 0) === 1;
+                ?>
+                <div class="facility-card <?php echo $isInactive ? 'inactive' : ''; ?>" 
+                     onclick="loadFacilityConfig(<?php echo attr_js((string)$f['facility_id']); ?>)">
                     <strong><?php echo text($f['facility_name']); ?></strong><br>
                     <small class="text-muted"><?php echo text($f['facility_address'] ?? ''); ?></small><br>
+                    
+                    <?php if ($isInactive): ?>
+                        <span class="inactive-legend">
+                            <i class="fas fa-exclamation-circle me-1"></i><?php echo xlt('Centro desactivado. Activelo para su uso'); ?>
+                        </span>
+                    <?php endif; ?>
+
                     <?php if (!empty($f['vendor'])): ?>
                     <span class="badge bg-success mt-1"><?php echo text($f['vendor']); ?></span>
                     <?php else: ?>
@@ -362,6 +392,11 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                     <h5 id="facilityConfigTitle" class="mb-3"></h5>
                     <form id="facilityConfigForm" enctype="multipart/form-data">
                         <input type="hidden" id="cfgFacilityId" name="facility_id">
+
+                        <div id="inactiveWarning" class="alert alert-warning py-2 mb-3" style="display:none;">
+                            <i class="fas fa-lock me-1"></i>
+                            <?php echo xlt('Este centro está desactivado. No se permite editar su configuración.'); ?>
+                        </div>
 
                         <!-- Vendor settings -->
                         <h6 class="text-success"><?php echo xlt('WhatsApp Gateway'); ?></h6>
@@ -491,12 +526,15 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                         <p class="text-muted small mb-1">
                             <strong><?php echo xlt('Available tokens'); ?>:</strong><br>
                             <code>***NAME***</code> &mdash; <?php echo xlt('Patient full name'); ?><br>
+                            <code>***PID***</code> &mdash; <?php echo xlt('Patient ID'); ?><br>
                             <code>***PROVIDER***</code> &mdash; <?php echo xlt('Provider name'); ?><br>
                             <code>***USER_PREFFIX***</code> &mdash; <?php echo xlt('Provider title / suffix (from Users)'); ?><br>
                             <code>***DATE***</code> &mdash; <?php echo xlt('Appointment date'); ?><br>
                             <code>***STARTTIME***</code> / <code>***ENDTIME***</code> &mdash; <?php echo xlt('Appointment start/end time'); ?><br>
+                            <code>***TITLE***</code> / <code>***REASON***</code> &mdash; <?php echo xlt('Appointment title and reason'); ?><br>
                             <code>***FACILITY_NAME***</code> / <code>***FACILITY_ADDRESS***</code> /
-                             <code>***FACILITY_PHONE***</code> / <code>***FACILITY_EMAIL***</code> / <code>***FACILITY_MAP_LINK***</code>
+                             <code>***FACILITY_PHONE***</code> / <code>***FACILITY_EMAIL***</code> /<br>
+                             <code>***FACILITY_MAP_LINK***</code> / <code>***FACILITY_WEBSITE***</code>
                             &mdash; <?php echo xlt('Taken from the Facility record in OpenEMR / coordinates'); ?>
                         </p>
                         <div class="mb-3">
@@ -513,10 +551,10 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                         </div>
 
                         <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-success">
+                            <button type="submit" class="btn btn-success btn-save">
                                 <i class="fas fa-save me-1"></i><?php echo xlt('Save Configuration'); ?>
                             </button>
-                            <button type="button" id="btnCancelConfig" class="btn btn-outline-secondary">
+                            <button type="button" id="btnCancelConfig" class="btn btn-outline-secondary btn-cancel">
                                 <i class="fas fa-times me-1"></i><?php echo xlt('Cancel'); ?>
                             </button>
                             <span id="cfgSaveMsg" class="align-self-center text-success" style="display:none;">
@@ -572,7 +610,20 @@ function buildChart(stats) {
 function loadStats() {
     const from     = document.getElementById('statsFrom').value;
     const to       = document.getElementById('statsTo').value;
-    const facility = document.getElementById('statsFacility').value;
+    const facilitySelect = document.getElementById('statsFacility');
+    const facility = facilitySelect.value;
+    
+    // Check if selected facility is inactive
+    const selectedOption = facilitySelect.options[facilitySelect.selectedIndex];
+    const isInactive = selectedOption?.dataset.inactive === '1';
+    const chartCanvas = document.getElementById('chartNotifications');
+    
+    if (isInactive) {
+        chartCanvas.classList.add('chart-inactive');
+    } else {
+        chartCanvas.classList.remove('chart-inactive');
+    }
+
     fetch(`${moduleRoot}/pages/ajax/get_stats.php?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&facility_id=${encodeURIComponent(facility)}`)
         .then(r => r.json())
         .then(data => buildChart(data.stats || []))
@@ -765,7 +816,32 @@ function loadFacilityConfig(facilityId) {
         .then(data => {
             const c = data.config || {};
             document.getElementById('facilityConfigCard').style.display = 'block';
-            document.getElementById('facilityConfigTitle').textContent = data.facility_name || '';
+            // Update lockout state
+            const isInactive = parseInt(data.inactive ?? 0) === 1;
+            const card       = document.getElementById('facilityConfigCard');
+            const title      = document.getElementById('facilityConfigTitle');
+            const form       = document.getElementById('facilityConfigForm');
+            const warn       = document.getElementById('inactiveWarning');
+            const saveBtn    = form.querySelector('button[type="submit"]');
+            const cancelBtn  = document.getElementById('btnCancelConfig');
+            
+            title.textContent = data.facility_name || '';
+            if (isInactive) {
+                title.innerHTML += ` <span class="badge bg-danger ms-2 small" style="font-size:0.65em;">${<?php echo js_escape(xlt('INACTIVO')); ?>}</span>`;
+                card.classList.add('facility-config-inactive');
+                warn.style.display = 'block';
+                // Recursive disable
+                form.querySelectorAll('input, select, textarea, button').forEach(el => {
+                    if (el !== cancelBtn) el.disabled = true;
+                });
+            } else {
+                card.classList.remove('facility-config-inactive');
+                warn.style.display = 'none';
+                form.querySelectorAll('input, select, textarea, button').forEach(el => {
+                    el.disabled = false;
+                });
+            }
+
             document.getElementById('cfgFacilityId').value      = facilityId;
             document.getElementById('cfgVendor').value          = c.vendor              || 'wasenderapi';
             document.getElementById('cfgInstance').value        = c.vendor_instance     || '';
@@ -807,6 +883,7 @@ function loadFacilityConfig(facilityId) {
             document.getElementById('cfgEmailMsg').value        = c.email_message       || '';
             document.getElementById('facilityConfigForm').style.display = 'block';
 
+
             // Load notification schedule slots
             const slots  = data.schedule || [];
             const tbody  = document.getElementById('scheduleBody');
@@ -816,6 +893,21 @@ function loadFacilityConfig(facilityId) {
             } else {
                 // Default: one slot, 48h before, no on-booking
                 appendScheduleRow({ seq: 1, hours_before: 48, send_on_booking: 0, enabled_wsp: 1, enabled_email: 1 });
+            }
+
+            // Map interactions
+            if (isInactive && facilityMap) {
+                facilityMap.dragging.disable();
+                facilityMap.touchZoom.disable();
+                facilityMap.doubleClickZoom.disable();
+                facilityMap.scrollWheelZoom.disable();
+                document.getElementById('facilityMap').style.opacity = '0.6';
+            } else if (facilityMap) {
+                facilityMap.dragging.enable();
+                facilityMap.touchZoom.enable();
+                facilityMap.doubleClickZoom.enable();
+                facilityMap.scrollWheelZoom.enable();
+                document.getElementById('facilityMap').style.opacity = '1';
             }
         });
 }
@@ -961,6 +1053,8 @@ function initFacilityMap(lat, lon) {
         }).addTo(facilityMap);
 
         facilityMap.on('click', function(e) {
+            // Block map updates if facility is inactive
+            if (document.getElementById('inactiveWarning')?.style.display === 'block') return;
             updateMarker(e.latlng.lat, e.latlng.lng);
         });
 

@@ -29,10 +29,13 @@ if ($facilityId === 0) {
     exit;
 }
 
-$fc     = new FacilityConfig();
-$config = $fc->getByFacilityId($facilityId);
+$fc       = new FacilityConfig();
+$config   = $fc->getByFacilityId($facilityId);
+$schedule = $fc->getSchedule($facilityId);
 
 echo json_encode([
     'config'        => $config,
     'facility_name' => $config['facility_name'] ?? '',
+    'inactive'      => (int)($config['inactive'] ?? 0),
+    'schedule'      => $schedule,
 ]);

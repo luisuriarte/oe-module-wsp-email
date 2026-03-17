@@ -311,6 +311,9 @@ class NotificationService
         $patient['facility_address'] = $config['facility_address'] ?? '';
         $patient['facility_phone']   = $config['facility_phone']   ?? '';
         $patient['facility_email']   = $config['facility_email']   ?? '';
+        $patient['latitude']         = $config['latitude']         ?? '';
+        $patient['longitude']        = $config['longitude']        ?? '';
+        $patient['website_url']      = $config['website_url']      ?? '';
     }
 
     /** Records the notification attempt in notification_log including the seq number. */

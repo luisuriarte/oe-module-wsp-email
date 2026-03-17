@@ -19,11 +19,11 @@ class FacilityConfig
     {
         $sql = "SELECT wfc.*, f.name AS facility_name, f.street, f.city, f.state,
                        f.phone AS facility_phone, f.email AS facility_email,
-                       f.website AS website_url,
+                       f.website AS website_url, f.inactive,
                        CONCAT(f.street, ', ', f.city, ', ', f.state) AS facility_address
-                FROM wsp_email_facility_config wfc
-                INNER JOIN facility f ON f.id = wfc.facility_id
-                WHERE wfc.facility_id = ?";
+                FROM facility f
+                LEFT JOIN wsp_email_facility_config wfc ON wfc.facility_id = f.id
+                WHERE f.id = ?";
         $result = sqlQuery($sql, [$facilityId]);
         return $result ?: [];
     }
@@ -34,7 +34,7 @@ class FacilityConfig
     public function getAllFacilitiesWithConfig(): array
     {
         $sql = "SELECT f.id AS facility_id, f.name AS facility_name,
-                       f.street, f.city, f.state,
+                       f.street, f.city, f.state, f.inactive,
                        f.phone AS facility_phone, f.email AS facility_email,
                        CONCAT(f.street, ', ', f.city, ', ', f.state) AS facility_address,
                        wfc.id, wfc.vendor, wfc.vendor_instance, wfc.vendor_api_key,

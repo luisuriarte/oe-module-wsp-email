@@ -309,9 +309,14 @@ class WspSender
         $date      = $days[date('w', $dtWrk)] . ' ' . date('d', $dtWrk) . ' ' .
                      $months[(int)date('n', $dtWrk) - 1] . ' ' . date('Y', $dtWrk);
 
-        $find    = ['***NAME***','***PROVIDER***','***USER_PREFFIX***','***DATE***',
-                    '***STARTTIME***','***ENDTIME***','***FACILITY_NAME***',
-                    '***FACILITY_ADDRESS***','***FACILITY_PHONE***','***FACILITY_EMAIL***','***FACILITY_MAP_LINK***'];
+        $find    = [
+            '***NAME***', '***PROVIDER***', '***USER_PREFFIX***', '***DATE***',
+            '***STARTTIME***', '***ENDTIME***', '***FACILITY_NAME***',
+            '***FACILITY_ADDRESS***', '***FACILITY_PHONE***', '***FACILITY_EMAIL***',
+            '***FACILITY_MAP_LINK***', '***FACILITY_WEBSITE***',
+            '***PID***', '***REASON***', '***TITLE***'
+        ];
+
         $mapLink = '';
         if (!empty($patient['latitude']) && !empty($patient['longitude'])) {
             $mapLink = "https://www.google.com/maps/search/?api=1&query=" . $patient['latitude'] . "," . $patient['longitude'];
@@ -328,7 +333,11 @@ class WspSender
             $patient['facility_address'] ?? '',
             $patient['facility_phone']   ?? '',
             $patient['facility_email']   ?? '',
-            $mapLink
+            $mapLink,
+            $patient['website_url']      ?? '',
+            $patient['pid']              ?? '',
+            $patient['pc_hometext']       ?? '',
+            $patient['pc_title']          ?? ''
         ];
 
         return str_replace($find, $replace, $template);

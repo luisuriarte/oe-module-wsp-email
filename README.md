@@ -1,123 +1,101 @@
-# oe-module-wsp-email
+# 🚀 OpenEMR WhatsApp & Email Reminders 📅
 
-**WhatsApp & Email Appointment Notification Module for OpenEMR**
+**Automated Appointment Notifications & Interactive Dashboard for OpenEMR**
 
-Sends automatic appointment reminders to patients via WhatsApp and/or Email,
-tracks delivery status via webhook, and provides a dashboard with charts.
-
----
-
-## Features
-
-- **Multi-vendor WhatsApp** support: WaSenderAPI, UltraMsg
-- **Email** with HTML template, static map (Geoapify), Google Calendar link, and iCal attachment
-- **Dashboard** — Charts (Chart.js) + summary cards for sent/pending/failed messages
-- **Patient Status** tab — Search notification history + webhook delivery status
-- **Facility Configuration** — Per-facility API keys, logos, coordinates, message templates
-- **Webhook receiver** — Automatically updates `notification_log.status` when the vendor reports delivery
+This module empowers OpenEMR with proactive patient engagement by sending automated reminders through **WhatsApp** and **Email**. It features a modern, interactive dashboard for tracking delivery performance and a per-facility configuration system.
 
 ---
 
-## Installation
+## ✨ Key Features
 
-1. Copy (or symlink) this folder to:
-   ```
-   /openemr/interface/modules/custom_modules/oe-module-wsp-email
-   ```
-2. Go to **Admin → Modules → Manage Custom Modules** in OpenEMR.
-3. Click **Activate** next to `oe-module-wsp-email`.
-4. The installer will run `sql/install.sql` automatically.
+### 📡 Multi-Channel Notifications
+- **WhatsApp Integration**: Support for multiple vendors (WaSenderAPI, UltraMsg, etc.).
+- **Professional Email**: Beautiful HTML templates with:
+    - 🗺️ **Dynamic Maps**: Automatic links to OpenStreetMap/Google Maps.
+    - 🗓️ **Calendar Support**: iCal attachments (.ics) and direct Google Calendar links.
+    - 📎 **Logo Branding**: Customizable per-facility logos for a professional look.
+
+### 📊 Powerful Dashboard
+- **Analytics at a Glance**: Real-time charts (Chart.js) showing Sent, Pending, and Failed statuses.
+- **Patient History**: Searchable logs to verify when and how a patient was notified.
+- **Resend Capability**: Easily trigger reminders manually if a delivery fails.
+
+### 🏢 Intelligent Facility Management
+- **Granular Control**: Different API keys, templates, and coordinates per facility.
+- **Smart Safeguards**: 
+    - 🚫 **Inactive Lockout**: Inactive facilities are automatically set to read-only mode to prevent configuration errors.
+    - 🛡️ **Interactive Warnings**: Clear visual indicators and badges for inactive centers.
+- **Webhook Updates**: Automatic status tracking (Delivered, Read, etc.) via incoming vendor webhooks.
 
 ---
 
-## Cron Setup
+## 🛠️ Installation & Setup
 
-Add to your `crontab`:
+### 1. Module Deployment
+1. Download or clone this repository into:
+   `/path/to/openemr/interface/modules/custom_modules/oe-module-wsp-email`
+2. Log in to OpenEMR as an Administrator.
+3. Navigate to **Admin → Modules → Manage Custom Modules**.
+4. Locate `oe-module-wsp-email` and click **Activate**.
+5. The installer will automatically set up the required database tables.
+
+### 2. Automation (Cron Job)
+Add the following lines to your server's `crontab` to ensure notifications are sent hourly:
 
 ```cron
-# WhatsApp notifications — runs every hour
-0 * * * * php /path/to/openemr/interface/modules/custom_modules/oe-module-wsp-email/cron/cron_wsp.php site=default >> /var/log/wsp_notify.log 2>&1
+# WhatsApp Reminders
+0 * * * * php /var/www/html/openemr/interface/modules/custom_modules/oe-module-wsp-email/cron/cron_wsp.php site=default >> /var/log/wsp_notify.log 2>&1
 
-# Email notifications — runs every hour
-0 * * * * php /path/to/openemr/interface/modules/custom_modules/oe-module-wsp-email/cron/cron_email.php site=default >> /var/log/email_notify.log 2>&1
-```
-
-**Dry-run test** (no messages sent):
-```bash
-php cron/cron_wsp.php site=default dryrun=1
+# Email Reminders
+0 * * * * php /var/www/html/openemr/interface/modules/custom_modules/oe-module-wsp-email/cron/cron_email.php site=default >> /var/log/email_notify.log 2>&1
 ```
 
 ---
 
-## Webhook Configuration
+## 📝 Message Templates & Tokens
 
-Point your vendor's webhook URL to:
-```
-https://your-site/openemr/interface/modules/custom_modules/oe-module-wsp-email/webhook/webhook.php
-```
+Customize your messages using these dynamic tokens:
 
-Set `X-Webhook-Signature` in the vendor panel to match the **Webhook Secret**
-stored in the facility configuration form.
-
----
-
-## Message Template Tokens
-
-Use these tokens in WSP and Email templates — they are replaced at send time:
-
-| Token | Replaced with |
-|-------|---------------|
-| `***NAME***` | Patient full name |
-| `***PROVIDER***` | Provider name |
-| `***USER_PREFFIX***` | Provider title/suffix |
-| `***DATE***` | Appointment date (long format) |
-| `***STARTTIME***` | Appointment start time |
-| `***ENDTIME***` | Appointment end time |
-| `***FACILITY_NAME***` | Facility name |
-| `***FACILITY_ADDRESS***` | Facility address |
-| `***FACILITY_PHONE***` | Facility phone |
-| `***FACILITY_EMAIL***` | Facility email |
+| Token | Description | Example |
+| :--- | :--- | :--- |
+| `***NAME***` | Patient's Full Name | *John Doe* |
+| `***PID***` | Patient internal ID | *12345* |
+| `***PROVIDER***` | Assigned Provider | *Dr. Smith* |
+| `***USER_PREFFIX***` | Provider Suffix/Title | *MD, DDS* |
+| `***DATE***` | Appointment Date | *Monday, Oct 25* |
+| `***STARTTIME***` | Appointment Start | *10:30 AM* |
+| `***ENDTIME***` | Appointment End | *11:15 AM* |
+| `***TITLE***` | Appointment Title | *Consultation* |
+| `***REASON***` | Appointment Reason | *Routine Checkup* |
+| `***FACILITY_NAME***` | Facility Name | *City Health Center* |
+| `***FACILITY_ADDRESS***` | Full Address | *123 Main St, NY* |
+| `***FACILITY_PHONE***` | Facility Phone | *+1-555-0199* |
+| `***FACILITY_EMAIL***` | Facility Email | *clinic@example.com* |
+| `***FACILITY_WEBSITE***` | Facility Website | *https://clinic.com* |
+| `***FACILITY_MAP_LINK***` | Google Maps Link | *https://www.google.com/maps/* |
 
 ---
 
-## Directory Structure
+## 🔗 Hooking up Webhooks
 
-```
-oe-module-wsp-email/
-├── cron/
-│   ├── cron_email.php        CLI cron for Email notifications
-│   └── cron_wsp.php          CLI cron for WhatsApp notifications
-├── logs/                     Webhook log files
-├── pages/
-│   ├── ajax/
-│   │   ├── get_facility_config.php
-│   │   ├── get_patient_logs.php
-│   │   ├── get_stats.php
-│   │   ├── resend_notification.php
-│   │   └── save_facility_config.php
-│   └── dashboard.php         Main UI (4 tabs)
-├── public/
-│   └── ics/                  Temporary .ics files for WSP delivery
-├── sql/
-│   └── install.sql           DB install script
-├── src/
-│   ├── EmailSender.php
-│   ├── FacilityConfig.php
-│   ├── NotificationLog.php
-│   ├── NotificationService.php
-│   └── WspSender.php
-├── webhook/
-│   └── webhook.php           Delivery status webhook receiver
-├── composer.json
-├── index.php
-├── moduleConfig.php
-├── openemr.bootstrap.php
-├── version.php
-└── README.md
-```
+To track delivery status (e.g., "Message Read"), point your vendor's webhook URL to:
+`https://your-domain.com/interface/modules/custom_modules/oe-module-wsp-email/webhook/webhook.php`
+
+> [!TIP]
+> Ensure the **Webhook Secret** in the Facility Config matches the `X-Webhook-Signature` header from your vendor for secure updates.
 
 ---
 
-## License
+## 📂 Project Structure
 
-GNU General Public License 3 — https://github.com/openemr/openemr/blob/master/LICENSE
+- `cron/`: CLI automation scripts.
+- `pages/`: UI components and AJAX endpoints.
+- `src/`: Core logic (Sender services, Log management).
+- `sql/`: Database schema definitions.
+- `webhook/`: Real-time status receiver.
+
+---
+
+## 📜 License
+Released under the **GNU General Public License 3**.  
+See the [OpenEMR License](https://github.com/openemr/openemr/blob/master/LICENSE) for full details.
