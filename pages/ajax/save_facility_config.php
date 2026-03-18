@@ -95,4 +95,12 @@ if (!in_array($data['vendor'], $allowedVendors, true)) {
 if (!isset($fc)) $fc = new FacilityConfig();
 $success = $fc->save($data);
 
+// Save notification schedule if provided
+if ($success && isset($_POST['schedule_json'])) {
+    $scheduleRows = json_decode($_POST['schedule_json'], true);
+    if (is_array($scheduleRows)) {
+        $fc->saveSchedule($facilityId, $scheduleRows);
+    }
+}
+
 echo json_encode(['success' => $success, 'debug_data' => $data]);

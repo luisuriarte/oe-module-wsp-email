@@ -37,7 +37,7 @@ if (php_sapi_name() === 'cli') {
 }
 
 require_once __DIR__ . '/../../../../globals.php';
-require_once __DIR__ . '/../../../../library/patient_tracker.inc.php';
+require_once __DIR__ . '/../../../../../library/patient_tracker.inc.php';
 
 $moduleDir = __DIR__ . '/../src/';
 spl_autoload_register(function (string $class) use ($moduleDir): void {

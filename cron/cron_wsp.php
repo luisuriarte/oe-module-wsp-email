@@ -39,7 +39,7 @@ if (php_sapi_name() === 'cli') {
 
 // Load OpenEMR core
 require_once __DIR__ . '/../../../../globals.php';
-require_once __DIR__ . '/../../../../library/patient_tracker.inc.php';
+require_once __DIR__ . '/../../../../../library/patient_tracker.inc.php';
 
 // Load module autoloader (or fallback to manual includes)
 $moduleDir = __DIR__ . '/../src/';
