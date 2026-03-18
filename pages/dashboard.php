@@ -206,19 +206,14 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                     <label class="form-label small mb-1"><?php echo xlt('Status'); ?></label>
                     <select id="filterStatus" class="form-select form-select-sm" onchange="searchPatients()">
                         <option value=""><?php echo xlt('All Status'); ?></option>
-                        <option value="sent"><?php echo xlt('Sent'); ?></option>
-                        <option value="delivered"><?php echo xlt('Delivered'); ?></option>
-                        <option value="device"><?php echo xlt('Device (WaSender)'); ?></option>
-                        <option value="read"><?php echo xlt('Read'); ?></option>
-                        <option value="played"><?php echo xlt('Played'); ?></option>
-                        <option value="pending"><?php echo xlt('Pending'); ?></option>
-                        <option value="queue"><?php echo xlt('Queue'); ?></option>
-                        <option value="server"><?php echo xlt('Server (UltraMsg)'); ?></option>
-                        <option value="in_progress"><?php echo xlt('In Progress'); ?></option>
-                        <option value="error"><?php echo xlt('Error'); ?></option>
-                        <option value="failed"><?php echo xlt('Failed'); ?></option>
-                        <option value="invalid"><?php echo xlt('Invalid'); ?></option>
-                        <option value="unsent"><?php echo xlt('Unsent'); ?></option>
+                        <option value="QUEUED"><?php echo xlt('Queued'); ?></option>
+                        <option value="SENT"><?php echo xlt('Sent'); ?></option>
+                        <option value="DELIVERED"><?php echo xlt('Delivered'); ?></option>
+                        <option value="READ"><?php echo xlt('Read'); ?></option>
+                        <option value="FAILED"><?php echo xlt('Failed'); ?></option>
+                        <option value="INVALID"><?php echo xlt('Invalid'); ?></option>
+                        <option value="ERROR"><?php echo xlt('Error'); ?></option>
+                        <option value="UNSENT"><?php echo xlt('Unsent'); ?></option>
                     </select>
                 </div>
                 <div class="col-auto">
@@ -296,35 +291,72 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
 
                         <!-- Vendor settings -->
                         <h6 class="text-success"><?php echo xlt('WhatsApp Gateway'); ?></h6>
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-4">
-                                <label class="form-label"><?php echo xlt('Vendor'); ?></label>
-                                <select name="vendor" id="cfgVendor" class="form-select form-select-sm">
-                                    <option value="wasenderapi">WaSenderAPI</option>
-                                    <option value="ultramsg">UltraMsg</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label"><?php echo xlt('Instance ID'); ?></label>
-                                <input type="text" name="vendor_instance" id="cfgInstance" class="form-control form-control-sm">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label"><?php echo xlt('API Key / Token'); ?></label>
-                                <input type="text" name="vendor_api_key" id="cfgApiKey" class="form-control form-control-sm">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label"><?php echo xlt('Webhook Secret'); ?></label>
-                                <input type="text" name="webhook_secret" id="cfgWebhookSecret" class="form-control form-control-sm"
-                                       placeholder="<?php echo attr(xlt('Bridge / vendor webhook secret')); ?>">
-                            </div>
-                            <div class="col-md-6" id="logoWspContainer">
-                                <label class="form-label"><?php echo xlt('WSP Logo'); ?> <small class="text-muted">(Logo Actual: <span id="currentLogoWspName">None</span>)</small></label>
-                                <input type="file" name="logo_wsp" id="cfgLogoWsp" class="form-control form-control-sm" accept="image/*">
-                                <div id="previewWsp" class="mt-2" style="max-height: 100px; display: none;"></div>
+
+                        <!-- Active Vendor Selector -->
+                        <div class="mb-3">
+                            <label class="form-label"><?php echo xlt('Select Vendor'); ?></label>
+                            <select name="current_vendor" id="cfgCurrentVendor" class="form-select form-select-sm" onchange="handleVendorChange()">
+                                <option value="ultramsg">UltraMsg</option>
+                                <option value="wasenderapi">WaSenderAPI</option>
+                            </select>
+                            <small class="text-muted"><?php echo xlt('Active vendor for sending WhatsApp messages'); ?></small>
+                        </div>
+
+                        <hr>
+
+                        <!-- UltraMsg Configuration -->
+                        <div id="ultramsgConfig">
+                            <h6 class="text-primary"><?php echo xlt('UltraMsg Credentials'); ?></h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Instance ID'); ?></label>
+                                    <input type="text" name="ultramsg_instance" id="cfgUltraInstance" class="form-control form-control-sm" autocomplete="off" placeholder="e.g., instance41076">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('API Token'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="ultramsg_api_key" id="cfgUltraApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleUltraApiKey()" title="Show/Hide API Key">
+                                            <i class="fas fa-eye" id="ultraApiKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="ultraApiKeyHint" style="display:none;">Current API key is set</small>
+                                </div>
                             </div>
                         </div>
 
                         <hr>
+
+                        <!-- WaSenderAPI Configuration -->
+                        <div id="wasenderConfig">
+                            <h6 class="text-info"><?php echo xlt('WaSenderAPI Credentials'); ?></h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('API Key / Token'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="wasenderapi_api_key" id="cfgWaApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleWaApiKey()" title="Show/Hide API Key">
+                                            <i class="fas fa-eye" id="waApiKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="waApiKeyHint" style="display:none;">Current API key is set</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Webhook Secret'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="wasenderapi_webhook_secret" id="cfgWaWebhook" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleWaWebhook()" title="Show/Hide Webhook Secret">
+                                            <i class="fas fa-eye" id="waWebhookIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="waWebhookHint" style="display:none;">Current webhook secret is set</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Logos Section -->
                         <h6 class="text-primary"><?php echo xlt('Email'); ?></h6>
                         <div class="row g-2 mb-3">
                             <div class="col-md-12" id="logoEmailContainer">
@@ -334,6 +366,17 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                             </div>
                             <div class="col-md-12 text-muted small">
                                 <i class="fas fa-info-circle me-1"></i><?php echo xlt('Logos will be saved in images/logo_wsp and images/logo_email/'); ?>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- WSP Logo (separate row) -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6" id="logoWspContainer">
+                                <label class="form-label"><?php echo xlt('WSP Logo'); ?> <small class="text-muted">(Logo Actual: <span id="currentLogoWspName">None</span>)</small></label>
+                                <input type="file" name="logo_wsp" id="cfgLogoWsp" class="form-control form-control-sm" accept="image/*">
+                                <div id="previewWsp" class="mt-2" style="max-height: 100px; display: none;"></div>
                             </div>
                         </div>
 
@@ -478,37 +521,28 @@ const moduleRoot = <?php echo js_escape($moduleRoot); ?>;
 let chart = null;
 
 // Status colors for charts - WhatsApp (Green), Email (Light Blue)
+// Keys are canonical statuses (uppercase)
 const statusColors = {
-    'sent':      { wsp: '#25D366CC', email: '#4FC3F7CC' },   // WhatsApp Green / Email Light Blue
-    'delivered': { wsp: '#128C7ECC', email: '#039BE5CC' },   // Dark Green / Dark Blue
-    'read':      { wsp: '#7B1FA2CC', email: '#5E35B1CC' },   // Purple / Deep Purple
-    'played':    { wsp: '#4A148CCC', email: '#4527A0CC' },   // Dark Purple / Dark Indigo
-    'pending':   { wsp: '#FFC107CC', email: '#FFCA28CC' },   // Amber / Light Amber
-    'queue':     { wsp: '#FF9800CC', email: '#FFB74DCC' },   // Orange / Light Orange
-    'in_progress': { wsp: '#FFB74DCC', email: '#FFCC80CC' }, // Light Orange / Pale Orange
-    'server':    { wsp: '#00BCD4CC', email: '#4DD0E1CC' },   // Cyan / Light Cyan
-    'device':    { wsp: '#0097A7CC', email: '#26C6DAC' },    // Dark Cyan / Medium Cyan
-    'error':     { wsp: '#F44336CC', email: '#EF5350CC' },   // Red / Light Red
-    'failed':    { wsp: '#D32F2FCC', email: '#E57373CC' },   // Dark Red / Pale Red
-    'invalid':   { wsp: '#9E9E9ECC', email: '#BDBDBDCC' },   // Gray / Light Gray
-    'unsent':    { wsp: '#616161CC', email: '#9E9E9ECC' }    // Dark Gray / Gray
+    'QUEUED':    { wsp: '#FFC107CC', email: '#FFCA28CC' },   // Amber / Light Amber
+    'SENT':      { wsp: '#25D366CC', email: '#4FC3F7CC' },   // WhatsApp Green / Email Light Blue
+    'DELIVERED': { wsp: '#128C7ECC', email: '#039BE5CC' },   // Dark Green / Dark Blue
+    'READ':      { wsp: '#9C27B0CC', email: '#5E35B1CC' },   // Purple / Deep Purple
+    'FAILED':    { wsp: '#D32F2FCC', email: '#E57373CC' },   // Dark Red / Pale Red
+    'INVALID':   { wsp: '#9E9E9ECC', email: '#BDBDBDCC' },   // Gray / Light Gray
+    'ERROR':     { wsp: '#F44336CC', email: '#EF5350CC' },   // Red / Light Red
+    'UNSENT':    { wsp: '#616161CC', email: '#9E9E9ECC' }    // Dark Gray / Gray
 };
 
-// Available status filters
+// Available status filters (canonical statuses)
 const statusFilters = [
-    { value: 'sent', label: 'Sent', checked: true },
-    { value: 'delivered', label: 'Delivered', checked: true },
-    { value: 'read', label: 'Read', checked: true },
-    { value: 'played', label: 'Played', checked: true },
-    { value: 'pending', label: 'Pending', checked: true },
-    { value: 'queue', label: 'Queue', checked: true },
-    { value: 'in_progress', label: 'In Progress', checked: true },
-    { value: 'server', label: 'Server', checked: true },
-    { value: 'device', label: 'Device', checked: true },
-    { value: 'error', label: 'Error', checked: true },
-    { value: 'failed', label: 'Failed', checked: true },
-    { value: 'invalid', label: 'Invalid', checked: true },
-    { value: 'unsent', label: 'Unsent', checked: true }
+    { value: 'QUEUED', label: 'Queued', checked: true },
+    { value: 'SENT', label: 'Sent', checked: true },
+    { value: 'DELIVERED', label: 'Delivered', checked: true },
+    { value: 'READ', label: 'Read', checked: true },
+    { value: 'FAILED', label: 'Failed', checked: true },
+    { value: 'INVALID', label: 'Invalid', checked: true },
+    { value: 'ERROR', label: 'Error', checked: true },
+    { value: 'UNSENT', label: 'Unsent', checked: true }
 ];
 
 function buildChart(stats) {
@@ -520,12 +554,13 @@ function buildChart(stats) {
     // Get selected status filters
     const selectedStatuses = statusFilters.filter(s => s.checked).map(s => s.value);
 
-    // Group stats by type and status
+    // Group stats by type and status (normalize to uppercase)
     const grouped = {};
     stats.forEach(s => {
-        const key = `${s.type}_${s.status || 'unknown'}`;
+        const statusUpper = (s.status || 'UNSENT').toUpperCase();
+        const key = `${s.type}_${statusUpper}`;
         if (!grouped[key]) {
-            grouped[key] = { type: s.type, status: s.status || 'unknown', data: {} };
+            grouped[key] = { type: s.type, status: statusUpper, data: {} };
         }
         grouped[key].data[s.send_date] = s.total;
     });
@@ -689,28 +724,20 @@ document.getElementById('btnLoadStats')?.addEventListener('click', loadStats);
    Patient Status Tab
    ========================================================================= */
 function renderStatus(status) {
-    status = (status || 'pending').toLowerCase().trim();
+    // Normalize to uppercase for canonical status
+    status = (status || 'UNSENT').toUpperCase().trim();
 
     // Define status configuration with icon, label, and CSS class
-    // Works for both UltraMsg and WaSenderAPI
+    // Uses canonical statuses from StatusNormalizer
     const statusConfig = {
-        // Common statuses
-        'sent':      { icon: 'fa-check',         label: 'Sent',       css: 'badge-sent' },
-        'delivered': { icon: 'fa-box',           label: 'Delivered',  css: 'badge-delivered' },
-        'read':      { icon: 'fa-eye',           label: 'Read',       css: 'badge-read' },
-        'played':    { icon: 'fa-play',          label: 'Played',     css: 'badge-read played' },
-        'pending':   { icon: 'fa-clock',         label: 'Pending',    css: 'badge-pending' },
-        'queue':     { icon: 'fa-list',          label: 'Queue',      css: 'badge-queue' },
-        'in_progress': { icon: 'fa-spinner fa-spin', label: 'In Progress', css: 'badge-pending' },
-        'error':     { icon: 'fa-times-circle',  label: 'Error',      css: 'badge-error' },
-        'failed':    { icon: 'fa-exclamation-triangle', label: 'Failed', css: 'badge-error' },
-        'invalid':   { icon: 'fa-question-circle', label: 'Invalid',   css: 'badge-invalid' },
-        'unsent':    { icon: 'fa-envelope',      label: 'Unsent',     css: 'badge-unsent' },
-        'server':    { icon: 'fa-server',        label: 'Server',     css: 'badge-queue' },
-
-        // WaSenderAPI specific statuses
-        'device':    { icon: 'fa-mobile-alt',    label: 'Device',     css: 'badge-delivered' },
-        'ack':       { icon: 'fa-check-double',  label: 'ACK',        css: 'badge-delivered' }
+        'QUEUED':    { icon: 'fa-clock',         label: 'Queued',    css: 'badge-queue' },
+        'SENT':      { icon: 'fa-check',         label: 'Sent',      css: 'badge-sent' },
+        'DELIVERED': { icon: 'fa-box',           label: 'Delivered', css: 'badge-delivered' },
+        'READ':      { icon: 'fa-eye',           label: 'Read',      css: 'badge-read' },
+        'FAILED':    { icon: 'fa-times-circle',  label: 'Failed',    css: 'badge-error' },
+        'INVALID':   { icon: 'fa-question-circle', label: 'Invalid', css: 'badge-invalid' },
+        'ERROR':     { icon: 'fa-exclamation-triangle', label: 'Error', css: 'badge-error' },
+        'UNSENT':    { icon: 'fa-envelope',      label: 'Unsent',    css: 'badge-unsent' }
     };
 
     const config = statusConfig[status] || { icon: 'fa-question', label: status, css: 'badge-secondary' };
@@ -892,6 +919,14 @@ function loadFacilityConfig(facilityId) {
             const cancelBtn  = document.getElementById('btnCancelConfig');
             
             title.textContent = data.facility_name || '';
+
+            // Add active vendor badge
+            const activeVendor = c.current_vendor || 'wasenderapi';
+            const vendorBadge = activeVendor === 'ultramsg' ?
+                '<span class="badge bg-primary ms-2 small">UltraMsg Active</span>' :
+                '<span class="badge bg-info ms-2 small">WaSenderAPI Active</span>';
+            title.innerHTML += vendorBadge;
+
             if (isInactive) {
                 title.innerHTML += ` <span class="badge bg-danger ms-2 small" style="font-size:0.65em;">${<?php echo js_escape(xlt('INACTIVO')); ?>}</span>`;
                 card.classList.add('facility-config-inactive');
@@ -909,10 +944,49 @@ function loadFacilityConfig(facilityId) {
             }
 
             document.getElementById('cfgFacilityId').value      = facilityId;
-            document.getElementById('cfgVendor').value          = c.vendor              || 'wasenderapi';
-            document.getElementById('cfgInstance').value        = c.vendor_instance     || '';
-            document.getElementById('cfgApiKey').value          = c.vendor_api_key      || '';
-            document.getElementById('cfgWebhookSecret').value   = c.webhook_secret      || '';
+            document.getElementById('cfgCurrentVendor').value   = c.current_vendor        || 'wasenderapi';
+
+            // UltraMsg credentials - load and show hint if exists
+            document.getElementById('cfgUltraInstance').value   = c.ultramsg_instance     || '';
+            const ultraApiKeyInput = document.getElementById('cfgUltraApiKey');
+            const ultraApiKeyHint = document.getElementById('ultraApiKeyHint');
+            if (c.ultramsg_api_key && c.ultramsg_api_key.length > 0) {
+                ultraApiKeyInput.value = '';  // Don't show the actual key
+                ultraApiKeyHint.style.display = 'block';
+                ultraApiKeyInput.required = false;
+            } else {
+                ultraApiKeyInput.value = '';
+                ultraApiKeyHint.style.display = 'none';
+                ultraApiKeyInput.required = false;
+            }
+
+            // WaSenderAPI credentials - load and show hint if exists
+            const waApiKeyInput = document.getElementById('cfgWaApiKey');
+            const waApiKeyHint = document.getElementById('waApiKeyHint');
+            if (c.wasenderapi_api_key && c.wasenderapi_api_key.length > 0) {
+                waApiKeyInput.value = '';  // Don't show the actual key
+                waApiKeyHint.style.display = 'block';
+                waApiKeyInput.required = false;
+            } else {
+                waApiKeyInput.value = '';
+                waApiKeyHint.style.display = 'none';
+                waApiKeyInput.required = false;
+            }
+
+            const waWebhookInput = document.getElementById('cfgWaWebhook');
+            const waWebhookHint = document.getElementById('waWebhookHint');
+            if (c.wasenderapi_webhook_secret && c.wasenderapi_webhook_secret.length > 0) {
+                waWebhookInput.value = '';  // Don't show the actual secret
+                waWebhookHint.style.display = 'block';
+                waWebhookInput.required = false;
+            } else {
+                waWebhookInput.value = '';
+                waWebhookHint.style.display = 'none';
+                waWebhookInput.required = false;
+            }
+
+            // Show/hide sections based on active vendor
+            handleVendorChange();
             
             // Logo previews
             const prevWsp = document.getElementById('previewWsp');
@@ -948,6 +1022,9 @@ function loadFacilityConfig(facilityId) {
             document.getElementById('cfgEmailSubject').value    = c.email_subject       || '';
             document.getElementById('cfgEmailMsg').value        = c.email_message       || '';
             document.getElementById('facilityConfigForm').style.display = 'block';
+
+            // Handle vendor-specific field visibility
+            handleVendorChange();
 
 
             // Load notification schedule slots
@@ -1042,6 +1119,82 @@ function toggleHoursCell(checkbox) {
     input.style.opacity = checkbox.checked ? '.4' : '1';
 }
 
+function toggleApiKeyVisibility() {
+    const input = document.getElementById('cfgApiKey');
+    const icon = document.getElementById('apiKeyToggleIcon');
+
+    if (!input || !icon) {
+        console.error('API Key input or icon not found');
+        return;
+    }
+
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+}
+
+function toggleUltraApiKey() {
+    const input = document.getElementById('cfgUltraApiKey');
+    const icon = document.getElementById('ultraApiKeyIcon');
+    if (input && icon) {
+        input.type = input.type === 'password' ? 'text' : 'password';
+        icon.className = input.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+    }
+}
+
+function toggleWaApiKey() {
+    const input = document.getElementById('cfgWaApiKey');
+    const icon = document.getElementById('waApiKeyIcon');
+    if (input && icon) {
+        input.type = input.type === 'password' ? 'text' : 'password';
+        icon.className = input.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+    }
+}
+
+function toggleWaWebhook() {
+    const input = document.getElementById('cfgWaWebhook');
+    const icon = document.getElementById('waWebhookIcon');
+    if (input && icon) {
+        input.type = input.type === 'password' ? 'text' : 'password';
+        icon.className = input.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+    }
+}
+
+/**
+ * Show/hide sections based on selected active vendor
+ * - UltraMsg: shows UltraMsg credentials section
+ * - WaSenderAPI: shows WaSenderAPI credentials section
+ */
+function handleVendorChange() {
+    const vendor = document.getElementById('cfgCurrentVendor').value;
+    const ultramsgConfig = document.getElementById('ultramsgConfig');
+    const wasenderConfig = document.getElementById('wasenderConfig');
+
+    if (vendor === 'ultramsg') {
+        // UltraMsg active: show UltraMsg section, hide WaSenderAPI
+        if (ultramsgConfig) ultramsgConfig.style.display = 'block';
+        if (wasenderConfig) wasenderConfig.style.display = 'none';
+    } else if (vendor === 'wasenderapi') {
+        // WaSenderAPI active: show WaSenderAPI section, hide UltraMsg
+        if (ultramsgConfig) ultramsgConfig.style.display = 'none';
+        if (wasenderConfig) wasenderConfig.style.display = 'block';
+    }
+}
+
+// Add event listener for vendor change
+document.addEventListener('DOMContentLoaded', function() {
+    const vendorSelect = document.getElementById('cfgCurrentVendor');
+    if (vendorSelect) {
+        vendorSelect.addEventListener('change', handleVendorChange);
+        // Call once on page load to set initial state
+        handleVendorChange();
+    }
+});
+
 function renumberSchedule() {
     document.querySelectorAll('#scheduleBody tr').forEach((tr, i) => {
         tr.cells[0].textContent = i + 1;
@@ -1051,6 +1204,10 @@ function renumberSchedule() {
 document.getElementById('facilityConfigForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
     const btn = e.target.querySelector('button[type="submit"]');
+    if (!btn) {
+        alert('Error: Submit button not found');
+        return;
+    }
     const oldHtml = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';

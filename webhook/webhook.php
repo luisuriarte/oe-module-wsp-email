@@ -27,6 +27,7 @@ require_once __DIR__ . '/../src/FacilityConfig.php';
 
 use OpenEMR\Modules\WspEmail\NotificationLog;
 use OpenEMR\Modules\WspEmail\FacilityConfig;
+use OpenEMR\Modules\WspEmail\StatusNormalizer;
 
 // Define a dedicated log file for this webhook
 define('WSP_WEBHOOK_LOG', __DIR__ . '/../logs/webhook.log');
@@ -82,11 +83,11 @@ if ($event === 'messages.update') {
         exit;
     }
 
-    $status = $webhookData['data']['status'] ?? '';
+    $rawStatus = $webhookData['data']['status'] ?? '';
     // Extract last 10 digits of the phone number from the JID
     $phone  = substr(preg_replace('/\D/', '', $jid), -10);
 
-    webhookLog("messages.update — msgId=$msgId, phone=$phone, status=$status");
+    webhookLog("messages.update — msgId=$msgId, phone=$phone, rawStatus=$rawStatus");
 
     // --- Validate webhook signature ---
     // Look up the facility whose vendor instance is handling this phone number
@@ -95,12 +96,14 @@ if ($event === 'messages.update') {
     $facilityConfig = new FacilityConfig();
     $allFacilities  = $facilityConfig->getAllFacilitiesWithConfig();
     $expectedSecret = '';
+    $detectedProvider = 'wasenderapi'; // Default
 
     foreach ($allFacilities as $facility) {
         if (!empty($facility['webhook_secret'])) {
             // Simple match: pick any configured facility to validate the secret
             // (in production you'd match by instance/account, but secrets are usually global per vendor)
             $expectedSecret = $facility['webhook_secret'];
+            $detectedProvider = $facility['vendor'] ?? 'wasenderapi';
             break;
         }
     }
@@ -111,11 +114,15 @@ if ($event === 'messages.update') {
         exit;
     }
 
-    // --- Update notification_log ---
-    if (!empty($msgId) && !empty($status)) {
+    // --- Update notification_log with normalization ---
+    if (!empty($msgId) && !empty($rawStatus)) {
         $notifLog = new NotificationLog();
-        $notifLog->updateStatus($msgId, $status);
-        webhookLog("messages.update — updated: msgId=$msgId → status=$status");
+        // Pass provider and full payload for normalization
+        $notifLog->updateStatus($msgId, $rawStatus, $detectedProvider, $webhookData);
+
+        // Get normalized status for logging
+        $normalized = StatusNormalizer::normalize($detectedProvider, $rawStatus);
+        webhookLog("messages.update — updated: msgId=$msgId → raw=$rawStatus, canonical=$normalized");
     }
 }
 

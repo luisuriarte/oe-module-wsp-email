@@ -47,9 +47,24 @@ class WspSender
 
         // --- Validate required fields ---
         $phone    = preg_replace('/\D/', '', $patient['phone_cell'] ?? '');
-        $vendor   = strtolower($config['vendor'] ?? '');
-        $instance = $config['vendor_instance'] ?? '';
-        $apiKey   = $config['vendor_api_key'] ?? '';
+        $vendor   = strtolower($config['current_vendor'] ?? $config['vendor'] ?? 'wasenderapi');
+
+        // Get credentials based on vendor
+        $instance = '';
+        $apiKey   = '';
+
+        if ($vendor === 'ultramsg') {
+            $instance = $config['ultramsg_instance'] ?? '';
+            $apiKey   = $config['ultramsg_api_key'] ?? '';
+        } elseif ($vendor === 'wasenderapi') {
+            $instance = '';  // WaSenderAPI doesn't use instance
+            $apiKey   = $config['wasenderapi_api_key'] ?? '';
+        } else {
+            // Fallback to legacy fields
+            $instance = $config['vendor_instance'] ?? '';
+            $apiKey   = $config['vendor_api_key'] ?? '';
+        }
+
         $message  = $patient['_message'] ?? '';  // pre-built message body
 
         // Build logo URL using facility website URL as base

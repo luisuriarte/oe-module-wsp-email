@@ -35,17 +35,32 @@ if ($facilityId === 0) {
     exit;
 }
 
+// Fetch current config to preserve credentials if not provided
+$fc = new FacilityConfig();
+$current = $fc->getByFacilityId($facilityId);
+
 $data = [
     'facility_id'         => $facilityId,
-    'vendor'              => trim($_POST['vendor']               ?? 'wasenderapi'),
+    'current_vendor'      => trim($_POST['current_vendor']       ?? 'wasenderapi'),
+    // Legacy fields (for backward compatibility)
+    'vendor'              => trim($_POST['current_vendor']       ?? 'wasenderapi'),
     'vendor_instance'     => trim($_POST['vendor_instance']      ?? ''),
     'vendor_api_key'      => trim($_POST['vendor_api_key']       ?? ''),
     'webhook_secret'      => trim($_POST['webhook_secret']       ?? ''),
-    'latitude'            => trim($_POST['latitude']             ?? ''),
-    'longitude'           => trim($_POST['longitude']            ?? ''),
-    'wsp_message'         => $_POST['wsp_message']               ?? '',
-    'email_message'       => $_POST['email_message']             ?? '',
-    'email_subject'       => trim($_POST['email_subject']        ?? ''),
+    // UltraMsg specific - only update if provided
+    'ultramsg_instance'   => !empty($_POST['ultramsg_instance']) ? trim($_POST['ultramsg_instance']) : ($current['ultramsg_instance'] ?? ''),
+    'ultramsg_api_key'    => !empty($_POST['ultramsg_api_key']) ? trim($_POST['ultramsg_api_key']) : ($current['ultramsg_api_key'] ?? ''),
+    // WaSenderAPI specific - only update if provided
+    'wasenderapi_api_key'      => !empty($_POST['wasenderapi_api_key']) ? trim($_POST['wasenderapi_api_key']) : ($current['wasenderapi_api_key'] ?? ''),
+    'wasenderapi_webhook_secret' => !empty($_POST['wasenderapi_webhook_secret']) ? trim($_POST['wasenderapi_webhook_secret']) : ($current['wasenderapi_webhook_secret'] ?? ''),
+    // Common configuration
+    'logo_wsp'            => $_FILES['logo_wsp']['name'] ?? ($current['logo_wsp'] ?? ''),
+    'logo_email'          => $_FILES['logo_email']['name'] ?? ($current['logo_email'] ?? ''),
+    'latitude'            => trim($_POST['latitude']         ?? ''),
+    'longitude'           => trim($_POST['longitude']        ?? ''),
+    'wsp_message'         => $_POST['wsp_message']           ?? '',
+    'email_message'       => $_POST['email_message']         ?? '',
+    'email_subject'       => trim($_POST['email_subject']    ?? ''),
     'notify_hours_before' => (int)($_POST['notify_hours_before'] ?? 48),
     'enabled_wsp'         => (int)($_POST['enabled_wsp']         ?? 0),
     'enabled_email'       => (int)($_POST['enabled_email']       ?? 0),

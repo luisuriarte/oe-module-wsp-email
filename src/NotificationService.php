@@ -17,6 +17,9 @@
 
 namespace OpenEMR\Modules\WspEmail;
 
+use OpenEMR\Common\Crypto\CryptoGen;
+use OpenEMR\Modules\WspEmail\StatusNormalizer;
+
 class NotificationService
 {
     private WspSender       $wspSender;
@@ -191,13 +194,14 @@ class NotificationService
 
         $result = $this->wspSender->send($config, $patient);
         $msgId  = $result['msgId'] ?? null;
-        $status = $result['status'] ?? 'error';
+        $rawStatus = $result['status'] ?? 'error';
+        $vendor = $config['vendor'] ?? 'default';
 
-        // Log detailed error info
-        error_log("WspSender result: " . json_encode($result));
-        error_log("WspSender log: " . ($result['log'] ?? 'N/A'));
+        // Normalize status using StatusNormalizer
+        $canonicalStatus = StatusNormalizer::normalize($vendor, $rawStatus);
+        $statusPriority = StatusNormalizer::getPriority($canonicalStatus);
 
-        $this->insertLog('WSP', $patient, $config, $msgId, $status, $seq);
+        $this->insertLog('WSP', $patient, $config, $msgId, $rawStatus, $seq, $canonicalStatus, $statusPriority, $vendor, $result);
 
         if ($updateCalFlag) {
             $this->markEventSent('WSP', (int)$patient['pid'], (int)$patient['pc_eid']);
@@ -215,9 +219,13 @@ class NotificationService
         $patient['_message'] = WspSender::buildMessage($template, $patient);
 
         $ok     = $this->emailSender->send($config, $patient);
-        $status = $ok ? 'sent' : 'error';
+        $rawStatus = $ok ? 'sent' : 'error';
 
-        $this->insertLog('Email', $patient, $config, null, $status, $seq);
+        // Normalize email status
+        $canonicalStatus = StatusNormalizer::normalize('default', $rawStatus);
+        $statusPriority = StatusNormalizer::getPriority($canonicalStatus);
+
+        $this->insertLog('Email', $patient, $config, null, $rawStatus, $seq, $canonicalStatus, $statusPriority, 'email', ['success' => $ok]);
 
         if ($updateCalFlag) {
             $this->markEventSent('Email', (int)$patient['pid'], (int)$patient['pc_eid']);
@@ -324,20 +332,33 @@ class NotificationService
     }
 
     /** Records the notification attempt in notification_log including the seq number. */
-    private function insertLog(string $type, array $patient, array $config, ?string $msgId, string $status, int $seq): void
-    {
+    private function insertLog(
+        string $type, array $patient, array $config,
+        ?string $msgId, string $status, int $seq,
+        ?string $canonicalStatus = null, ?int $statusPriority = null,
+        ?string $provider = null, ?array $result = null
+    ): void {
         $patientInfo = trim(($patient['title'] ?? '') . ' ' . $patient['fname'] . ' ' . $patient['lname'])
                      . '|||' . $patient['phone_cell']
                      . '|||' . $patient['email'];
         $gatewayType  = $config['vendor'] ?? '';
         $gatewayInfo  = ($type === 'WSP') ? $gatewayType : (($config['facility_email'] ?? '') . '|||' . ($config['email_subject'] ?? ''));
 
-        // Use extended insert that includes notification_seq
+        // Normalize canonical status if not provided
+        if ($canonicalStatus === null) {
+            $canonicalStatus = StatusNormalizer::normalize($provider ?? 'default', $status);
+        }
+        if ($statusPriority === null) {
+            $statusPriority = StatusNormalizer::getPriority($canonicalStatus);
+        }
+
+        // Use extended insert that includes new status normalization columns
         $sql = "INSERT INTO notification_log
                     (pid, pc_eid, sms_gateway_type, message, email_sender, email_subject,
-                     type, patient_info, smsgateway_info, msg_id, status, notification_seq,
+                     type, patient_info, smsgateway_info, msg_id, status, status_current,
+                     status_priority, provider_raw_status, provider_payload, notification_seq,
                      pc_eventDate, pc_endDate, pc_startTime, pc_endTime, dSentDateTime)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
 
         sqlStatement($sql, [
             $patient['pid'],
@@ -350,7 +371,11 @@ class NotificationService
             $patientInfo,
             $gatewayInfo,
             $msgId,
-            $status,
+            $status,  // raw status
+            $canonicalStatus,  // normalized status
+            $statusPriority,  // priority
+            $status,  // provider_raw_status (same as status initially)
+            $result ? json_encode($result, JSON_UNESCAPED_UNICODE) : null,  // provider_payload
             $seq,
             $patient['pc_eventDate'],
             $patient['pc_endDate'] ?? $patient['pc_eventDate'],
@@ -361,7 +386,7 @@ class NotificationService
         // Get last inserted ID using OpenEMR's sqlGetLastInsertId() function
         $logId = (int)sqlGetLastInsertId();
         if ($logId > 0) {
-            $this->log->addStatusHistory($logId, $status);
+            $this->log->addStatusHistory($logId, $canonicalStatus, $status, $provider, $result);
         }
     }
 

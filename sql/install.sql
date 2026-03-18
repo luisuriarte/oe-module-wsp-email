@@ -1,19 +1,44 @@
 -- ===========================================================================
 -- install.sql  -  oe-module-wsp-email
 -- Executed automatically by the Module Manager when activating the module.
+--
+-- This script creates:
+-- - wsp_email_facility_config: Extended facility configuration for WhatsApp/Email
+--   (supports multiple vendors: UltraMsg, WaSenderAPI, etc.)
+-- - wsp_email_notification_schedule: When notifications are sent per facility
+-- - wsp_email_status_history: Timeline of status changes for each notification
+-- - Adds columns to openemr_postcalendar_events and notification_log
+--
+-- Note: Tables openemr_postcalendar_events and notification_log exist in
+-- OpenEMR core. We only add columns via ALTER TABLE.
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
 -- Extended per-facility configuration table
--- Replaces the incorrect use of standard facility fields for API keys/vendors.
+-- Supports multiple WhatsApp vendors per facility with active vendor selection.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
   `id`                  int(11)       NOT NULL AUTO_INCREMENT,
   `facility_id`         int(11)       NOT NULL                   COMMENT 'FK -> facility.id',
-  `vendor`              varchar(50)   NOT NULL DEFAULT 'wasenderapi' COMMENT 'waapi | ultramsg | wasenderapi',
-  `vendor_instance`     varchar(100)  DEFAULT NULL               COMMENT 'Vendor instance ID for WhatsApp gateway',
-  `vendor_api_key`      varchar(255)  DEFAULT NULL               COMMENT 'API Key / Bearer Token for the vendor',
-  `webhook_secret`      varchar(255)  DEFAULT NULL               COMMENT 'Secret used to validate incoming webhook requests',
+
+  -- Active vendor selection
+  `current_vendor`      varchar(50)   NOT NULL DEFAULT 'wasenderapi' COMMENT 'Active vendor: ultramsg|wasenderapi',
+
+  -- Common fields (for backward compatibility)
+  `vendor`              varchar(50)   NOT NULL DEFAULT 'wasenderapi' COMMENT 'Default vendor (deprecated, use current_vendor)',
+  `vendor_instance`     varchar(100)  DEFAULT NULL               COMMENT 'Vendor instance ID (deprecated)',
+  `vendor_api_key`      varchar(255)  DEFAULT NULL               COMMENT 'API Key (deprecated)',
+  `webhook_secret`      varchar(255)  DEFAULT NULL               COMMENT 'Webhook secret (deprecated)',
+
+  -- UltraMsg specific credentials
+  `ultramsg_instance`   varchar(100)  DEFAULT NULL               COMMENT 'UltraMsg instance ID (e.g., instance41076)',
+  `ultramsg_api_key`    varchar(255)  DEFAULT NULL               COMMENT 'UltraMsg API token',
+
+  -- WaSenderAPI specific credentials
+  `wasenderapi_api_key`      varchar(255)  DEFAULT NULL         COMMENT 'WaSenderAPI Bearer token',
+  `wasenderapi_webhook_secret` varchar(255) DEFAULT NULL        COMMENT 'WaSenderAPI webhook secret',
+
+  -- Common configuration
   `logo_wsp`            varchar(255)  DEFAULT NULL               COMMENT 'Public URL of the logo sent via WhatsApp',
   `logo_email`          varchar(255)  DEFAULT NULL               COMMENT 'Absolute server path of the logo embedded in emails',
   `latitude`            decimal(10,6) DEFAULT NULL               COMMENT 'Facility geographic latitude',
@@ -30,7 +55,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_facility_id` (`facility_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-  COMMENT='Extended WhatsApp/Email configuration per medical facility';
+  COMMENT='Extended WhatsApp/Email configuration per medical facility with multi-vendor support';
 
 -- ---------------------------------------------------------------------------
 -- Add pc_sendalertwsp column to openemr_postcalendar_events (if not present)
@@ -59,6 +84,42 @@ ALTER TABLE `notification_log`
   ADD COLUMN IF NOT EXISTS `notification_seq` tinyint(3)   NOT NULL DEFAULT 1 COMMENT 'Sequence number of this notification (1=first, 2=second, etc.)';
 
 -- ---------------------------------------------------------------------------
+-- Add status normalization columns to notification_log
+-- These columns support multi-provider WhatsApp status tracking
+-- ---------------------------------------------------------------------------
+
+-- status_current: Normalized canonical status (QUEUED, SENT, DELIVERED, READ, FAILED, etc.)
+ALTER TABLE `notification_log`
+  ADD COLUMN IF NOT EXISTS `status_current` varchar(50) DEFAULT NULL
+  COMMENT 'Current canonical status (QUEUED, SENT, DELIVERED, READ, FAILED, etc.)'
+  AFTER `status`;
+
+-- provider_raw_status: Raw status received from provider (e.g., ack, sending, device_offline)
+ALTER TABLE `notification_log`
+  ADD COLUMN IF NOT EXISTS `provider_raw_status` varchar(100) DEFAULT NULL
+  COMMENT 'Raw status received from provider (e.g., ack, sending, etc.)'
+  AFTER `status_current`;
+
+-- status_priority: Numeric priority for status ordering (higher = more advanced/final)
+ALTER TABLE `notification_log`
+  ADD COLUMN IF NOT EXISTS `status_priority` tinyint(3) DEFAULT 0
+  COMMENT 'Status priority (higher = more advanced/final)'
+  AFTER `provider_raw_status`;
+
+-- provider_payload: Complete JSON payload from provider webhook for debugging
+ALTER TABLE `notification_log`
+  ADD COLUMN IF NOT EXISTS `provider_payload` text DEFAULT NULL
+  COMMENT 'Complete JSON payload from provider webhook'
+  AFTER `status_priority`;
+
+-- Add indexes for efficient status queries
+ALTER TABLE `notification_log`
+  ADD INDEX IF NOT EXISTS `idx_status_current` (`status_current`);
+
+ALTER TABLE `notification_log`
+  ADD INDEX IF NOT EXISTS `idx_type_status` (`type`, `status_current`);
+
+-- ---------------------------------------------------------------------------
 -- Notification schedule table — defines WHEN each notification is sent per facility.
 --
 -- Each row = one send event in the lifecycle of a patient appointment.
@@ -83,13 +144,17 @@ CREATE TABLE IF NOT EXISTS `wsp_email_notification_schedule` (
 -- ---------------------------------------------------------------------------
 -- Status history table — tracks every event/transition for a notification.
 -- Allows viewing a timeline: Sent -> Delivered -> Read.
+-- Now includes provider-specific fields for multi-provider support.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_status_history` (
-  `id`         int(11)     NOT NULL AUTO_INCREMENT,
-  `log_id`     int(11)     NOT NULL COMMENT 'FK -> notification_log.iLogId',
-  `status`     varchar(50) NOT NULL COMMENT 'Status string (sent, DELIVERED, READ, error, etc.)',
-  `created_at` datetime    DEFAULT CURRENT_TIMESTAMP,
+  `id`                  int(11)     NOT NULL AUTO_INCREMENT,
+  `log_id`              int(11)     NOT NULL COMMENT 'FK -> notification_log.iLogId',
+  `status`              varchar(50) NOT NULL COMMENT 'Canonical status string (QUEUED, SENT, DELIVERED, READ, FAILED, etc.)',
+  `provider_raw_status` varchar(100) DEFAULT NULL COMMENT 'Raw status received from provider',
+  `provider_name`       varchar(50)  DEFAULT NULL COMMENT 'Provider name (ultramsg, wasenderapi, meta, twilio, etc.)',
+  `provider_payload`    text         DEFAULT NULL COMMENT 'Complete JSON payload from provider webhook',
+  `created_at`          datetime     DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_log_id` (`log_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-  COMMENT='Timeline of status transitions for each notification';
+  COMMENT='Timeline of status transitions for each notification with provider details';

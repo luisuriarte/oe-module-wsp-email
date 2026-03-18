@@ -745,9 +745,9 @@ h6 {
     color: #7B1FA2 !important;
 }
 
-.badge-read.played {
-    background-color: #e1bee7 !important;
-    color: #6A1B9A !important;
+.badge-queued {
+    background-color: #fff8e1 !important;
+    color: #F57F17 !important;
 }
 
 .badge-error {
@@ -755,14 +755,9 @@ h6 {
     color: #C62828 !important;
 }
 
-.badge-pending {
-    background-color: #fff8e1 !important;
-    color: #F57F17 !important;
-}
-
-.badge-queue {
-    background-color: #fff3e0 !important;
-    color: #E65100 !important;
+.badge-failed {
+    background-color: #ffebee !important;
+    color: #C62828 !important;
 }
 
 .badge-invalid {
@@ -848,58 +843,37 @@ h6 {
     box-shadow: 0 3px 6px rgba(0,0,0,0.2);
 }
 
-/* Status filter button colors */
-#chartStatusFilters .status-filter-btn[data-status="sent"].active {
-    background-color: #25D366 !important;
-    border-color: #128C7E !important;
-}
-#chartStatusFilters .status-filter-btn[data-status="delivered"].active {
-    background-color: #2196F3 !important;
-    border-color: #1565C0 !important;
-}
-#chartStatusFilters .status-filter-btn[data-status="read"].active {
-    background-color: #9C27B0 !important;
-    border-color: #7B1FA2 !important;
-}
-#chartStatusFilters .status-filter-btn[data-status="played"].active {
-    background-color: #7B1FA2 !important;
-    border-color: #4A148C !important;
-}
-#chartStatusFilters .status-filter-btn[data-status="pending"].active {
+/* Status filter button colors (canonical statuses - uppercase) */
+#chartStatusFilters .status-filter-btn[data-status="QUEUED"].active {
     background-color: #FFC107 !important;
     border-color: #FFA000 !important;
     color: #000 !important;
 }
-#chartStatusFilters .status-filter-btn[data-status="queue"].active {
-    background-color: #FF9800 !important;
-    border-color: #F57C00 !important;
+#chartStatusFilters .status-filter-btn[data-status="SENT"].active {
+    background-color: #25D366 !important;
+    border-color: #128C7E !important;
 }
-#chartStatusFilters .status-filter-btn[data-status="in_progress"].active {
-    background-color: #FFB74D !important;
-    border-color: #FF9800 !important;
-    color: #000 !important;
+#chartStatusFilters .status-filter-btn[data-status="DELIVERED"].active {
+    background-color: #2196F3 !important;
+    border-color: #1565C0 !important;
 }
-#chartStatusFilters .status-filter-btn[data-status="server"].active {
-    background-color: #00BCD4 !important;
-    border-color: #0097A7 !important;
+#chartStatusFilters .status-filter-btn[data-status="READ"].active {
+    background-color: #9C27B0 !important;
+    border-color: #7B1FA2 !important;
 }
-#chartStatusFilters .status-filter-btn[data-status="device"].active {
-    background-color: #0097A7 !important;
-    border-color: #00838F !important;
-}
-#chartStatusFilters .status-filter-btn[data-status="error"].active {
-    background-color: #F44336 !important;
-    border-color: #C62828 !important;
-}
-#chartStatusFilters .status-filter-btn[data-status="failed"].active {
+#chartStatusFilters .status-filter-btn[data-status="FAILED"].active {
     background-color: #D32F2F !important;
     border-color: #B71C1C !important;
 }
-#chartStatusFilters .status-filter-btn[data-status="invalid"].active {
+#chartStatusFilters .status-filter-btn[data-status="INVALID"].active {
     background-color: #9E9E9E !important;
     border-color: #616161 !important;
 }
-#chartStatusFilters .status-filter-btn[data-status="unsent"].active {
+#chartStatusFilters .status-filter-btn[data-status="ERROR"].active {
+    background-color: #F44336 !important;
+    border-color: #C62828 !important;
+}
+#chartStatusFilters .status-filter-btn[data-status="UNSENT"].active {
     background-color: #616161 !important;
     border-color: #424242 !important;
 }

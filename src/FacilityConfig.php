@@ -37,8 +37,11 @@ class FacilityConfig
                        f.street, f.city, f.state, f.inactive,
                        f.phone AS facility_phone, f.email AS facility_email,
                        CONCAT(f.street, ', ', f.city, ', ', f.state) AS facility_address,
-                       wfc.id, wfc.vendor, wfc.vendor_instance, wfc.vendor_api_key,
-                       wfc.webhook_secret, wfc.logo_wsp, wfc.logo_email,
+                       wfc.id, wfc.current_vendor, wfc.vendor, wfc.vendor_instance,
+                       wfc.vendor_api_key, wfc.webhook_secret,
+                       wfc.ultramsg_instance, wfc.ultramsg_api_key,
+                       wfc.wasenderapi_api_key, wfc.wasenderapi_webhook_secret,
+                       wfc.logo_wsp, wfc.logo_email,
                        wfc.latitude, wfc.longitude, f.website AS website_url,
                        wfc.wsp_message, wfc.email_message, wfc.email_subject,
                        wfc.enabled_wsp, wfc.enabled_email
@@ -54,7 +57,7 @@ class FacilityConfig
     }
 
     /**
-     * Inserts or updates the main configuration for a facility (upsert by facility_id).
+     * Saves facility configuration with multi-vendor support.
      */
     public function save(array $data): bool
     {
@@ -69,20 +72,29 @@ class FacilityConfig
         );
 
         $fields = [
-            'facility_id'   => $facilityId,
-            'vendor'        => $data['vendor']        ?? 'wasenderapi',
-            'vendor_instance'  => $data['vendor_instance']  ?? null,
-            'vendor_api_key'   => $data['vendor_api_key']   ?? null,
-            'webhook_secret'   => $data['webhook_secret']   ?? null,
-            'logo_wsp'         => $data['logo_wsp']         ?? null,
-            'logo_email'       => $data['logo_email']       ?? null,
-            'latitude'         => $data['latitude']         ?? null,
-            'longitude'        => $data['longitude']        ?? null,
-            'wsp_message'      => $data['wsp_message']      ?? null,
-            'email_message'    => $data['email_message']    ?? null,
-            'email_subject'    => $data['email_subject']    ?? null,
-            'enabled_wsp'      => isset($data['enabled_wsp'])   ? (int)$data['enabled_wsp']   : 1,
-            'enabled_email'    => isset($data['enabled_email']) ? (int)$data['enabled_email'] : 1,
+            'facility_id'              => $facilityId,
+            'current_vendor'           => $data['current_vendor']           ?? 'wasenderapi',
+            // Legacy fields (keep for backward compatibility)
+            'vendor'                   => $data['current_vendor']           ?? 'wasenderapi',
+            'vendor_instance'          => $data['vendor_instance']          ?? null,
+            'vendor_api_key'           => $data['vendor_api_key']           ?? null,
+            'webhook_secret'           => $data['webhook_secret']           ?? null,
+            // UltraMsg specific
+            'ultramsg_instance'        => $data['ultramsg_instance']        ?? null,
+            'ultramsg_api_key'         => $data['ultramsg_api_key']         ?? null,
+            // WaSenderAPI specific
+            'wasenderapi_api_key'      => $data['wasenderapi_api_key']      ?? null,
+            'wasenderapi_webhook_secret' => $data['wasenderapi_webhook_secret'] ?? null,
+            // Common configuration
+            'logo_wsp'                 => $data['logo_wsp']                 ?? null,
+            'logo_email'               => $data['logo_email']               ?? null,
+            'latitude'                 => $data['latitude']                 ?? null,
+            'longitude'                => $data['longitude']                ?? null,
+            'wsp_message'              => $data['wsp_message']              ?? null,
+            'email_message'            => $data['email_message']            ?? null,
+            'email_subject'            => $data['email_subject']            ?? null,
+            'enabled_wsp'              => isset($data['enabled_wsp'])       ? (int)$data['enabled_wsp']   : 1,
+            'enabled_email'            => isset($data['enabled_email'])     ? (int)$data['enabled_email'] : 1,
         ];
 
         if ($exists) {
