@@ -28,6 +28,7 @@ $q       = trim($_GET['q'] ?? '');
 $from    = $_GET['from']    ?? '';
 $to      = $_GET['to']      ?? '';
 $channel = $_GET['channel'] ?? null;
+$status  = $_GET['status']  ?? null;
 
 // Parse localized dates
 $fromYmd = !empty($from) ? DateToYYYYMMDD($from) : null;
@@ -40,7 +41,7 @@ if (strlen($q) < 2 && (!$fromYmd || !$toYmd)) {
 }
 
 $log  = new NotificationLog();
-$rows = $log->searchByPatient($q, 200, 0, $fromYmd, $toYmd, $channel);
+$rows = $log->searchByPatient($q, 200, 0, $fromYmd, $toYmd, $channel, $status);
 
 // Sanitise output — remove sensitive fields
 $safe = array_map(function (array $row): array {

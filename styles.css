@@ -706,9 +706,74 @@ h6 {
 .badge.bg-success { background-color: #25D366 !important; }
 .badge.bg-secondary { background-color: #6c757d !important; }
 .badge.bg-danger { background-color: #dc3545 !important; }
+.badge.bg-warning { background-color: #ffc107 !important; color: #000 !important; }
+.badge.bg-info { background-color: #17a2b8 !important; }
+.badge.bg-primary { background-color: #2196F3 !important; }
 
 .badge.bg-danger.small {
     font-size: 0.65em;
+}
+
+/* Status badges with icons */
+.badge-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 20px;
+}
+
+.badge-status i {
+    font-size: 0.7em;
+}
+
+/* Status colors */
+.badge-sent {
+    background-color: #e8f5e9 !important;
+    color: #388E3C !important;
+}
+
+.badge-delivered {
+    background-color: #e3f2fd !important;
+    color: #1976D2 !important;
+}
+
+.badge-read {
+    background-color: #f3e5f5 !important;
+    color: #7B1FA2 !important;
+}
+
+.badge-read.played {
+    background-color: #e1bee7 !important;
+    color: #6A1B9A !important;
+}
+
+.badge-error {
+    background-color: #ffebee !important;
+    color: #C62828 !important;
+}
+
+.badge-pending {
+    background-color: #fff8e1 !important;
+    color: #F57F17 !important;
+}
+
+.badge-queue {
+    background-color: #fff3e0 !important;
+    color: #E65100 !important;
+}
+
+.badge-invalid {
+    background-color: #eceff1 !important;
+    color: #546E7A !important;
+}
+
+.badge-unsent {
+    background-color: #fafafa !important;
+    color: #424242 !important;
+    border: 1px solid #bdbdbd;
 }
 
 /* =========================================================================

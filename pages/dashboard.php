@@ -191,6 +191,25 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                         </div>
                     </div>
                 </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('Status'); ?></label>
+                    <select id="filterStatus" class="form-select form-select-sm" onchange="searchPatients()">
+                        <option value=""><?php echo xlt('All Status'); ?></option>
+                        <option value="sent"><?php echo xlt('Sent'); ?></option>
+                        <option value="delivered"><?php echo xlt('Delivered'); ?></option>
+                        <option value="device"><?php echo xlt('Device (WaSender)'); ?></option>
+                        <option value="read"><?php echo xlt('Read'); ?></option>
+                        <option value="played"><?php echo xlt('Played'); ?></option>
+                        <option value="pending"><?php echo xlt('Pending'); ?></option>
+                        <option value="queue"><?php echo xlt('Queue'); ?></option>
+                        <option value="server"><?php echo xlt('Server (UltraMsg)'); ?></option>
+                        <option value="in_progress"><?php echo xlt('In Progress'); ?></option>
+                        <option value="error"><?php echo xlt('Error'); ?></option>
+                        <option value="failed"><?php echo xlt('Failed'); ?></option>
+                        <option value="invalid"><?php echo xlt('Invalid'); ?></option>
+                        <option value="unsent"><?php echo xlt('Unsent'); ?></option>
+                    </select>
+                </div>
                 <div class="col-auto">
                     <button id="btnSearch" class="btn btn-sm btn-success px-4">
                         <i class="fas fa-search me-1"></i><?php echo xlt('Search'); ?>
@@ -447,28 +466,125 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
 const moduleRoot = <?php echo js_escape($moduleRoot); ?>;
 let chart = null;
 
+// Status colors for charts
+const statusColors = {
+    'sent':      { bg: '#25D366CC', border: '#128C7E' },      // Green
+    'delivered': { bg: '#2196F3CC', border: '#1565C0' },      // Blue
+    'read':      { bg: '#9C27B0CC', border: '#7B1FA2' },      // Purple
+    'played':    { bg: '#7B1FA2CC', border: '#4A148C' },      // Dark Purple
+    'pending':   { bg: '#FFC107CC', border: '#FFA000' },      // Amber
+    'queue':     { bg: '#FF9800CC', border: '#F57C00' },      // Orange
+    'in_progress': { bg: '#FFB74DCC', border: '#FF9800' },    // Light Orange
+    'server':    { bg: '#00BCD4CC', border: '#0097A7' },      // Cyan
+    'device':    { bg: '#4FC3F7CC', border: '#0288D1' },      // Light Blue
+    'error':     { bg: '#F44336CC', border: '#C62828' },      // Red
+    'failed':    { bg: '#D32F2FCC', border: '#B71C1C' },      // Dark Red
+    'invalid':   { bg: '#9E9E9ECC', border: '#616161' },      // Gray
+    'unsent':    { bg: '#E0E0E0CC', border: '#9E9E9E' }       // Light Gray
+};
+
 function buildChart(stats) {
     const ctx = document.getElementById('chartNotifications').getContext('2d');
+
     // Collect unique dates
     const dates = [...new Set(stats.map(r => r.send_date))].sort();
 
-    const wspData   = dates.map(d => { const r = stats.find(s => s.send_date === d && s.type === 'WSP');   return r ? parseInt(r.total) : 0; });
-    const emailData = dates.map(d => { const r = stats.find(s => s.send_date === d && s.type === 'Email'); return r ? parseInt(r.total) : 0; });
+    // Group stats by type and status
+    const grouped = {};
+    stats.forEach(s => {
+        const key = `${s.type}_${s.status || 'unknown'}`;
+        if (!grouped[key]) {
+            grouped[key] = { type: s.type, status: s.status || 'unknown', data: {} };
+        }
+        grouped[key].data[s.send_date] = s.total;
+    });
+
+    // Build datasets for each status
+    const datasets = [];
+    const statusOrder = ['sent', 'delivered', 'read', 'played', 'pending', 'queue', 'in_progress', 'server', 'device', 'error', 'failed', 'invalid', 'unsent'];
+
+    statusOrder.forEach(status => {
+        const wspKey = `WSP_${status}`;
+        const emailKey = `Email_${status}`;
+
+        if (grouped[wspKey] || grouped[emailKey]) {
+            // WhatsApp dataset
+            if (grouped[wspKey]) {
+                datasets.push({
+                    label: `WhatsApp - ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+                    data: dates.map(d => grouped[wspKey].data[d] || 0),
+                    backgroundColor: statusColors[status]?.bg || '#9E9E9ECC',
+                    borderColor: statusColors[status]?.border || '#616161',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    stack: 'WhatsApp'
+                });
+            }
+
+            // Email dataset
+            if (grouped[emailKey]) {
+                datasets.push({
+                    label: `Email - ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+                    data: dates.map(d => grouped[emailKey].data[d] || 0),
+                    backgroundColor: statusColors[status]?.bg.replace('CC', '99') || '#9E9E9E99', // More transparent for email
+                    borderColor: statusColors[status]?.border || '#616161',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    stack: 'Email'
+                });
+            }
+        }
+    });
+
+    // Fallback: if no status data, show simple totals
+    if (datasets.length === 0) {
+        const wspData   = dates.map(d => {
+            const r = stats.find(s => s.send_date === d && s.type === 'WSP');
+            return r ? parseInt(r.total) : 0;
+        });
+        const emailData = dates.map(d => {
+            const r = stats.find(s => s.send_date === d && s.type === 'Email');
+            return r ? parseInt(r.total) : 0;
+        });
+
+        datasets.push(
+            { label: 'WhatsApp', data: wspData,   backgroundColor: '#25D366CC', borderColor: '#128C7E', borderWidth: 1.5, borderRadius: 5 },
+            { label: 'Email',    data: emailData, backgroundColor: '#2196F3CC', borderColor: '#1565C0', borderWidth: 1.5, borderRadius: 5 }
+        );
+    }
 
     if (chart) chart.destroy();
     chart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: dates,
-            datasets: [
-                { label: 'WhatsApp', data: wspData,   backgroundColor: '#25D366CC', borderColor: '#128C7E', borderWidth: 1.5, borderRadius: 5 },
-                { label: 'Email',    data: emailData, backgroundColor: '#2196F3CC', borderColor: '#1565C0', borderWidth: 1.5, borderRadius: 5 },
-            ]
+            datasets: datasets
         },
         options: {
             responsive: true,
-            plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
-            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            plugins: {
+                legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10 } } },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.parsed.y;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    ticks: { maxRotation: 45, minRotation: 45 }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { precision: 0 },
+                    stacked: true
+                }
+            }
         }
     });
 }
@@ -502,24 +618,35 @@ document.getElementById('btnLoadStats')?.addEventListener('click', loadStats);
    Patient Status Tab
    ========================================================================= */
 function renderStatus(status) {
-    status = (status || 'pending').toLowerCase();
-    let badgeClass = 'bg-secondary';
-    let icon = 'fa-clock';
-    let label = status;
+    status = (status || 'pending').toLowerCase().trim();
 
-    if (status === 'delivered' || status === 'read' || status === 'sent' || status === 'success') {
-        badgeClass = 'bg-success';
-        icon = 'fa-check-circle';
-    } else if (status === 'error' || status === 'failed' || status === 'invalid' || status === 'unsent') {
-        badgeClass = 'bg-danger';
-        icon = 'fa-exclamation-triangle';
-    } else if (status === 'in_progress' || status === 'pending' || status === 'queue') {
-        badgeClass = 'bg-warning text-dark';
-        icon = 'fa-spinner fa-spin';
-    }
+    // Define status configuration with icon, label, and CSS class
+    // Works for both UltraMsg and WaSenderAPI
+    const statusConfig = {
+        // Common statuses
+        'sent':      { icon: 'fa-check',         label: 'Sent',       css: 'badge-sent' },
+        'delivered': { icon: 'fa-box',           label: 'Delivered',  css: 'badge-delivered' },
+        'read':      { icon: 'fa-eye',           label: 'Read',       css: 'badge-read' },
+        'played':    { icon: 'fa-play',          label: 'Played',     css: 'badge-read played' },
+        'pending':   { icon: 'fa-clock',         label: 'Pending',    css: 'badge-pending' },
+        'queue':     { icon: 'fa-list',          label: 'Queue',      css: 'badge-queue' },
+        'in_progress': { icon: 'fa-spinner fa-spin', label: 'In Progress', css: 'badge-pending' },
+        'error':     { icon: 'fa-times-circle',  label: 'Error',      css: 'badge-error' },
+        'failed':    { icon: 'fa-exclamation-triangle', label: 'Failed', css: 'badge-error' },
+        'invalid':   { icon: 'fa-question-circle', label: 'Invalid',   css: 'badge-invalid' },
+        'unsent':    { icon: 'fa-envelope',      label: 'Unsent',     css: 'badge-unsent' },
+        'server':    { icon: 'fa-server',        label: 'Server',     css: 'badge-queue' },
 
-    return `<span class="badge ${badgeClass} d-inline-flex align-items-center gap-1 shadow-sm">
-                <i class="fas ${icon}"></i> ${label.toUpperCase()}
+        // WaSenderAPI specific statuses
+        'device':    { icon: 'fa-mobile-alt',    label: 'Device',     css: 'badge-delivered' },
+        'ack':       { icon: 'fa-check-double',  label: 'ACK',        css: 'badge-delivered' }
+    };
+
+    const config = statusConfig[status] || { icon: 'fa-question', label: status, css: 'badge-secondary' };
+
+    return `<span class="badge badge-status ${config.css}" title="${status}">
+                <i class="fas ${config.icon}"></i>
+                <span>${config.label}</span>
             </span>`;
 }
 
@@ -529,6 +656,7 @@ function searchPatients() {
     const to    = document.getElementById('patientTo').value;
     const wsp   = document.getElementById('filterWsp').checked;
     const email = document.getElementById('filterEmail').checked;
+    const status = document.getElementById('filterStatus').value;
     const tbody = document.getElementById('patientTableBody');
 
     // If both unchecked, show nothing or show both? Usually both.
@@ -547,7 +675,8 @@ function searchPatients() {
         q: q,
         from: from,
         to: to,
-        channel: channel
+        channel: channel,
+        status: status
     });
 
     fetch(`${moduleRoot}/pages/ajax/get_patient_logs.php?${params.toString()}`)

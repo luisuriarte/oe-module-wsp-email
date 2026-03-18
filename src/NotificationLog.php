@@ -114,15 +114,15 @@ class NotificationLog
     /**
      * Searches notification records by patient name, PID, phone or patient_info field.
      */
-    public function searchByPatient(string $search, int $limit = 100, int $offset = 0, ?string $dateFrom = null, ?string $dateTo = null, ?string $type = null): array
+    public function searchByPatient(string $search, int $limit = 100, int $offset = 0, ?string $dateFrom = null, ?string $dateTo = null, ?string $type = null, ?string $status = null): array
     {
         $like      = '%' . $search . '%';
         $pidSearch = is_numeric($search) ? (int)$search : 0;
-        
+
         // Base conditions: Search in patient_info (log), then name fields, phones, email and pid
-        $where = "(nl.patient_info LIKE ? 
-                   OR pd.fname LIKE ? 
-                   OR pd.lname LIKE ? 
+        $where = "(nl.patient_info LIKE ?
+                   OR pd.fname LIKE ?
+                   OR pd.lname LIKE ?
                    OR pd.mname LIKE ?
                    OR CONCAT(pd.fname, ' ', pd.mname, ' ', pd.lname) LIKE ?
                    OR CONCAT(pd.lname, ' ', pd.fname, ' ', pd.mname) LIKE ?
@@ -131,7 +131,7 @@ class NotificationLog
                    OR pd.phone_biz LIKE ?
                    OR pd.email LIKE ?
                    OR nl.pid = ?)";
-        
+
         $params = [$like, $like, $like, $like, $like, $like, $like, $like, $like, $like, $pidSearch];
 
         if (!empty($dateFrom) && !empty($dateTo)) {
@@ -143,6 +143,12 @@ class NotificationLog
         if ($type && in_array($type, ['WSP', 'Email'])) {
             $where .= " AND nl.type = ?";
             $params[] = $type;
+        }
+
+        // Filter by status if provided
+        if ($status && !empty($status)) {
+            $where .= " AND LOWER(nl.status) = ?";
+            $params[] = strtolower($status);
         }
 
         $sql = "SELECT nl.*, pd.fname, pd.lname, pd.phone_cell,
@@ -163,7 +169,7 @@ class NotificationLog
     }
 
     /**
-     * Returns daily send counts grouped by notification type (WSP / Email).
+     * Returns daily send counts grouped by notification type (WSP / Email) and status.
      * Output is suitable for direct consumption by Chart.js.
      */
     public function getStats(string $dateFrom, string $dateTo, ?int $facilityId = null): array
@@ -180,15 +186,13 @@ class NotificationLog
 
         $sql = "SELECT DATE(nl.dSentDateTime) AS send_date,
                        nl.type,
-                       COUNT(*) AS total,
-                       SUM(CASE WHEN nl.status IN ('READ','DELIVERED','sent') THEN 1 ELSE 0 END) AS delivered,
-                       SUM(CASE WHEN nl.status IS NULL OR nl.status = 'in_progress' THEN 1 ELSE 0 END) AS pending,
-                       SUM(CASE WHEN nl.status = 'error' THEN 1 ELSE 0 END) AS failed
+                       nl.status,
+                       COUNT(*) AS total
                 FROM notification_log nl
                 $facilityJoin
                 WHERE DATE(nl.dSentDateTime) BETWEEN ? AND ?
-                GROUP BY DATE(nl.dSentDateTime), nl.type
-                ORDER BY send_date ASC";
+                GROUP BY DATE(nl.dSentDateTime), nl.type, nl.status
+                ORDER BY send_date ASC, nl.type ASC, nl.status ASC";
 
         $res  = sqlStatement($sql, $params);
         $rows = [];
