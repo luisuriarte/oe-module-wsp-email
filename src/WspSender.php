@@ -44,13 +44,18 @@ class WspSender
         $instance = $config['vendor_instance'] ?? '';
         $apiKey   = $config['vendor_api_key'] ?? '';
         $message  = $patient['_message'] ?? '';  // pre-built message body
+
+        // Build logo URL using facility website URL as base
         $logoFilename = $config['logo_wsp'] ?? '';
         $logoUrl      = '';
         if (!empty($logoFilename)) {
-            $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host  = $_SERVER['HTTP_HOST'] ?? 'localhost';
-            $logoUrl = "{$proto}://{$host}{$GLOBALS['webroot']}/interface/modules/custom_modules/oe-module-wsp-email/public/images/logo_wsp/{$logoFilename}";
+            // Use facility website URL as base (e.g., https://myclinic.com)
+            $baseUrl = rtrim($config['website_url'] ?? '', '/');
+            if (!empty($baseUrl)) {
+                $logoUrl = "{$baseUrl}/interface/modules/custom_modules/oe-module-wsp-email/public/images/logo_wsp/{$logoFilename}";
+            }
         }
+
         $icsUrl   = $patient['_ics_url'] ?? '';  // URL of a pre-generated .ics file
 
         if (empty($phone) || strlen($phone) < 8 || empty($vendor) || empty($apiKey)) {
@@ -186,16 +191,21 @@ class WspSender
                     ],
                 ]);
                 $body  = json_decode((string)$resp->getBody(), true);
+                $log[] = "WaSenderAPI (.ics): " . $resp->getBody();
                 if (!empty($body['success']) && isset($body['data']['msgId'])) {
                     $msgId = $body['data']['msgId'];
+                    $log[] = 'WaSenderAPI (.ics): success. msgId=' . $msgId;
+                } else {
+                    $log[] = 'WaSenderAPI (.ics): failed. Response: ' . json_encode($body);
                 }
-                $log[] = 'WaSenderAPI (.ics): success. msgId=' . $msgId;
             } catch (RequestException $e) {
                 $log[] = "Error en WaSenderAPI (.ics): " . $e->getMessage();
                 if ($e->hasResponse()) {
                     $log[] = "Respuesta: " . $e->getResponse()->getBody();
                 }
             }
+        } else {
+            $log[] = "WaSenderAPI: No se envía .ics porque icsUrl está vacío";
         }
 
         // 3. Send location (if coordinates available)
@@ -218,16 +228,21 @@ class WspSender
                     ],
                 ]);
                 $body = json_decode((string)$resp->getBody(), true);
+                $log[] = "WaSenderAPI (ubicación): " . $resp->getBody();
                 if (!empty($body['success']) && isset($body['data']['msgId'])) {
                     $msgId = $body['data']['msgId'];
+                    $log[] = 'WaSenderAPI (ubicación): success. msgId=' . $msgId;
+                } else {
+                    $log[] = 'WaSenderAPI (ubicación): failed. Response: ' . json_encode($body);
                 }
-                $log[] = 'WaSenderAPI (ubicación): location sent. msgId=' . $msgId;
             } catch (RequestException $e) {
                 $log[] = "Error en WaSenderAPI (ubicación): " . $e->getMessage();
                 if ($e->hasResponse()) {
                     $log[] = "Respuesta: " . $e->getResponse()->getBody();
                 }
             }
+        } else {
+            $log[] = "WaSenderAPI: No se envía ubicación porque no hay coordenadas configuradas";
         }
 
         return ['status' => $msgId ? 'success' : 'error', 'msgId' => $msgId, 'log' => ''];

@@ -1,0 +1,747 @@
+/**
+ * styles.css — Main stylesheet for the WSP/Email Notification Module.
+ *
+ * @package   OpenEMR\Modules\WspEmail
+ * @author    Luis A. Uriarte <luis.uriarte@gmail.com>
+ * @copyright Copyright (c) 2024-2025 Luis A. Uriarte
+ * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
+ */
+
+/* =========================================================================
+   Global & Layout
+   ========================================================================= */
+body {
+    background: #f5f7fa;
+}
+
+.module-header {
+    background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+    color: #fff;
+    padding: 20px 28px;
+    border-radius: 0 0 12px 12px;
+    margin-bottom: 26px;
+}
+
+.module-header h1 {
+    font-size: 1.5rem;
+    margin: 0;
+}
+
+.module-header p {
+    margin: 4px 0 0;
+    opacity: .85;
+    font-size: .9rem;
+}
+
+/* Bootstrap Form Switch Override */
+.form-switch .form-check-input {
+    width: 3.2em !important;
+    height: 1.62em !important;
+    cursor: pointer;
+    background-color: #cbd5e0;
+    border-color: #cbd5e0;
+}
+
+.form-switch .form-check-input:checked {
+    background-color: #25D366 !important;
+    border-color: #25D366 !important;
+}
+
+.form-switch .form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(37, 211, 102, 0.25);
+}
+
+.form-check-label {
+    padding-left: 0.5rem;
+    padding-top: 0.2rem;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+/* =========================================================================
+   Tabs
+   ========================================================================= */
+.nav-tabs .nav-link {
+    color: #555;
+    font-weight: 500;
+}
+
+.nav-tabs .nav-link.active {
+    color: #128C7E;
+    border-bottom: 3px solid #128C7E;
+}
+
+/* =========================================================================
+   Stat Cards
+   ========================================================================= */
+.stat-card {
+    border: none;
+    border-radius: 12px;
+    padding: 20px 22px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, .08);
+    background: #fff;
+    transition: transform .15s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.stat-card .number {
+    font-size: 2.2rem;
+    font-weight: 700;
+}
+
+.stat-card .label {
+    font-size: .82rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.stat-wsp .number {
+    color: #25D366;
+}
+
+.stat-email .number {
+    color: #2196F3;
+}
+
+.stat-pending .number {
+    color: #FF9800;
+}
+
+.stat-failed .number {
+    color: #F44336;
+}
+
+/* =========================================================================
+   Chart Cards & Tables
+   ========================================================================= */
+.chart-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, .08);
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.table-responsive {
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 8px rgba(0, 0, 0, .07);
+}
+
+/* =========================================================================
+   Badges
+   ========================================================================= */
+.badge-status {
+    font-size: .75rem;
+    border-radius: 20px;
+    padding: 3px 10px;
+}
+
+.badge-sent {
+    background: #e8f5e9;
+    color: #388E3C;
+}
+
+.badge-delivered {
+    background: #e3f2fd;
+    color: #1976D2;
+}
+
+.badge-read {
+    background: #f3e5f5;
+    color: #7B1FA2;
+}
+
+.badge-error {
+    background: #ffebee;
+    color: #C62828;
+}
+
+.badge-pending {
+    background: #fff8e1;
+    color: #F57F17;
+}
+
+/* =========================================================================
+   Facility Cards
+   ========================================================================= */
+.facility-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 18px 20px;
+    border-left: 4px solid #25D366;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
+    cursor: pointer;
+}
+
+.facility-card:hover {
+    box-shadow: 0 3px 14px rgba(0, 0, 0, .12);
+}
+
+.facility-card.inactive {
+    opacity: 0.6;
+    filter: grayscale(40%);
+    border: 1px dashed #adb5bd;
+}
+
+.facility-card.inactive .card-body {
+    background-color: #f8f9fa;
+}
+
+.inactive-legend {
+    color: #dc3545;
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: block;
+    margin-top: 5px;
+}
+
+.chart-inactive {
+    opacity: 0.45;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+/* =========================================================================
+   Forms & Inputs
+   ========================================================================= */
+#facilityConfigForm {
+    display: none;
+}
+
+textarea.mono {
+    font-family: monospace;
+    font-size: .88rem;
+}
+
+.form-check-input:checked {
+    background-color: #25D366;
+    border-color: #25D366;
+}
+
+.form-check-input:focus {
+    border-color: #25D366;
+    box-shadow: 0 0 0 0.25rem rgba(37, 211, 102, 0.25);
+}
+
+.btn-check:checked + .btn-outline-success {
+    background-color: #25D366;
+    border-color: #25D366;
+    color: white;
+}
+
+/* Highlight match in search */
+.search-match {
+    background-color: #fff3cd;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+/* =========================================================================
+   Custom Sliding Toggle Switches (Shared)
+   ========================================================================= */
+.custom-checkbox {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+    vertical-align: middle;
+}
+
+.custom-checkbox input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 20px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+.custom-checkbox input:checked + .slider {
+    background-color: #25D366 !important;
+}
+
+.custom-checkbox input:checked + .slider:before {
+    transform: translateX(20px);
+}
+
+/* Disabled state */
+.custom-checkbox input:disabled + .slider {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Schedule table checkboxes */
+#scheduleBody .custom-checkbox {
+    vertical-align: middle;
+}
+
+#scheduleBody .slider {
+    background-color: #ccc;
+}
+
+#scheduleBody .custom-checkbox input:checked + .slider {
+    background-color: #25D366 !important;
+}
+
+#scheduleBody .custom-checkbox input:checked + .slider:before {
+    transform: translateX(20px);
+}
+
+/* =========================================================================
+   Configuration Lockout (Inactive Facility)
+   ========================================================================= */
+.facility-config-inactive {
+    opacity: 0.7;
+    pointer-events: none !important;
+}
+
+.facility-config-inactive .btn-save {
+    display: none !important;
+}
+
+.facility-config-inactive .btn-cancel {
+    pointer-events: auto !important;
+    opacity: 1;
+}
+
+/* Facility config form checkboxes */
+#facilityConfigForm .custom-checkbox {
+    vertical-align: middle;
+}
+
+#facilityConfigForm .slider {
+    background-color: #ccc !important;
+}
+
+#facilityConfigForm .custom-checkbox input:checked + .slider {
+    background-color: #25D366 !important;
+}
+
+#facilityConfigForm .custom-checkbox input:checked + .slider:before {
+    transform: translateX(20px) !important;
+}
+
+/* Patient filter checkboxes */
+#filterWsp:checked + .slider,
+#filterEmail:checked + .slider {
+    background-color: #25D366 !important;
+}
+
+#filterWsp:checked + .slider:before,
+#filterEmail:checked + .slider:before {
+    transform: translateX(20px) !important;
+}
+
+/* Ensure slider circle moves for all custom checkboxes */
+.custom-checkbox input:checked + .slider:before {
+    transform: translateX(20px) !important;
+}
+
+/* Fix for flex container alignment */
+.d-flex .custom-checkbox {
+    flex-shrink: 0;
+}
+
+/* =========================================================================
+   Schedule Table (Notification Slots)
+   ========================================================================= */
+#scheduleTable .fw-bold {
+    font-weight: 700 !important;
+}
+
+#scheduleTable .text-muted {
+    color: #6c757d !important;
+}
+
+#scheduleTable .text-center {
+    text-align: center !important;
+}
+
+#scheduleTable .hours-input {
+    width: 100px;
+}
+
+/* =========================================================================
+   Utility Classes
+   ========================================================================= */
+.d-none {
+    display: none !important;
+}
+
+.gap-2 { gap: 0.5rem !important; }
+.gap-3 { gap: 1rem !important; }
+.gap-4 { gap: 1.5rem !important; }
+
+.mb-0 { margin-bottom: 0 !important; }
+.mb-1 { margin-bottom: 0.25rem !important; }
+.mb-2 { margin-bottom: 0.5rem !important; }
+.mb-3 { margin-bottom: 1rem !important; }
+.mb-4 { margin-bottom: 1.5rem !important; }
+
+.mt-2 { margin-top: 0.5rem !important; }
+
+.me-1 { margin-right: 0.25rem !important; }
+.me-2 { margin-right: 0.5rem !important; }
+
+.ms-1 { margin-left: 0.25rem !important; }
+.ms-2 { margin-left: 0.5rem !important; }
+
+.px-3 { padding-left: 1rem !important; padding-right: 1rem !important; }
+.px-4 { padding-left: 1.5rem !important; padding-right: 1.5rem !important; }
+
+.py-2 { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
+.py-4 { padding-top: 1.5rem !important; padding-bottom: 1.5rem !important; }
+
+.pt-1 { padding-top: 0.25rem !important; }
+
+.small { font-size: 0.875rem !important; }
+
+.text-success { color: #25D366 !important; }
+.text-primary { color: #2196F3 !important; }
+.text-secondary { color: #6c757d !important; }
+.text-muted { color: #6c757d !important; }
+.text-danger { color: #dc3545 !important; }
+
+.bg-success { background-color: #25D366 !important; }
+.bg-secondary { background-color: #6c757d !important; }
+.bg-light { background-color: #f8f9fa !important; }
+.bg-danger { background-color: #dc3545 !important; }
+
+.border { border: 1px solid #dee2e6 !important; }
+.border-0 { border: 0 !important; }
+.rounded { border-radius: 0.25rem !important; }
+.rounded-3 { border-radius: 0.3rem !important; }
+
+.shadow-sm { box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important; }
+
+.align-items-center { align-items: center !important; }
+.justify-content-between { justify-content: space-between !important; }
+.flex-wrap { flex-wrap: wrap !important; }
+
+.w-100 { width: 100% !important; }
+
+.align-self-center { align-self: center !important; }
+
+.fw-bold { font-weight: 700 !important; }
+
+.d-flex { display: flex !important; }
+
+.row { display: flex !important; flex-wrap: wrap !important; margin-right: -15px; margin-left: -15px; }
+
+.col-auto { flex: 0 0 auto; width: auto; max-width: 100%; }
+.col-md-2 { flex: 0 0 16.666667%; max-width: 16.666667%; }
+.col-md-3 { flex: 0 0 25%; max-width: 25%; }
+.col-md-4 { flex: 0 0 33.333333%; max-width: 33.333333%; }
+.col-md-6 { flex: 0 0 50%; max-width: 50%; }
+.col-md-8 { flex: 0 0 66.666667%; max-width: 66.666667%; }
+.col-md-12 { flex: 0 0 100%; max-width: 100%; }
+.col-6 { flex: 0 0 50%; max-width: 50%; }
+
+@media (max-width: 768px) {
+    .col-md-2, .col-md-3, .col-md-4, .col-md-6, .col-md-8, .col-md-12 {
+        flex: 0 0 100%; max-width: 100%;
+    }
+}
+
+.g-2 { margin-right: -0.5rem; margin-left: -0.5rem; }
+.g-2 > * { padding-right: 0.5rem; padding-left: 0.5rem; }
+
+.g-3 { margin-right: -1rem; margin-left: -1rem; }
+.g-3 > * { padding-right: 1rem; padding-left: 1rem; }
+
+hr {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    border: 0;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+h6 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.text-success { color: #25D366 !important; }
+.text-primary { color: #2196F3 !important; }
+.text-secondary { color: #6c757d !important; }
+.text-muted { color: #6c757d !important; }
+.text-danger { color: #dc3545 !important; }
+
+/* =========================================================================
+   Alerts
+   ========================================================================= */
+.alert {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid transparent;
+    border-radius: 0.25rem;
+}
+
+.alert-warning {
+    color: #856404;
+    background-color: #fff3cd;
+    border-color: #ffeeba;
+}
+
+.alert-success {
+    color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+
+.alert-danger {
+    color: #721c24;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+
+/* =========================================================================
+   Buttons
+   ========================================================================= */
+.btn {
+    display: inline-block;
+    font-weight: 400;
+    text-align: center;
+    vertical-align: middle;
+    cursor: pointer;
+    border: 1px solid transparent;
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    border-radius: 0.25rem;
+    transition: color .15s ease-in-out, background-color .15s ease-in-out, border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    border-radius: 0.2rem;
+}
+
+.btn-success {
+    color: #fff;
+    background-color: #25D366;
+    border-color: #128C7E;
+}
+
+.btn-success:hover {
+    background-color: #1eb85a;
+    border-color: #107a6b;
+}
+
+.btn-outline-success {
+    color: #25D366;
+    border-color: #25D366;
+    background-color: transparent;
+}
+
+.btn-outline-success:hover {
+    color: #fff;
+    background-color: #25D366;
+    border-color: #25D366;
+}
+
+.btn-outline-secondary {
+    color: #6c757d;
+    border-color: #6c757d;
+    background-color: transparent;
+}
+
+.btn-outline-secondary:hover {
+    color: #fff;
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+.btn-outline-danger {
+    color: #dc3545;
+    border-color: #dc3545;
+    background-color: transparent;
+}
+
+.btn-outline-danger:hover {
+    color: #fff;
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+.btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* =========================================================================
+   Forms
+   ========================================================================= */
+.form-control {
+    display: block;
+    width: 100%;
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #495057;
+    background-color: #fff;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+}
+
+.form-control-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    border-radius: 0.2rem;
+}
+
+.form-control:disabled {
+    background-color: #e9ecef;
+    opacity: 0.6;
+}
+
+.form-label {
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.form-select {
+    display: block;
+    width: 100%;
+    padding: 0.375rem 2.25rem 0.375rem 0.75rem;
+    font-size: 1rem;
+    color: #495057;
+    background-color: #fff;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+}
+
+.form-select-sm {
+    padding: 0.25rem 2.25rem 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* =========================================================================
+   Tables
+   ========================================================================= */
+.table {
+    width: 100%;
+    margin-bottom: 1rem;
+    color: #212529;
+}
+
+.table-sm {
+    font-size: 0.875rem;
+}
+
+.table-hover tbody tr:hover {
+    color: #212529;
+    background-color: rgba(0, 0, 0, 0.075);
+}
+
+.table-bordered {
+    border: 1px solid #dee2e6;
+}
+
+.table-bordered th,
+.table-bordered td {
+    border: 1px solid #dee2e6;
+}
+
+.table-light {
+    color: #212529;
+    background-color: #f8f9fa;
+}
+
+.table thead th {
+    vertical-align: bottom;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.table tbody + tbody {
+    border-top: 2px solid #dee2e6;
+}
+
+/* =========================================================================
+   Badges
+   ========================================================================= */
+.badge {
+    display: inline-block;
+    padding: 0.25em 0.4em;
+    font-size: 75%;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+}
+
+.badge.bg-success { background-color: #25D366 !important; }
+.badge.bg-secondary { background-color: #6c757d !important; }
+.badge.bg-danger { background-color: #dc3545 !important; }
+
+.badge.bg-danger.small {
+    font-size: 0.65em;
+}
+
+/* =========================================================================
+   Preview containers
+   ========================================================================= */
+#previewWsp,
+#previewEmail {
+    max-height: 100px;
+    display: none;
+}
+
+#previewWsp img,
+#previewEmail img {
+    max-height: 60px;
+    border: 1px solid #ddd;
+    padding: 2px;
+}
+
+/* =========================================================================
+   Facility Map
+   ========================================================================= */
+#facilityMap {
+    height: 300px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    z-index: 1;
+}
+
+/* =========================================================================
+   Schedule Table Column Widths
+   ========================================================================= */
+#scheduleTable th:nth-child(1) { width: 40px; }
+#scheduleTable th:nth-child(4) { width: 70px; }
+#scheduleTable th:nth-child(5) { width: 70px; }
+#scheduleTable th:nth-child(6) { width: 40px; }
+

@@ -84,21 +84,34 @@ class EmailSender
         // Ensure PHPMailer class is available (OpenEMR bundles it)
         if (!class_exists(PHPMailer::class)) {
             $base = __DIR__ . '/../../../../library/classes/PHPMailer/src/';
-            require_once $base . 'PHPMailer.php';
-            require_once $base . 'SMTP.php';
+            if (file_exists($base)) {
+                require_once $base . 'PHPMailer.php';
+                require_once $base . 'SMTP.php';
+            }
+        }
+
+        if (!class_exists(PHPMailer::class)) {
+            error_log('EmailSender: PHPMailer not available');
+            return false;
         }
 
         $mail = new PHPMailer(true);
         try {
+            // Try SMTP if configured
             if (!empty($GLOBALS['SMTP_HOST'])) {
-                $crypto = new CryptoGen();
-                $mail->isSMTP();
-                $mail->Host       = $GLOBALS['SMTP_HOST'];
-                $mail->Port       = (int)($GLOBALS['SMTP_PORT'] ?? 587);
-                $mail->SMTPAuth   = true;
-                $mail->Username   = $GLOBALS['SMTP_USER'] ?? '';
-                $mail->Password   = $crypto->decryptStandard($GLOBALS['SMTP_PASS'] ?? '');
-                $mail->SMTPSecure = $GLOBALS['SMTP_SECURE'] ?? PHPMailer::ENCRYPTION_STARTTLS;
+                try {
+                    $crypto = new CryptoGen();
+                    $mail->isSMTP();
+                    $mail->Host       = $GLOBALS['SMTP_HOST'];
+                    $mail->Port       = (int)($GLOBALS['SMTP_PORT'] ?? 587);
+                    $mail->SMTPAuth   = true;
+                    $mail->Username   = $GLOBALS['SMTP_USER'] ?? '';
+                    $mail->Password   = $crypto->decryptStandard($GLOBALS['SMTP_PASS'] ?? '');
+                    $mail->SMTPSecure = $GLOBALS['SMTP_SECURE'] ?? PHPMailer::ENCRYPTION_STARTTLS;
+                } catch (\Exception $e) {
+                    // SMTP config failed, fall back to mail()
+                    error_log('EmailSender: SMTP config failed, using mail(). Error: ' . $e->getMessage());
+                }
             }
 
             $mail->CharSet  = 'UTF-8';
@@ -142,21 +155,34 @@ class EmailSender
         string $gcalUrl, string $mapLinkUrl
     ): string {
         $logoTag  = '<img src="cid:logo" alt="' . htmlspecialchars($facilityName) . '" style="max-width:200px;">';
+
         $mapBlock = '';
         if ($mapLinkUrl) {
-            $mapBlock = '
-            <p style="margin-top:24px;">
-                <a href="' . htmlspecialchars($mapLinkUrl) . '" target="_blank"
-                   style="display:inline-block;padding:10px 20px;background-color:#007bff;color:#fff;text-decoration:none;border-radius:5px;">
-                   View Location on Google Maps
+            $mapBlock = '<p style="margin-top:24px;">
+                <a href="' . htmlspecialchars($mapLinkUrl) . '" target="_blank">
+                    <img src="' . htmlspecialchars($mapLinkUrl) . '&size=600x300&zoom=13"
+                         alt="Mapa de la ubicación" style="max-width:100%;border:1px solid #ddd;border-radius:8px;">
+                </a>
+                <p style="font-size:12px;color:#888;">Haz clic en la imagen para ver el mapa interactivo.</p>
+            </p>';
+        }
+
+        $gcalBlock = '';
+        if ($gcalUrl) {
+            $gcalBlock = '<p style="margin:16px 0;">
+                <a href="' . htmlspecialchars($gcalUrl) . '" target="_blank"
+                   style="display:inline-block;padding:10px 20px;background-color:#4285f4;color:#fff;text-decoration:none;border-radius:5px;font-weight:bold;">
+                   Agregar a Google Calendar
                 </a>
             </p>';
         }
-        $gcalLink = $gcalUrl ? '<p><a href="' . htmlspecialchars($gcalUrl) . '" target="_blank">Add to Google Calendar</a></p>' : '';
 
         return '<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
 <body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:auto;padding:20px;">
     <div style="text-align:center;margin-bottom:20px;">' . $logoTag . '</div>
     <div style="background:#f9f9f9;border-radius:8px;padding:24px;border:1px solid #e0e0e0;">
@@ -168,11 +194,11 @@ class EmailSender
            Email: <a href="mailto:' . htmlspecialchars($facilityEmail) . '">' . htmlspecialchars($facilityEmail) . '</a><br>
            Web: <a href="' . htmlspecialchars($facilityUrl) . '">' . htmlspecialchars($facilityUrl) . '</a>
         </p>
-        ' . $gcalLink . '
+        ' . $gcalBlock . '
         ' . $mapBlock . '
         <p style="margin-top:20px;font-size:12px;color:#888;">
-            An appointment calendar file (.ics) is attached — open it to save the appointment
-            directly to your calendar application.
+            Se adjunta un archivo de calendario (.ics) — ábrelo para guardar el turno
+            directamente en tu aplicación de calendario.
         </p>
     </div>
 </body>
@@ -184,11 +210,20 @@ class EmailSender
         string $organizer, string $organizerEmail, string $location, string $url,
         string $attendeeName, string $attendeeEmail, string $zone
     ): string {
+        // Escape values for iCalendar
+        $summary_escaped = $this->escapeIcal($summary);
+        $description_escaped = $this->escapeIcal($description);
+        $location_escaped = $this->escapeIcal($location);
+        $organizer_escaped = $this->escapeIcal($organizer);
+        $attendeeName_escaped = $this->escapeIcal($attendeeName);
+
+        // Generate dates
         $dtStart  = date('Ymd\THis', strtotime($startDate));
         $dtEnd    = date('Ymd\THis', strtotime($endDate));
-        $stamp    = gmdate("Ymd\THis\Z");
-        $uid      = gmdate('YmdThis') . '-' . mt_rand() . '@oe-module-wsp-email';
+        $stamp    = gmdate('Ymd\THis\Z');
+        $uid      = gmdate('Ymd\THis') . '-' . mt_rand() . '@oe-module-wsp-email';
 
+        // VTIMEZONE for America/Argentina/Buenos_Aires
         $vtimezone = "BEGIN:VTIMEZONE\r\n"
                    . "TZID:$zone\r\n"
                    . "BEGIN:STANDARD\r\n"
@@ -199,39 +234,72 @@ class EmailSender
                    . "END:STANDARD\r\n"
                    . "END:VTIMEZONE\r\n";
 
-        return "BEGIN:VCALENDAR\r\n"
-             . "VERSION:2.0\r\n"
-             . "PRODID:-//oe-module-wsp-email//OpenEMR//EN\r\n"
-             . "METHOD:PUBLISH\r\n"
-             . $vtimezone
-             . "BEGIN:VEVENT\r\n"
-             . "DTSTART;TZID=$zone:$dtStart\r\n"
-             . "DTEND;TZID=$zone:$dtEnd\r\n"
-             . "DTSTAMP:$stamp\r\n"
-             . "UID:$uid\r\n"
-             . "SUMMARY:" . $this->escapeIcal($summary) . "\r\n"
-             . "DESCRIPTION:" . $this->escapeIcal($description) . "\r\n"
-             . "LOCATION:" . $this->escapeIcal($location) . "\r\n"
-             . "URL:" . $url . "\r\n"
-             . "ORGANIZER;CN=" . $this->escapeIcal($organizer) . ":mailto:$organizerEmail\r\n"
-             . "ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=" . $this->escapeIcal($attendeeName)
-             .        ";EMAIL=$attendeeEmail:mailto:$attendeeEmail\r\n"
-             . "CLASS:PUBLIC\r\n"
-             . "PRIORITY:5\r\n"
-             . "STATUS:CONFIRMED\r\n"
-             . "SEQUENCE:0\r\n"
-             . "BEGIN:VALARM\r\n"
-             . "TRIGGER:-PT60M\r\n"
-             . "ACTION:DISPLAY\r\n"
-             . "DESCRIPTION:Appointment reminder\r\n"
-             . "END:VALARM\r\n"
-             . "END:VEVENT\r\n"
-             . "END:VCALENDAR\r\n";
+        // Build iCalendar content
+        $ical = "BEGIN:VCALENDAR\r\n"
+              . "VERSION:2.0\r\n"
+              . "PRODID:-//oe-module-wsp-email//OpenEMR//EN\r\n"
+              . "METHOD:PUBLISH\r\n"
+              . $vtimezone
+              . "BEGIN:VEVENT\r\n"
+              . "DTSTART;TZID=$zone:$dtStart\r\n"
+              . "DTEND;TZID=$zone:$dtEnd\r\n"
+              . "DTSTAMP:$stamp\r\n"
+              . "UID:$uid\r\n"
+              . "SUMMARY:$summary_escaped\r\n"
+              . "DESCRIPTION:$description_escaped\r\n"
+              . "LOCATION:$location_escaped\r\n"
+              . "URL:$url\r\n"
+              . "ORGANIZER;CN=$organizer_escaped:mailto:$organizerEmail\r\n"
+              . "ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=$attendeeName_escaped;EMAIL=$attendeeEmail:mailto:$attendeeEmail\r\n"
+              . "CONTACT:$organizer_escaped\r\n"
+              . "CLASS:PUBLIC\r\n"
+              . "PRIORITY:5\r\n"
+              . "TRANSP:OPAQUE\r\n"
+              . "STATUS:CONFIRMED\r\n"
+              . "SEQUENCE:0\r\n"
+              . "BEGIN:VALARM\r\n"
+              . "TRIGGER:-PT60M\r\n"
+              . "ACTION:DISPLAY\r\n"
+              . "DESCRIPTION:Appointment reminder\r\n"
+              . "END:VALARM\r\n"
+              . "END:VEVENT\r\n"
+              . "END:VCALENDAR\r\n";
+
+        // Apply line folding (RFC 5545)
+        return $this->foldIcalContent($ical);
     }
 
+    /**
+     * Escape special characters for iCalendar format (RFC 5545)
+     */
     private function escapeIcal(string $value): string
     {
-        return str_replace(['\\', "\n", "\r", ',', ';'], ['\\\\', '\\n', '', '\\,', '\\;'], $value);
+        // Order matters: backslash must be first
+        return str_replace(
+            ['\\', "\n", "\r", ',', ';'],
+            ['\\\\', '\\n', '', '\\,', '\\;'],
+            $value
+        );
+    }
+
+    /**
+     * Fold long lines to comply with RFC 5545 (max 75 octets per line)
+     */
+    private function foldIcalContent(string $content): string
+    {
+        $lines = explode("\r\n", $content);
+        $foldedLines = [];
+
+        foreach ($lines as $line) {
+            // Fold lines longer than 75 octets (use 70 to be safe with UTF-8)
+            while (strlen($line) > 70) {
+                $foldedLines[] = substr($line, 0, 70);
+                $line = ' ' . substr($line, 70); // Continuation line starts with space
+            }
+            $foldedLines[] = $line;
+        }
+
+        return implode("\r\n", $foldedLines);
     }
 
     private function buildGoogleCalendarUrl(

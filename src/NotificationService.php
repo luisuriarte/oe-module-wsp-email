@@ -177,7 +177,10 @@ class NotificationService
         // Build and publish the temporary .ics file
         $icsPath            = WspSender::buildIcsFile($patient, $config);
         $icsBase            = basename($icsPath);
-        $patient['_ics_url'] = $this->moduleBaseUrl . $icsBase;
+
+        // Use facility website URL as base for ICS URL (must be publicly accessible)
+        $baseUrl = rtrim($config['website_url'] ?? '', '/');
+        $patient['_ics_url'] = "{$baseUrl}/interface/modules/custom_modules/oe-module-wsp-email/public/ics/{$icsBase}";
 
         $publicIcsDir = __DIR__ . '/../public/ics/';
         if (!is_dir($publicIcsDir)) {
@@ -188,7 +191,11 @@ class NotificationService
 
         $result = $this->wspSender->send($config, $patient);
         $msgId  = $result['msgId'] ?? null;
-        $status = $result['status'] ?? 'error'; // Capture actual vendor status (sent, queue, etc.)
+        $status = $result['status'] ?? 'error';
+
+        // Log detailed error info
+        error_log("WspSender result: " . json_encode($result));
+        error_log("WspSender log: " . ($result['log'] ?? 'N/A'));
 
         $this->insertLog('WSP', $patient, $config, $msgId, $status, $seq);
 
@@ -351,7 +358,8 @@ class NotificationService
             $patient['pc_endTime'],
         ]);
 
-        $logId = (int)$GLOBALS['adodb']->Insert_ID();
+        // Get last inserted ID using OpenEMR's sqlGetLastInsertId() function
+        $logId = (int)sqlGetLastInsertId();
         if ($logId > 0) {
             $this->log->addStatusHistory($logId, $status);
         }
