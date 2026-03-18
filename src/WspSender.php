@@ -368,13 +368,12 @@ class WspSender
     public static function buildMessage(string $template, array $patient): string
     {
         $dtWrk     = strtotime($patient['pc_eventDate'] . ' ' . $patient['pc_startTime']);
-        $days      = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-        $months    = ['January','February','March','April','May','June',
-                      'July','August','September','October','November','December'];
 
         $name      = trim(($patient['title'] ?? '') . ' ' . ($patient['fname'] ?? '') . ' ' . ($patient['lname'] ?? ''));
-        $date      = $days[date('w', $dtWrk)] . ' ' . date('d', $dtWrk) . ' ' .
-                     $months[(int)date('n', $dtWrk) - 1] . ' ' . date('Y', $dtWrk);
+        $date      = LocalizationHelper::formatAppointmentDate(
+            (string)($patient['pc_eventDate'] ?? ''),
+            (string)($patient['pc_startTime'] ?? '00:00:00')
+        );
 
         $find    = [
             '***NAME***', '***PROVIDER***', '***USER_PREFFIX***', '***DATE***',
@@ -433,7 +432,9 @@ class WspSender
              . "DTEND;TZID=$zone:$dtEnd\r\n"
              . "DTSTAMP:$stamp\r\n"
              . "UID:$uid\r\n"
-             . "SUMMARY:Appointment at " . ($config['facility_name'] ?? 'Clinic') . "\r\n"
+             . "SUMMARY:" . self::escapeIcalValue(
+                 LocalizationHelper::translate('Appointment at') . ' ' . ($config['facility_name'] ?? LocalizationHelper::translate('Clinic'))
+             ) . "\r\n"
              . "DESCRIPTION:" . str_replace(["\r\n","\n"], "\\n", ($patient['_message'] ?? '')) . "\r\n"
              . "LOCATION:" . ($config['facility_address'] ?? '') . "\r\n"
              . "URL:" . ($config['website_url'] ?? '') . "\r\n"
@@ -444,7 +445,7 @@ class WspSender
              . "BEGIN:VALARM\r\n"
              . "TRIGGER:-PT60M\r\n"
              . "ACTION:DISPLAY\r\n"
-             . "DESCRIPTION:Appointment reminder\r\n"
+             . "DESCRIPTION:" . self::escapeIcalValue(LocalizationHelper::translate('Appointment reminder')) . "\r\n"
              . "END:VALARM\r\n"
              . "END:VEVENT\r\n"
              . "END:VCALENDAR\r\n";
@@ -452,5 +453,10 @@ class WspSender
         $filename = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'appt-' . substr(md5(uniqid()), 0, 8) . '.ics';
         file_put_contents($filename, $ics);
         return $filename;
+    }
+
+    private static function escapeIcalValue(string $value): string
+    {
+        return str_replace(['\\', "\n", "\r", ',', ';'], ['\\\\', '\\n', '', '\\,', '\\;'], $value);
     }
 }

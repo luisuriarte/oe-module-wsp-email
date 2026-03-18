@@ -47,12 +47,12 @@ $data = [
     'vendor_instance'     => trim($_POST['vendor_instance']      ?? ''),
     'vendor_api_key'      => trim($_POST['vendor_api_key']       ?? ''),
     'webhook_secret'      => trim($_POST['webhook_secret']       ?? ''),
-    // UltraMsg specific - only update if provided
+    // UltraMsg specific - check if user changed the key or kept existing
     'ultramsg_instance'   => !empty($_POST['ultramsg_instance']) ? trim($_POST['ultramsg_instance']) : ($current['ultramsg_instance'] ?? ''),
-    'ultramsg_api_key'    => !empty($_POST['ultramsg_api_key']) ? trim($_POST['ultramsg_api_key']) : ($current['ultramsg_api_key'] ?? ''),
-    // WaSenderAPI specific - only update if provided
-    'wasenderapi_api_key'      => !empty($_POST['wasenderapi_api_key']) ? trim($_POST['wasenderapi_api_key']) : ($current['wasenderapi_api_key'] ?? ''),
-    'wasenderapi_webhook_secret' => !empty($_POST['wasenderapi_webhook_secret']) ? trim($_POST['wasenderapi_webhook_secret']) : ($current['wasenderapi_webhook_secret'] ?? ''),
+    'ultramsg_api_key'    => (!empty($_POST['ultramsg_api_key']) && !str_contains($_POST['ultramsg_api_key'], '•')) ? trim($_POST['ultramsg_api_key']) : ($current['ultramsg_api_key'] ?? ''),
+    // WaSenderAPI specific - check if user changed the key or kept existing
+    'wasenderapi_api_key'      => (!empty($_POST['wasenderapi_api_key']) && !str_contains($_POST['wasenderapi_api_key'], '•')) ? trim($_POST['wasenderapi_api_key']) : ($current['wasenderapi_api_key'] ?? ''),
+    'wasenderapi_webhook_secret' => (!empty($_POST['wasenderapi_webhook_secret']) && !str_contains($_POST['wasenderapi_webhook_secret'], '•')) ? trim($_POST['wasenderapi_webhook_secret']) : ($current['wasenderapi_webhook_secret'] ?? ''),
     // Common configuration
     'logo_wsp'            => $_FILES['logo_wsp']['name'] ?? ($current['logo_wsp'] ?? ''),
     'logo_email'          => $_FILES['logo_email']['name'] ?? ($current['logo_email'] ?? ''),

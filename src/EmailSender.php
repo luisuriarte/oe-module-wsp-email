@@ -39,7 +39,7 @@ class EmailSender
         $geoapifyKey    = $config['geoapify_key']     ?? '';
         $latitude       = $config['latitude']         ?? null;
         $longitude      = $config['longitude']        ?? null;
-        $subject        = $config['email_subject']    ?? "Appointment reminder — $facilityName";
+        $subject        = $config['email_subject']    ?? (LocalizationHelper::translate('Appointment reminder') . " — $facilityName");
         $messageBody    = $patient['_message']        ?? '';
         $zone           = $GLOBALS['gbl_time_zone']   ?? 'America/Argentina/Buenos_Aires';
 
@@ -161,7 +161,7 @@ class EmailSender
             $mapBlock = '<p style="margin-top:24px;">
                 <a href="' . htmlspecialchars($mapLinkUrl) . '" target="_blank"
                    style="display:inline-block;padding:10px 20px;background-color:#4285f4;color:#fff;text-decoration:none;border-radius:5px;">
-                   <i class="fas fa-map-marker-alt"></i> Ver ubicación en Google Maps
+                   <i class="fas fa-map-marker-alt"></i> ' . htmlspecialchars(LocalizationHelper::translate('View location in Google Maps')) . '
                 </a>
             </p>';
         }
@@ -171,13 +171,13 @@ class EmailSender
             $gcalBlock = '<p style="margin:16px 0;">
                 <a href="' . htmlspecialchars($gcalUrl) . '" target="_blank"
                    style="display:inline-block;padding:10px 20px;background-color:#4285f4;color:#fff;text-decoration:none;border-radius:5px;font-weight:bold;">
-                   Agregar a Google Calendar
+                   ' . htmlspecialchars(LocalizationHelper::translate('Add to Google Calendar')) . '
                 </a>
             </p>';
         }
 
         return '<!DOCTYPE html>
-<html lang="es">
+<html lang="' . htmlspecialchars(LocalizationHelper::currentLanguageTag()) . '">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -189,15 +189,14 @@ class EmailSender
         <hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;">
         <p><strong>' . htmlspecialchars($facilityName) . '</strong><br>
            ' . htmlspecialchars($facilityAddr) . '<br>
-           Tel: ' . htmlspecialchars($facilityPhone) . '<br>
-           Email: <a href="mailto:' . htmlspecialchars($facilityEmail) . '">' . htmlspecialchars($facilityEmail) . '</a><br>
-           Web: <a href="' . htmlspecialchars($facilityUrl) . '">' . htmlspecialchars($facilityUrl) . '</a>
+           ' . htmlspecialchars(LocalizationHelper::translate('Phone')) . ': ' . htmlspecialchars($facilityPhone) . '<br>
+           ' . htmlspecialchars(LocalizationHelper::translate('Email')) . ': <a href="mailto:' . htmlspecialchars($facilityEmail) . '">' . htmlspecialchars($facilityEmail) . '</a><br>
+           ' . htmlspecialchars(LocalizationHelper::translate('Website')) . ': <a href="' . htmlspecialchars($facilityUrl) . '">' . htmlspecialchars($facilityUrl) . '</a>
         </p>
         ' . $gcalBlock . '
         ' . $mapBlock . '
         <p style="margin-top:20px;font-size:12px;color:#888;">
-            Se adjunta un archivo de calendario (.ics) — ábrelo para guardar el turno
-            directamente en tu aplicación de calendario.
+            ' . htmlspecialchars(LocalizationHelper::translate('A calendar file (.ics) is attached — open it to save the appointment directly in your calendar application.')) . '
         </p>
     </div>
 </body>
@@ -259,7 +258,7 @@ class EmailSender
               . "BEGIN:VALARM\r\n"
               . "TRIGGER:-PT60M\r\n"
               . "ACTION:DISPLAY\r\n"
-              . "DESCRIPTION:Appointment reminder\r\n"
+              . "DESCRIPTION:" . $this->escapeIcal(LocalizationHelper::translate('Appointment reminder')) . "\r\n"
               . "END:VALARM\r\n"
               . "END:VEVENT\r\n"
               . "END:VCALENDAR\r\n";

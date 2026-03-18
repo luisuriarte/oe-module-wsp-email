@@ -951,10 +951,13 @@ function loadFacilityConfig(facilityId) {
             const ultraApiKeyInput = document.getElementById('cfgUltraApiKey');
             const ultraApiKeyHint = document.getElementById('ultraApiKeyHint');
             if (c.ultramsg_api_key && c.ultramsg_api_key.length > 0) {
-                ultraApiKeyInput.value = '';  // Don't show the actual key
+                // Store full key in data attribute, show masked in input
+                ultraApiKeyInput.dataset.fullKey = c.ultramsg_api_key;
+                ultraApiKeyInput.value = '••••••••' + c.ultramsg_api_key.slice(-8);
                 ultraApiKeyHint.style.display = 'block';
                 ultraApiKeyInput.required = false;
             } else {
+                delete ultraApiKeyInput.dataset.fullKey;
                 ultraApiKeyInput.value = '';
                 ultraApiKeyHint.style.display = 'none';
                 ultraApiKeyInput.required = false;
@@ -964,10 +967,13 @@ function loadFacilityConfig(facilityId) {
             const waApiKeyInput = document.getElementById('cfgWaApiKey');
             const waApiKeyHint = document.getElementById('waApiKeyHint');
             if (c.wasenderapi_api_key && c.wasenderapi_api_key.length > 0) {
-                waApiKeyInput.value = '';  // Don't show the actual key
+                // Store full key in data attribute, show masked in input
+                waApiKeyInput.dataset.fullKey = c.wasenderapi_api_key;
+                waApiKeyInput.value = '••••••••' + c.wasenderapi_api_key.slice(-8);
                 waApiKeyHint.style.display = 'block';
                 waApiKeyInput.required = false;
             } else {
+                delete waApiKeyInput.dataset.fullKey;
                 waApiKeyInput.value = '';
                 waApiKeyHint.style.display = 'none';
                 waApiKeyInput.required = false;
@@ -976,10 +982,13 @@ function loadFacilityConfig(facilityId) {
             const waWebhookInput = document.getElementById('cfgWaWebhook');
             const waWebhookHint = document.getElementById('waWebhookHint');
             if (c.wasenderapi_webhook_secret && c.wasenderapi_webhook_secret.length > 0) {
-                waWebhookInput.value = '';  // Don't show the actual secret
+                // Store full secret in data attribute, show masked in input
+                waWebhookInput.dataset.fullKey = c.wasenderapi_webhook_secret;
+                waWebhookInput.value = '••••••••' + c.wasenderapi_webhook_secret.slice(-8);
                 waWebhookHint.style.display = 'block';
                 waWebhookInput.required = false;
             } else {
+                delete waWebhookInput.dataset.fullKey;
                 waWebhookInput.value = '';
                 waWebhookHint.style.display = 'none';
                 waWebhookInput.required = false;
@@ -1141,8 +1150,19 @@ function toggleUltraApiKey() {
     const input = document.getElementById('cfgUltraApiKey');
     const icon = document.getElementById('ultraApiKeyIcon');
     if (input && icon) {
-        input.type = input.type === 'password' ? 'text' : 'password';
-        icon.className = input.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+        if (input.type === 'password') {
+            // Show full key
+            input.type = 'text';
+            input.value = input.dataset.fullKey || input.value;
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            // Hide key again
+            input.type = 'password';
+            if (input.dataset.fullKey) {
+                input.value = '••••••••' + input.dataset.fullKey.slice(-8);
+            }
+            icon.className = 'fas fa-eye';
+        }
     }
 }
 
@@ -1150,8 +1170,19 @@ function toggleWaApiKey() {
     const input = document.getElementById('cfgWaApiKey');
     const icon = document.getElementById('waApiKeyIcon');
     if (input && icon) {
-        input.type = input.type === 'password' ? 'text' : 'password';
-        icon.className = input.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+        if (input.type === 'password') {
+            // Show full key
+            input.type = 'text';
+            input.value = input.dataset.fullKey || input.value;
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            // Hide key again
+            input.type = 'password';
+            if (input.dataset.fullKey) {
+                input.value = '••••••••' + input.dataset.fullKey.slice(-8);
+            }
+            icon.className = 'fas fa-eye';
+        }
     }
 }
 
@@ -1159,8 +1190,19 @@ function toggleWaWebhook() {
     const input = document.getElementById('cfgWaWebhook');
     const icon = document.getElementById('waWebhookIcon');
     if (input && icon) {
-        input.type = input.type === 'password' ? 'text' : 'password';
-        icon.className = input.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+        if (input.type === 'password') {
+            // Show full secret
+            input.type = 'text';
+            input.value = input.dataset.fullKey || input.value;
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            // Hide secret again
+            input.type = 'password';
+            if (input.dataset.fullKey) {
+                input.value = '••••••••' + input.dataset.fullKey.slice(-8);
+            }
+            icon.className = 'fas fa-eye';
+        }
     }
 }
 
@@ -1185,13 +1227,12 @@ function handleVendorChange() {
     }
 }
 
-// Add event listener for vendor change
+// Add event listener for vendor change (only when user manually changes)
 document.addEventListener('DOMContentLoaded', function() {
     const vendorSelect = document.getElementById('cfgCurrentVendor');
     if (vendorSelect) {
         vendorSelect.addEventListener('change', handleVendorChange);
-        // Call once on page load to set initial state
-        handleVendorChange();
+        // Don't call handleVendorChange() here - it's called by loadFacilityConfig()
     }
 });
 
