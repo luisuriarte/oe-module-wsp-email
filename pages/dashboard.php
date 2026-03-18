@@ -136,7 +136,7 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                     <select id="statsFacility" class="form-select form-select-sm">
                         <option value=""><?php echo xlt('All Facilities'); ?></option>
                         <?php foreach ($facilities as $sf): ?>
-                        <option value="<?php echo attr((string)$sf['facility_id']); ?>" 
+                        <option value="<?php echo attr((string)$sf['facility_id']); ?>"
                                 data-inactive="<?php echo (int)($sf['inactive'] ?? 0); ?>">
                             <?php echo text($sf['facility_name']); ?>
                         </option>
@@ -149,6 +149,17 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                     </button>
                 </div>
             </div>
+
+            <!-- Status filters for chart -->
+            <div class="mb-3 pb-2 border-bottom">
+                <label class="form-label small mb-2">
+                    <i class="fas fa-filter me-1"></i><?php echo xlt('Filter by Status:'); ?>
+                </label>
+                <div id="chartStatusFilters" class="d-flex flex-wrap gap-2">
+                    <!-- Checkboxes rendered by JavaScript -->
+                </div>
+            </div>
+
             <canvas id="chartNotifications" height="90"></canvas>
         </div>
     </div><!-- /tab-dashboard -->
@@ -466,28 +477,48 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
 const moduleRoot = <?php echo js_escape($moduleRoot); ?>;
 let chart = null;
 
-// Status colors for charts
+// Status colors for charts - WhatsApp (Green), Email (Light Blue)
 const statusColors = {
-    'sent':      { bg: '#25D366CC', border: '#128C7E' },      // Green
-    'delivered': { bg: '#2196F3CC', border: '#1565C0' },      // Blue
-    'read':      { bg: '#9C27B0CC', border: '#7B1FA2' },      // Purple
-    'played':    { bg: '#7B1FA2CC', border: '#4A148C' },      // Dark Purple
-    'pending':   { bg: '#FFC107CC', border: '#FFA000' },      // Amber
-    'queue':     { bg: '#FF9800CC', border: '#F57C00' },      // Orange
-    'in_progress': { bg: '#FFB74DCC', border: '#FF9800' },    // Light Orange
-    'server':    { bg: '#00BCD4CC', border: '#0097A7' },      // Cyan
-    'device':    { bg: '#4FC3F7CC', border: '#0288D1' },      // Light Blue
-    'error':     { bg: '#F44336CC', border: '#C62828' },      // Red
-    'failed':    { bg: '#D32F2FCC', border: '#B71C1C' },      // Dark Red
-    'invalid':   { bg: '#9E9E9ECC', border: '#616161' },      // Gray
-    'unsent':    { bg: '#E0E0E0CC', border: '#9E9E9E' }       // Light Gray
+    'sent':      { wsp: '#25D366CC', email: '#4FC3F7CC' },   // WhatsApp Green / Email Light Blue
+    'delivered': { wsp: '#128C7ECC', email: '#039BE5CC' },   // Dark Green / Dark Blue
+    'read':      { wsp: '#7B1FA2CC', email: '#5E35B1CC' },   // Purple / Deep Purple
+    'played':    { wsp: '#4A148CCC', email: '#4527A0CC' },   // Dark Purple / Dark Indigo
+    'pending':   { wsp: '#FFC107CC', email: '#FFCA28CC' },   // Amber / Light Amber
+    'queue':     { wsp: '#FF9800CC', email: '#FFB74DCC' },   // Orange / Light Orange
+    'in_progress': { wsp: '#FFB74DCC', email: '#FFCC80CC' }, // Light Orange / Pale Orange
+    'server':    { wsp: '#00BCD4CC', email: '#4DD0E1CC' },   // Cyan / Light Cyan
+    'device':    { wsp: '#0097A7CC', email: '#26C6DAC' },    // Dark Cyan / Medium Cyan
+    'error':     { wsp: '#F44336CC', email: '#EF5350CC' },   // Red / Light Red
+    'failed':    { wsp: '#D32F2FCC', email: '#E57373CC' },   // Dark Red / Pale Red
+    'invalid':   { wsp: '#9E9E9ECC', email: '#BDBDBDCC' },   // Gray / Light Gray
+    'unsent':    { wsp: '#616161CC', email: '#9E9E9ECC' }    // Dark Gray / Gray
 };
+
+// Available status filters
+const statusFilters = [
+    { value: 'sent', label: 'Sent', checked: true },
+    { value: 'delivered', label: 'Delivered', checked: true },
+    { value: 'read', label: 'Read', checked: true },
+    { value: 'played', label: 'Played', checked: true },
+    { value: 'pending', label: 'Pending', checked: true },
+    { value: 'queue', label: 'Queue', checked: true },
+    { value: 'in_progress', label: 'In Progress', checked: true },
+    { value: 'server', label: 'Server', checked: true },
+    { value: 'device', label: 'Device', checked: true },
+    { value: 'error', label: 'Error', checked: true },
+    { value: 'failed', label: 'Failed', checked: true },
+    { value: 'invalid', label: 'Invalid', checked: true },
+    { value: 'unsent', label: 'Unsent', checked: true }
+];
 
 function buildChart(stats) {
     const ctx = document.getElementById('chartNotifications').getContext('2d');
 
     // Collect unique dates
     const dates = [...new Set(stats.map(r => r.send_date))].sort();
+
+    // Get selected status filters
+    const selectedStatuses = statusFilters.filter(s => s.checked).map(s => s.value);
 
     // Group stats by type and status
     const grouped = {};
@@ -501,23 +532,25 @@ function buildChart(stats) {
 
     // Build datasets for each status
     const datasets = [];
-    const statusOrder = ['sent', 'delivered', 'read', 'played', 'pending', 'queue', 'in_progress', 'server', 'device', 'error', 'failed', 'invalid', 'unsent'];
 
-    statusOrder.forEach(status => {
+    selectedStatuses.forEach(status => {
         const wspKey = `WSP_${status}`;
         const emailKey = `Email_${status}`;
 
         if (grouped[wspKey] || grouped[emailKey]) {
+            const colors = statusColors[status] || { wsp: '#9E9E9ECC', email: '#BDBDBDCC' };
+
             // WhatsApp dataset
             if (grouped[wspKey]) {
                 datasets.push({
                     label: `WhatsApp - ${status.charAt(0).toUpperCase() + status.slice(1)}`,
                     data: dates.map(d => grouped[wspKey].data[d] || 0),
-                    backgroundColor: statusColors[status]?.bg || '#9E9E9ECC',
-                    borderColor: statusColors[status]?.border || '#616161',
+                    backgroundColor: colors.wsp,
+                    borderColor: colors.wsp.replace('CC', 'FF'),
                     borderWidth: 1,
                     borderRadius: 4,
-                    stack: 'WhatsApp'
+                    stack: 'WhatsApp',
+                    order: selectedStatuses.indexOf(status)
                 });
             }
 
@@ -526,11 +559,12 @@ function buildChart(stats) {
                 datasets.push({
                     label: `Email - ${status.charAt(0).toUpperCase() + status.slice(1)}`,
                     data: dates.map(d => grouped[emailKey].data[d] || 0),
-                    backgroundColor: statusColors[status]?.bg.replace('CC', '99') || '#9E9E9E99', // More transparent for email
-                    borderColor: statusColors[status]?.border || '#616161',
+                    backgroundColor: colors.email,
+                    borderColor: colors.email.replace('CC', 'FF'),
                     borderWidth: 1,
                     borderRadius: 4,
-                    stack: 'Email'
+                    stack: 'Email',
+                    order: selectedStatuses.indexOf(status)
                 });
             }
         }
@@ -548,8 +582,8 @@ function buildChart(stats) {
         });
 
         datasets.push(
-            { label: 'WhatsApp', data: wspData,   backgroundColor: '#25D366CC', borderColor: '#128C7E', borderWidth: 1.5, borderRadius: 5 },
-            { label: 'Email',    data: emailData, backgroundColor: '#2196F3CC', borderColor: '#1565C0', borderWidth: 1.5, borderRadius: 5 }
+            { label: 'WhatsApp', data: wspData, backgroundColor: '#25D366CC', borderColor: '#128C7E', borderWidth: 1.5, borderRadius: 5 },
+            { label: 'Email', data: emailData, backgroundColor: '#4FC3F7CC', borderColor: '#039BE5', borderWidth: 1.5, borderRadius: 5 }
         );
     }
 
@@ -563,7 +597,17 @@ function buildChart(stats) {
         options: {
             responsive: true,
             plugins: {
-                legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10 } } },
+                legend: {
+                    position: 'top',
+                    labels: {
+                        boxWidth: 12,
+                        font: { size: 10 },
+                        filter: function(legendItem, chartData) {
+                            // Show all legends
+                            return true;
+                        }
+                    }
+                },
                 tooltip: {
                     mode: 'index',
                     intersect: false,
@@ -587,6 +631,33 @@ function buildChart(stats) {
             }
         }
     });
+}
+
+function renderStatusFilters() {
+    const container = document.getElementById('chartStatusFilters');
+    if (!container) return;
+
+    container.innerHTML = statusFilters.map(s => `
+        <button type="button"
+                class="btn btn-sm status-filter-btn ${s.checked ? 'active' : ''}"
+                data-status="${s.value}"
+                onclick="toggleStatusFilter('${s.value}')">
+            <i class="fas ${getCheckIcon(s.checked)}"></i> ${s.label}
+        </button>
+    `).join('');
+}
+
+function getCheckIcon(checked) {
+    return checked ? 'fa-check-circle' : 'fa-circle';
+}
+
+function toggleStatusFilter(status) {
+    const filter = statusFilters.find(f => f.value === status);
+    if (filter) {
+        filter.checked = !filter.checked;
+        renderStatusFilters(); // Re-render to update icons
+        loadStats(); // Reload chart with new filters
+    }
 }
 
 function loadStats() {
@@ -1029,6 +1100,7 @@ function escHtml(s) {
 
 // Auto-load stats on dashboard tab
 <?php if ($activeTab === 'dashboard'): ?>
+renderStatusFilters(); // Render status filter checkboxes
 loadStats();
 <?php endif; ?>
 /**
