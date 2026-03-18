@@ -38,6 +38,7 @@ function webhookLog(string $message): void
 
 // --- Log every incoming request immediately ---
 webhookLog('Request received. Method: ' . ($_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN'));
+webhookLog('Headers: ' . json_encode($headers));
 
 // Only accept POST requests
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
@@ -67,6 +68,7 @@ if (!is_array($webhookData)) {
 }
 
 $event = $webhookData['event'] ?? '';
+webhookLog('Event: ' . $event);
 
 // --- Handle messages.update event (delivery status change) ---
 if ($event === 'messages.update') {
@@ -141,6 +143,48 @@ if ($event === 'messages.sent') {
         $notifLog->updateStatus($msgId, $status);
         webhookLog("messages.sent: msgId=$msgId marked as sent.");
     }
+}
+
+// --- Handle messages.read event (message was read by recipient) ---
+if ($event === 'messages.read') {
+    $msgId  = $webhookData['data']['key']['id']  ?? '';
+    $status = 'READ';
+
+    if (!empty($msgId)) {
+        $notifLog = new NotificationLog();
+        $notifLog->updateStatus($msgId, $status);
+        webhookLog("messages.read: msgId=$msgId marked as READ.");
+    }
+}
+
+// --- Handle messages.delivered event (message was delivered to recipient) ---
+if ($event === 'messages.delivered') {
+    $msgId  = $webhookData['data']['key']['id']  ?? '';
+    $status = 'DELIVERED';
+
+    if (!empty($msgId)) {
+        $notifLog = new NotificationLog();
+        $notifLog->updateStatus($msgId, $status);
+        webhookLog("messages.delivered: msgId=$msgId marked as DELIVERED.");
+    }
+}
+
+// --- Handle messages.failed event (message failed to send) ---
+if ($event === 'messages.failed') {
+    $msgId  = $webhookData['data']['key']['id']  ?? '';
+    $status = 'error';
+    $error  = $webhookData['data']['error'] ?? 'Unknown error';
+
+    if (!empty($msgId)) {
+        $notifLog = new NotificationLog();
+        $notifLog->updateStatus($msgId, $status);
+        webhookLog("messages.failed: msgId=$msgId marked as error. Reason: $error");
+    }
+}
+
+// --- Handle any other event (log only) ---
+if (!in_array($event, ['messages.update', 'messages.upsert', 'messages.sent', 'messages.read', 'messages.delivered', 'messages.failed'])) {
+    webhookLog("Unknown event type: $event - ignored.");
 }
 
 webhookLog('Response: HTTP 200 OK');

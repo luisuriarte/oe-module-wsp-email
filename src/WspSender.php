@@ -15,7 +15,14 @@ namespace OpenEMR\Modules\WspEmail;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
-use Ultramsg\WhatsAppApi;
+
+// Load UltraMsg SDK manually if not autoloaded
+if (!class_exists('Ultramsg\WhatsAppApi')) {
+    $ultramsgSdkPath = __DIR__ . '/../vendor/ultramsg/whatsapp-php-sdk/ultramsg.class.php';
+    if (file_exists($ultramsgSdkPath)) {
+        require_once $ultramsgSdkPath;
+    }
+}
 
 class WspSender
 {
@@ -94,8 +101,9 @@ class WspSender
         string $message,  string $logoUrl, string $icsUrl,
         array  $config,   array  &$log
     ): array {
+        // Use global namespace for WhatsAppApi class
         $to = '+549' . $phone;
-        $ultramsg = new WhatsAppApi($apiKey, $instance);
+        $ultramsg = new \Ultramsg\WhatsAppApi($apiKey, $instance);
         $msgId = null;
         $status = 'invalid';
 

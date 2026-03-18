@@ -159,11 +159,10 @@ class EmailSender
         $mapBlock = '';
         if ($mapLinkUrl) {
             $mapBlock = '<p style="margin-top:24px;">
-                <a href="' . htmlspecialchars($mapLinkUrl) . '" target="_blank">
-                    <img src="' . htmlspecialchars($mapLinkUrl) . '&size=600x300&zoom=13"
-                         alt="Mapa de la ubicación" style="max-width:100%;border:1px solid #ddd;border-radius:8px;">
+                <a href="' . htmlspecialchars($mapLinkUrl) . '" target="_blank"
+                   style="display:inline-block;padding:10px 20px;background-color:#4285f4;color:#fff;text-decoration:none;border-radius:5px;">
+                   <i class="fas fa-map-marker-alt"></i> Ver ubicación en Google Maps
                 </a>
-                <p style="font-size:12px;color:#888;">Haz clic en la imagen para ver el mapa interactivo.</p>
             </p>';
         }
 
