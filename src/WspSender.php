@@ -134,7 +134,7 @@ class WspSender
 
         // 2. Send iCalendar document
         if (!empty($icsUrl)) {
-            $caption = ($config['facility_name'] ?? '') . ': Press the attachment to save your appointment.';
+            $caption = LocalizationHelper::appointmentAttachmentCaption((string)($config['facility_name'] ?? ''));
             $docResp = $ultramsg->sendDocumentMessage($to, 'appointment.ics', $icsUrl, $caption);
             $log[] = 'UltraMsg: .ics sent. Response: ' . json_encode($docResp);
 
@@ -234,12 +234,12 @@ class WspSender
             try {
                 $resp  = $this->http->post($url, [
                     'headers' => $headers,
-                    'json'    => [
-                        'to'          => $to,
-                        'text'        => ($config['facility_name'] ?? '') . ': Press the attachment to save your appointment.',
-                        'documentUrl' => $icsUrl,
-                        'fileName'    => 'appointment.ics',
-                        'mimeType'    => 'text/calendar',
+                        'json'    => [
+                            'to'          => $to,
+                            'text'        => LocalizationHelper::appointmentAttachmentCaption((string)($config['facility_name'] ?? '')),
+                            'documentUrl' => $icsUrl,
+                            'fileName'    => 'appointment.ics',
+                            'mimeType'    => 'text/calendar',
                     ],
                 ]);
                 $body  = json_decode((string)$resp->getBody(), true);
