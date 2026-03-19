@@ -74,7 +74,7 @@ class LocalizationHelper
                 if ($formatter) {
                     $formatted = $formatter->format($dateObject);
                     if ($formatted !== false && $formatted !== '') {
-                        return mb_convert_case((string)$formatted, MB_CASE_TITLE, 'UTF-8');
+                        return (string)$formatted;
                     }
                 }
             }
