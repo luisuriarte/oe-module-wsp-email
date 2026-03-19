@@ -228,8 +228,8 @@ class WspSender
 
         // 2. Send iCalendar document
         if (!empty($icsUrl)) {
-            $log[] = "WaSenderAPI: Esperando 60 segundos antes de enviar el archivo .ics (restricción de la versión de prueba)";
-            sleep(60);
+            //$log[] = "WaSenderAPI: Esperando 60 segundos antes de enviar el archivo .ics (restricción de la versión de prueba)";
+            //sleep(60);
 
             try {
                 $resp  = $this->http->post($url, [
@@ -262,8 +262,8 @@ class WspSender
 
         // 3. Send location (if coordinates available)
         if (!empty($config['latitude']) && !empty($config['longitude'])) {
-            $log[] = "WaSenderAPI: Esperando 60 segundos antes de enviar la ubicación (restricción de la versión de prueba)";
-            sleep(60);
+            //$log[] = "WaSenderAPI: Esperando 60 segundos antes de enviar la ubicación (restricción de la versión de prueba)";
+            //sleep(60);
 
             try {
                 $resp = $this->http->post($url, [
