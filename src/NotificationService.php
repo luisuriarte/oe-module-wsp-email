@@ -62,7 +62,7 @@ class NotificationService
      */
     public function runEmail(bool $dryRun = false): void
     {
-        $this->runByType('Email', $dryRun);
+        $this->runByType('EMAIL', $dryRun);
     }
 
     /**
@@ -102,7 +102,7 @@ class NotificationService
                 }
             }
             if (!empty($slot['enabled_email']) && !empty($config['enabled_email'])) {
-                if (!$this->alreadySent('Email', (int)$patient['pid'], (int)$patient['pc_eid'], $seq)) {
+                if (!$this->alreadySent('EMAIL', (int)$patient['pid'], (int)$patient['pc_eid'], $seq)) {
                     $this->deliverEmail($patient, $config, $seq, false);
                 }
             }
@@ -125,7 +125,7 @@ class NotificationService
                 continue;
             }
             if ($type === 'WSP'   && empty($config['enabled_wsp']))   continue;
-            if ($type === 'Email' && empty($config['enabled_email'])) continue;
+            if ($type === 'EMAIL' && empty($config['enabled_email'])) continue;
 
             // Fetch the cron-triggered schedule slots for this facility
             $slots = $this->facilityConfig->getScheduledSlots($facilityId);
@@ -141,7 +141,7 @@ class NotificationService
 
                 // Only process slots whose channel matches the current run type
                 if ($type === 'WSP'   && empty($slot['enabled_wsp']))   continue;
-                if ($type === 'Email' && empty($slot['enabled_email'])) continue;
+                if ($type === 'EMAIL' && empty($slot['enabled_email'])) continue;
 
                 $patients = $this->getPatientsForSlot($facilityId, $type, $seq, $hoursBefore);
                 echo "  Facility #{$facilityId} | slot seq={$seq} ({$hoursBefore}h before) | {$type} | "
@@ -225,12 +225,12 @@ class NotificationService
         $canonicalStatus = StatusNormalizer::normalize('default', $rawStatus);
         $statusPriority = StatusNormalizer::getPriority($canonicalStatus);
 
-        $this->insertLog('Email', $patient, $config, null, $rawStatus, $seq, $canonicalStatus, $statusPriority, 'email', ['success' => $ok]);
+        $this->insertLog('EMAIL', $patient, $config, null, $rawStatus, $seq, $canonicalStatus, $statusPriority, 'email', ['success' => $ok]);
 
         if ($updateCalFlag) {
-            $this->markEventSent('Email', (int)$patient['pid'], (int)$patient['pc_eid']);
+            $this->markEventSent('EMAIL', (int)$patient['pid'], (int)$patient['pc_eid']);
         }
-        $this->updateTracker($patient, 'Email');
+        $this->updateTracker($patient, 'EMAIL');
     }
 
     // =========================================================================
