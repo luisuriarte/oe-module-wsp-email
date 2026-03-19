@@ -416,7 +416,7 @@ class NotificationService
                 (int)$patient['pc_eid'],
                 (int)$patient['pid'],
                 'Automatic',
-                $type,
+                strtoupper($type),
                 '',
                 ''
             );
