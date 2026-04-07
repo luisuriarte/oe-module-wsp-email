@@ -15,11 +15,13 @@
 
 -- ---------------------------------------------------------------------------
 -- Extended per-facility configuration table
--- Supports multiple WhatsApp vendors per facility with active vendor selection.
+-- Supports multiple WhatsApp vendors per facility with active vendor selection
+-- AND telehealth module settings (Jitsi, notifications, templates).
+-- Uses facility_id=0 for global/module-level telehealth defaults.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
   `id`                  int(11)       NOT NULL AUTO_INCREMENT,
-  `facility_id`         int(11)       NOT NULL                   COMMENT 'FK -> facility.id',
+  `facility_id`         int(11)       NOT NULL                   COMMENT 'FK -> facility.id (0 = global telehealth settings)',
 
   -- Active vendor selection
   `current_vendor`      varchar(50)   NOT NULL DEFAULT 'wasenderapi' COMMENT 'Active vendor: ultramsg|wasenderapi',
@@ -50,12 +52,38 @@ CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
   `notify_hours_before` int(5)        NOT NULL DEFAULT 48        COMMENT 'Hours before the appointment to send the notification',
   `enabled_wsp`         tinyint(1)    NOT NULL DEFAULT 1         COMMENT '1=enabled, 0=disabled',
   `enabled_email`       tinyint(1)    NOT NULL DEFAULT 1         COMMENT '1=enabled, 0=disabled',
+
+  -- ===================================================================
+  -- TELEHEALTH SETTINGS (Jitsi + Notifications + Security)
+  -- ===================================================================
+  `th_jitsi_domain`             varchar(255)  DEFAULT NULL           COMMENT 'Jitsi Meet server domain (e.g. meet.yourdomain.com)',
+  `th_jitsi_base_url`           varchar(500)  DEFAULT NULL           COMMENT 'Full Jitsi base URL (e.g. https://meet.yourdomain.com)',
+  `th_room_prefix`              varchar(50)   DEFAULT 'th-'          COMMENT 'Prefix for Jitsi room names',
+  `th_jwt_enabled`              tinyint(1)    NOT NULL DEFAULT 0     COMMENT '1=JWT authentication enabled for Jitsi',
+  `th_jwt_app_id`               varchar(255)  DEFAULT NULL           COMMENT 'Jitsi JWT application ID',
+  `th_jwt_app_secret`           varchar(255)  DEFAULT NULL           COMMENT 'Jitsi JWT signing secret',
+  `th_default_duration`         int(11)       NOT NULL DEFAULT 30    COMMENT 'Default session duration in minutes',
+  `th_geolocation_enabled`      tinyint(1)    NOT NULL DEFAULT 1     COMMENT '1=patient geolocation capture enabled',
+  `th_recording_enabled`        tinyint(1)    NOT NULL DEFAULT 0     COMMENT '1=session recording enabled (requires Jibri)',
+  `th_fallback_minutes`         int(11)       NOT NULL DEFAULT 5     COMMENT 'Minutes before sending fallback link to provider mobile',
+  `th_default_patient_channel`  varchar(20)   DEFAULT 'whatsapp'     COMMENT 'Default patient notification channel',
+  `th_default_provider_channel` varchar(20)   DEFAULT 'internal'     COMMENT 'Default provider notification channel',
+  `th_webhook_token`            varchar(255)  DEFAULT NULL           COMMENT 'Bearer token for Jitsi webhook authentication',
+  `th_enabled`                  tinyint(1)    NOT NULL DEFAULT 1     COMMENT '1=telehealth notifications enabled for this facility, 0=disabled',
+
+  -- ===================================================================
+  -- TELEHEALTH MESSAGE TEMPLATES (***TOKEN*** tag system)
+  -- ===================================================================
+  `th_patient_template`         text          DEFAULT NULL           COMMENT 'Telehealth WhatsApp message template for patients',
+  `th_provider_template`        text          DEFAULT NULL           COMMENT 'Telehealth WhatsApp message template for providers',
+
+  -- Audit
   `created_at`          datetime      DEFAULT CURRENT_TIMESTAMP,
   `updated_at`          datetime      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_facility_id` (`facility_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-  COMMENT='Extended WhatsApp/Email configuration per medical facility with multi-vendor support';
+  COMMENT='Extended WhatsApp/Email + Telehealth configuration per facility';
 
 -- ---------------------------------------------------------------------------
 -- Add pc_sendalertwsp column to openemr_postcalendar_events (if not present)
