@@ -65,10 +65,75 @@ if (!empty($apptStatus)) {
 // REMOVED pc_eventstatus filter - it was blocking valid appointments
 // $where .= " AND ope.pc_eventstatus = 1";
 
-$sql = "SELECT 
+/**
+ * Maps OpenEMR tracker status codes to template lookup keys.
+ * Also determines whether notifications should be sent.
+ *
+ * Tracker uses short codes: x=Cancelled, %=Canceled<24h, ^=Pending
+ * Templates use dash prefix: -scheduled, -cancelled, -noshow, -pending
+ *
+ * @return string Template key or empty string to block sending
+ */
+function normalizeApptStatusForTemplate(string $trackerStatus, string $eventStatus): string
+{
+    // Statuses that should BLOCK notifications (already sent, arrived, cancelled, etc.)
+    $blockedStatuses = [
+        // Tracker codes
+        'x'   => '',  // Cancelled → NO send
+        '%'   => '',  // Cancelled < 24h → NO send
+        '?'   => '',  // No show → NO send
+        '*'   => '',  // Reminder done → NO send (ya se envió)
+        '@'   => '',  // Arrived → NO send (ya llegó)
+        '~'   => '',  // Arrived late → NO send
+        '!'   => '',  // Left w/o visit → NO send
+        '#'   => '',  // Ins/fin issue → NO send
+        '<'   => '',  // In exam room → NO send
+        '>'   => '',  // Checked out → NO send
+        '$'   => '',  // Coding done → NO send
+        // Confirmation statuses (ya se notificó y confirmó)
+        'AVM'   => '',  // AVM Confirmed → NO send
+        'SMS'   => '',  // SMS Confirmed → NO send
+        'EMAIL' => '',  // EMAIL Confirmed → NO send
+        // WhatsApp gateway statuses
+        'wsp-sent'  => '',  // Already sent
+        'wsp-deliv' => '',  // Already delivered
+        'wsp-read'  => '',  // Already read
+        'wsp-err'   => '',  // Error → NO send
+    ];
+
+    // If tracker has a blocked status, return empty to prevent sending
+    if (!empty($trackerStatus) && isset($blockedStatuses[$trackerStatus])) {
+        return $blockedStatuses[$trackerStatus];
+    }
+
+    // Statuses that ALLOW notifications
+    $allowMap = [
+        '^'    => '-pending',     // ^ Pending → can notify
+        'CALL' => '-callback',    // Callback requested → can notify
+    ];
+
+    if (!empty($trackerStatus) && isset($allowMap[$trackerStatus])) {
+        return $allowMap[$trackerStatus];
+    }
+
+    // Fallback to event status (if already in dash format)
+    if (!empty($eventStatus) && str_starts_with($eventStatus, '-')) {
+        // But only allow -scheduled and -pending, block others
+        if (in_array($eventStatus, ['-scheduled', '-pending'])) {
+            return $eventStatus;
+        }
+        return '';  // Block cancelled, noshow, etc.
+    }
+
+    // Default: no tracker status = scheduled (can notify)
+    return '-scheduled';
+}
+
+$sql = "SELECT
             ope.pc_eid,
             ope.pc_pid,
             ope.pc_catid,
+            ope.pc_aid,
             ope.pc_eventDate,
             ope.pc_startTime,
             ope.pc_endTime,
@@ -87,6 +152,8 @@ $sql = "SELECT
             pd.hipaa_allowsms,
             pd.hipaa_allowemail,
             CONCAT_WS(' ', u.fname, u.lname) AS provider_name,
+            COALESCE(NULLIF(u.phonecell, ''), NULLIF(u.phone, '')) AS provider_phone,
+            u.email AS provider_email,
             f.name AS facility_name,
             lot.title AS status_title,
             pte.status AS tracker_status
@@ -103,7 +170,7 @@ $sql = "SELECT
                 WHERE pt_tracker_id = pt.id
             )
         $where
-        ORDER BY ope.pc_eventDate ASC, ope.pc_startTime ASC
+        ORDER BY ope.pc_eventDate DESC, ope.pc_startTime DESC
         LIMIT 500";
 
 error_log("WspEmail Schedules SQL: $sql");
@@ -114,6 +181,11 @@ $rows = [];
 while ($row = sqlFetchArray($res)) {
     // 1. Priorizar el estado del Patient Tracker (tiempo real)
     $rawStatus = $row['tracker_status'] ?: $row['pc_apptstatus'] ?: '';
+
+    // 2. Mapear tracker_status al formato de templates (-scheduled, -cancelled, etc.)
+    // Tracker usa códigos cortos: x=cancelled, %=canceled<24h, ^=noshow, *=completed
+    // Templates usan: -scheduled, -cancelled, -noshow, -completed
+    $templateStatus = normalizeApptStatusForTemplate($rawStatus, $row['pc_apptstatus'] ?? '');
     
     // 2. Intentar obtener el título de list_options.apptstat
     $statusTitle = $row['status_title'];
@@ -134,11 +206,13 @@ while ($row = sqlFetchArray($res)) {
         'pc_eid'           => (int)$row['pc_eid'],
         'pc_pid'           => (int)$row['pc_pid'],
         'pc_catid'         => (int)($row['pc_catid'] ?? 0),
+        'pc_aid'           => (int)($row['pc_aid'] ?? 0),
         'pc_eventDate'     => !empty($row['pc_eventDate']) ? oeFormatShortDate($row['pc_eventDate']) : '',
         'pc_eventDateRaw'  => $row['pc_eventDate'] ?? '',
         'pc_startTime'     => $row['pc_startTime'] ?? '',
         'pc_endTime'       => $row['pc_endTime'] ?? '',
         'pc_apptstatus'    => $rawStatus,
+        'template_status'  => $templateStatus,  // Normalized for template lookup
         'status_title'     => $statusTitle ?: 'Programada',
         'pc_title'         => $row['pc_title'] ?? '',
         'pc_hometext'      => $row['pc_hometext'] ?? '',
@@ -151,10 +225,11 @@ while ($row = sqlFetchArray($res)) {
         'hipaa_allowsms'   => $row['hipaa_allowsms'] ?? 'NO',
         'hipaa_allowemail' => $row['hipaa_allowemail'] ?? 'NO',
         'provider_name'    => $row['provider_name'] ?? '',
+        'provider_phone'   => $row['provider_phone'] ?? '',
+        'provider_email'   => $row['provider_email'] ?? '',
         'facility_name'    => $row['facility_name'] ?? '',
     ];
 }
 
 error_log("WspEmail Schedules Result: " . count($rows) . " rows found");
-
 echo json_encode(['rows' => $rows, 'debug' => ['from' => $fromDate, 'to' => $toDate, 'count' => count($rows)]]);

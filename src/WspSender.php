@@ -116,77 +116,111 @@ class WspSender
         string $message,  string $logoUrl, string $icsUrl,
         array  $config,   array  &$log
     ): array {
-        // Use global namespace for WhatsAppApi class
-        $to = '+549' . $phone;
-        $ultramsg = new \Ultramsg\WhatsAppApi($apiKey, $instance);
-        $msgId = null;
-        $status = 'invalid';
-        $resp = null;
+        $result = ['status' => 'error', 'msgId' => null, 'log' => ''];
+        
+        try {
+            // Validate required parameters
+            if (empty($instance) || empty($apiKey)) {
+                $log[] = 'UltraMsg: Missing credentials (instance or api_key)';
+                $result['log'] = implode("\n", $log);
+                return $result;
+            }
 
-        // 1. Send logo image with caption
-        if (!empty($logoUrl)) {
-            $resp = $ultramsg->sendImageMessage($to, $logoUrl, $message);
-            $log[] = 'UltraMsg: image sent. Response: ' . json_encode($resp);
-        } else {
-            $resp = $ultramsg->sendChatMessage($to, $message);
-            $log[] = 'UltraMsg: text message sent. Response: ' . json_encode($resp);
+            // Use global namespace for WhatsAppApi class
+            // UltraMsg accepts: +5493404540440 OR 5493404540440@c.us
+            // Clean phone: remove all non-digits, then ensure international format with +
+            $cleanPhone = preg_replace('/\D/', '', $phone);
+            $to = '+' . $cleanPhone;  // E.164 format: +5493404540440
+            $ultramsg = new \Ultramsg\WhatsAppApi($apiKey, $instance);
+            $msgId = null;
+            $status = 'error';
+            $resp = null;
+
+            // 1. Send logo image with caption
+            if (!empty($logoUrl)) {
+                $resp = $ultramsg->sendImageMessage($to, $logoUrl, $message);
+                $log[] = 'UltraMsg: image sent. Response: ' . json_encode($resp);
+            } else {
+                $resp = $ultramsg->sendChatMessage($to, $message);
+                $log[] = 'UltraMsg: text message sent. Response: ' . json_encode($resp);
+            }
+            
+            // Check if response indicates an error
+            if (is_array($resp) && isset($resp['error'])) {
+                $log[] = 'UltraMsg ERROR: ' . json_encode($resp['error']);
+                $result['log'] = implode("\n", $log);
+                return $result;
+            } elseif (is_object($resp) && isset($resp->error)) {
+                $log[] = 'UltraMsg ERROR: ' . json_encode($resp->error);
+                $result['log'] = implode("\n", $log);
+                return $result;
+            }
+
+            // 2. Send iCalendar document
+            if (!empty($icsUrl)) {
+                $caption = LocalizationHelper::appointmentAttachmentCaption((string)($config['facility_name'] ?? ''));
+                $docResp = $ultramsg->sendDocumentMessage($to, 'appointment.ics', $icsUrl, $caption);
+                $log[] = 'UltraMsg: .ics sent. Response: ' . json_encode($docResp);
+
+                // Capture message ID and status from document response
+                if (is_array($docResp)) {
+                    $msgId  = $docResp['id'] ?? null;
+                    $status = $docResp['status'] ?? ($msgId ? 'sent' : 'error');
+                } elseif (is_object($docResp)) {
+                    $msgId  = $docResp->id ?? null;
+                    $status = $docResp->status ?? ($msgId ? 'sent' : 'error');
+                } elseif (is_string($docResp)) {
+                    $body   = json_decode($docResp, true);
+                    $msgId  = $body['id'] ?? null;
+                    $status = $body['status'] ?? ($msgId ? 'sent' : 'error');
+                }
+            } else {
+                // If no ICS, use the response from image/text message
+                if (is_array($resp)) {
+                    $msgId  = $resp['id'] ?? null;
+                    $status = $resp['status'] ?? ($msgId ? 'sent' : 'error');
+                } elseif (is_object($resp)) {
+                    $msgId  = $resp->id ?? null;
+                    $status = $resp->status ?? ($msgId ? 'sent' : 'error');
+                } elseif (is_string($resp)) {
+                    $body   = json_decode($resp, true);
+                    $msgId  = $body['id'] ?? null;
+                    $status = $body['status'] ?? ($msgId ? 'sent' : 'error');
+                }
+            }
+
+            // 3. Send location (if coordinates available)
+            if (!empty($config['latitude']) && !empty($config['longitude'])) {
+                $address = ($config['facility_name'] ?? 'Facility') . "\n" . ($config['facility_address'] ?? '');
+                $locResp = $ultramsg->sendLocationMessage(
+                    $to,
+                    $address,
+                    (float)$config['latitude'],
+                    (float)$config['longitude']
+                );
+                $log[] = 'UltraMsg: location sent. Response: ' . json_encode($locResp);
+
+                // Update msgId from location response if available
+                if (is_array($locResp) && isset($locResp['id'])) {
+                    $msgId = $locResp['id'];
+                } elseif (is_object($locResp) && isset($locResp->id)) {
+                    $msgId = $locResp->id;
+                }
+            } else {
+                $log[] = 'UltraMsg: No location sent (coordinates not configured)';
+            }
+
+            $result['status'] = $status;
+            $result['msgId'] = $msgId;
+        } catch (\Throwable $e) {
+            $log[] = 'UltraMsg EXCEPTION: ' . $e->getMessage();
+            $log[] = 'Trace: ' . $e->getTraceAsString();
+            $result['status'] = 'error';
+            $result['msgId'] = null;
         }
 
-        // 2. Send iCalendar document
-        if (!empty($icsUrl)) {
-            $caption = LocalizationHelper::appointmentAttachmentCaption((string)($config['facility_name'] ?? ''));
-            $docResp = $ultramsg->sendDocumentMessage($to, 'appointment.ics', $icsUrl, $caption);
-            $log[] = 'UltraMsg: .ics sent. Response: ' . json_encode($docResp);
-
-            // Capture message ID and status from document response
-            if (is_array($docResp)) {
-                $msgId  = $docResp['id'] ?? null;
-                $status = $docResp['status'] ?? ($msgId ? 'sent' : 'invalid');
-            } elseif (is_object($docResp)) {
-                $msgId  = $docResp->id ?? null;
-                $status = $docResp->status ?? ($msgId ? 'sent' : 'invalid');
-            } elseif (is_string($docResp)) {
-                $body   = json_decode($docResp, true);
-                $msgId  = $body['id'] ?? null;
-                $status = $body['status'] ?? ($msgId ? 'sent' : 'invalid');
-            }
-        } else {
-            // If no ICS, use the response from image/text message
-            if (is_array($resp)) {
-                $msgId  = $resp['id'] ?? null;
-                $status = $resp['status'] ?? ($msgId ? 'sent' : 'invalid');
-            } elseif (is_object($resp)) {
-                $msgId  = $resp->id ?? null;
-                $status = $resp->status ?? ($msgId ? 'sent' : 'invalid');
-            } elseif (is_string($resp)) {
-                $body   = json_decode($resp, true);
-                $msgId  = $body['id'] ?? null;
-                $status = $body['status'] ?? ($msgId ? 'sent' : 'invalid');
-            }
-        }
-
-        // 3. Send location (if coordinates available)
-        if (!empty($config['latitude']) && !empty($config['longitude'])) {
-            $address = ($config['facility_name'] ?? 'Facility') . "\n" . ($config['facility_address'] ?? '');
-            $locResp = $ultramsg->sendLocationMessage(
-                $to,
-                $address,
-                (float)$config['latitude'],
-                (float)$config['longitude']
-            );
-            $log[] = 'UltraMsg: location sent. Response: ' . json_encode($locResp);
-
-            // Update msgId from location response if available
-            if (is_array($locResp) && isset($locResp['id'])) {
-                $msgId = $locResp['id'];
-            } elseif (is_object($locResp) && isset($locResp->id)) {
-                $msgId = $locResp->id;
-            }
-        } else {
-            $log[] = 'UltraMsg: No location sent (coordinates not configured)';
-        }
-
-        return ['status' => $status, 'msgId' => $msgId, 'log' => ''];
+        $result['log'] = implode("\n", $log);
+        return $result;
     }
 
     // -------------------------------------------------------------------------

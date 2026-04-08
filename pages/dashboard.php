@@ -300,16 +300,15 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                         <tr>
                             <th><?php echo xlt('Date/Time'); ?></th>
                             <th><?php echo xlt('Patient'); ?></th>
-                            <th><?php echo xlt('Phone'); ?></th>
-                            <th><?php echo xlt('Email'); ?></th>
                             <th><?php echo xlt('Provider'); ?></th>
                             <th><?php echo xlt('Type'); ?></th>
                             <th><?php echo xlt('Status'); ?></th>
-                            <th class="text-center"><?php echo xlt('Actions'); ?></th>
+                            <th class="text-center"><?php echo xlt('Pt. Actions'); ?></th>
+                            <th class="text-center"><?php echo xlt('Prov. Actions'); ?></th>
                         </tr>
                     </thead>
                     <tbody id="schedulesTableBody">
-                        <tr><td colspan="8" class="text-center text-muted py-4"><?php echo xlt('Click Load to fetch appointments.'); ?></td></tr>
+                        <tr><td colspan="7" class="text-center text-muted py-4"><?php echo xlt('Click Load to fetch appointments.'); ?></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1684,48 +1683,83 @@ function loadSchedules() {
         .then(data => {
             const rows = data.rows || [];
             if (!rows.length) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><?php echo js_escape(xlt('No appointments found.')); ?></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><?php echo js_escape(xlt('No appointments found.')); ?></td></tr>';
                 return;
             }
             tbody.innerHTML = rows.map(r => {
-                const statusBadge = r.status_title ? 
-                    `<span class="badge bg-secondary">${escHtml(r.status_title)}</span>` : 
+                const statusBadge = r.status_title ?
+                    `<span class="badge bg-secondary">${escHtml(r.status_title)}</span>` :
                     `<span class="badge bg-light text-dark">${escHtml(r.pc_apptstatus || '-')}</span>`;
-                
+
                 const typeLabel = getApptTypeLabel(r.pc_catid, r.pc_title);
-                
-                // Manual notify buttons
-                const canWsp = r.hipaa_allowsms === 'YES' && r.phone_cell;
-                const canEmail = r.hipaa_allowemail === 'YES' && r.email;
-                
-                let actions = '<div class="btn-group">';
-                if (canWsp) {
-                    actions += `<button class="btn btn-xs btn-outline-success" onclick="openScheduleNotify(${r.pc_eid}, ${r.pc_pid}, ${r.pc_catid}, '${escHtml(r.pc_apptstatus)}', 'WSP', '${escJs(r.patient_name)}', '${escJs(r.phone_cell)}', '${escJs(r.email)}', '${escJs(r.pc_eventDate)}', '${escJs(r.pc_startTime)}', '${escJs(r.provider_name)}', '${escJs(r.facility_name)}', '${escJs(r.street || '')}', '${escJs(r.city || '')}', ${r.pc_facility})" title="<?php echo attr(xlt('Send WhatsApp')); ?>">
+
+                // Patient action buttons - skip if cancelled or already notified
+                const isBlocked = !r.template_status;  // empty template_status = blocked
+                const isCancelled = (r.template_status === '-cancelled' || r.template_status === '-error');
+                const canPtWsp = !isBlocked && !isCancelled && r.hipaa_allowsms === 'YES' && r.phone_cell;
+                const canPtEmail = !isBlocked && !isCancelled && r.hipaa_allowemail === 'YES' && r.email;
+
+                // Provider action buttons (only for Telehealth catid=80 and HBC catid=70/71)
+                const isTelehealthOrHBC = (r.pc_catid === 80 || r.pc_catid === 70 || r.pc_catid === 71);
+                const canProvWsp = !isBlocked && !isCancelled && isTelehealthOrHBC && r.provider_phone;
+                const canProvEmail = !isBlocked && !isCancelled && isTelehealthOrHBC && r.provider_email;
+
+                // Pt. Actions column
+                let ptActions = '<div class="btn-group btn-group-sm">';
+                if (canPtWsp) {
+                    ptActions += `<button class="btn btn-outline-success" onclick="openScheduleNotify(${r.pc_eid}, ${r.pc_pid}, ${r.pc_catid}, '${escHtml(r.pc_apptstatus)}', 'WSP', 'patient', '${escJs(r.patient_name)}', '${escJs(r.phone_cell)}', '${escJs(r.email)}', '${escJs(r.pc_eventDate)}', '${escJs(r.pc_startTime)}', '${escJs(r.provider_name)}', '${escJs(r.facility_name)}', '${escJs(r.street || '')}', '${escJs(r.city || '')}', ${r.pc_facility}, '${escJs(r.template_status || '-scheduled')}')" title="<?php echo attr(xlt('Send WhatsApp to Patient')); ?>">
                         <i class="fab fa-whatsapp"></i>
                     </button>`;
                 }
-                if (canEmail) {
-                    actions += `<button class="btn btn-xs btn-outline-primary" onclick="openScheduleNotify(${r.pc_eid}, ${r.pc_pid}, ${r.pc_catid}, '${escHtml(r.pc_apptstatus)}', 'Email', '${escJs(r.patient_name)}', '${escJs(r.phone_cell)}', '${escJs(r.email)}', '${escJs(r.pc_eventDate)}', '${escJs(r.pc_startTime)}', '${escJs(r.provider_name)}', '${escJs(r.facility_name)}', '${escJs(r.street || '')}', '${escJs(r.city || '')}', ${r.pc_facility})" title="<?php echo attr(xlt('Send Email')); ?>">
+                if (canPtEmail) {
+                    ptActions += `<button class="btn btn-outline-primary" onclick="openScheduleNotify(${r.pc_eid}, ${r.pc_pid}, ${r.pc_catid}, '${escHtml(r.pc_apptstatus)}', 'Email', 'patient', '${escJs(r.patient_name)}', '${escJs(r.phone_cell)}', '${escJs(r.email)}', '${escJs(r.pc_eventDate)}', '${escJs(r.pc_startTime)}', '${escJs(r.provider_name)}', '${escJs(r.facility_name)}', '${escJs(r.street || '')}', '${escJs(r.city || '')}', ${r.pc_facility}, '${escJs(r.template_status || '-scheduled')}')" title="<?php echo attr(xlt('Send Email to Patient')); ?>">
                         <i class="fas fa-envelope"></i>
                     </button>`;
                 }
-                actions += '</div>';
-                
+                if (isCancelled) {
+                    ptActions += '<span class="text-muted small" title="<?php echo attr(xlt('Cancelled - no notifications sent')); ?>">🚫</span>';
+                } else if (isBlocked) {
+                    ptActions += '<span class="text-muted small" title="<?php echo attr(xlt('Already notified/confirmed')); ?>">✅</span>';
+                } else if (!canPtWsp && !canPtEmail) {
+                    ptActions += '<span class="text-muted small">—</span>';
+                }
+                ptActions += '</div>';
+
+                // Prov. Actions column
+                let provActions = '<div class="btn-group btn-group-sm">';
+                if (canProvWsp) {
+                    provActions += `<button class="btn btn-outline-success" onclick="openScheduleNotify(${r.pc_eid}, ${r.pc_pid}, ${r.pc_catid}, '${escHtml(r.pc_apptstatus)}', 'WSP', 'provider', '${escJs(r.patient_name)}', '${escJs(r.provider_phone)}', '${escJs(r.provider_email)}', '${escJs(r.pc_eventDate)}', '${escJs(r.pc_startTime)}', '${escJs(r.provider_name)}', '${escJs(r.facility_name)}', '${escJs(r.street || '')}', '${escJs(r.city || '')}', ${r.pc_facility}, '${escJs(r.template_status || '-scheduled')}')" title="<?php echo attr(xlt('Send WhatsApp to Provider')); ?>">
+                        <i class="fab fa-whatsapp"></i>
+                    </button>`;
+                }
+                if (canProvEmail) {
+                    provActions += `<button class="btn btn-outline-primary" onclick="openScheduleNotify(${r.pc_eid}, ${r.pc_pid}, ${r.pc_catid}, '${escHtml(r.pc_apptstatus)}', 'Email', 'provider', '${escJs(r.patient_name)}', '${escJs(r.provider_phone)}', '${escJs(r.provider_email)}', '${escJs(r.pc_eventDate)}', '${escJs(r.pc_startTime)}', '${escJs(r.provider_name)}', '${escJs(r.facility_name)}', '${escJs(r.street || '')}', '${escJs(r.city || '')}', ${r.pc_facility}, '${escJs(r.template_status || '-scheduled')}')" title="<?php echo attr(xlt('Send Email to Provider')); ?>">
+                        <i class="fas fa-envelope"></i>
+                    </button>`;
+                }
+                if (isCancelled) {
+                    provActions += '<span class="text-muted small" title="<?php echo attr(xlt('Cancelled - no notifications sent')); ?>">🚫</span>';
+                } else if (!isTelehealthOrHBC) {
+                    provActions += '<span class="text-muted small" title="<?php echo attr(xlt('Only for Telehealth and HBC')); ?>">—</span>';
+                } else if (!canProvWsp && !canProvEmail) {
+                    provActions += '<span class="text-muted small" title="<?php echo attr(xlt('Provider has no phone/email configured')); ?>">⚠️</span>';
+                }
+                provActions += '</div>';
+
                 return `
                 <tr>
                     <td><strong>${escHtml(r.pc_eventDate)}</strong><br><small class="text-muted">${escHtml(r.pc_startTime)} - ${escHtml(r.pc_endTime)}</small></td>
                     <td><strong>${escHtml(r.patient_name)}</strong><br><small class="text-muted">PID: ${r.pc_pid}</small></td>
-                    <td>${escHtml(r.phone_cell || '-')}${canWsp ? ' <i class="fab fa-whatsapp text-success" title="HIPAA SMS OK"></i>' : ''}</td>
-                    <td>${escHtml(r.email || '-')}${canEmail ? ' <i class="fas fa-check-circle text-success" title="HIPAA Email OK"></i>' : ''}</td>
-                    <td>${escHtml(r.provider_name || '-')}</td>
+                    <td>${escHtml(r.provider_name || '-')}<br><small class="text-muted">${escHtml(r.provider_phone || '—')}</small></td>
                     <td>${typeLabel}</td>
-                    <td>${statusBadge}</td>
-                    <td class="text-center">${actions}</td>
+                    <td>${statusBadge}<br><small class="text-muted">tpl: ${escHtml(r.template_status || '(blocked)')}</small></td>
+                    <td class="text-center">${ptActions}</td>
+                    <td class="text-center">${provActions}</td>
                 </tr>`;
             }).join('');
         })
         .catch(err => {
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Error: ${err}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">Error: ${err}</td></tr>`;
         });
 }
 
@@ -1741,57 +1775,127 @@ function getApptTypeLabel(catid, title) {
 
 /**
  * Opens manual notification modal for a schedule row
+ * @param {string} recipient - 'patient' or 'provider'
+ * @param {string} templateStatus - Normalized status for template lookup
  */
-function openScheduleNotify(eid, pid, catid, apptStatus, type, patientName, phone, email, apptDate, apptTime, provider, facility, street, city, facilityId) {
+function openScheduleNotify(eid, pid, catid, apptStatus, type, recipient, patientName, contact, email, apptDate, apptTime, provider, facility, street, city, facilityId, templateStatus) {
     const patientAddress = [street, city].filter(Boolean).join(', ') || 'N/A';
-    
+    const tplStatus = templateStatus || '-scheduled';
+
     // Fetch the appropriate template from the server
-    fetch(`${moduleRoot}/pages/ajax/get_notification_template.php?pc_catid=${catid}&pc_apptstatus=${encodeURIComponent(apptStatus)}&type=${type}&recipient=patient&facility_id=${facilityId || 3}`)
+    fetch(`${moduleRoot}/pages/ajax/get_notification_template.php?pc_catid=${catid}&pc_apptstatus=${encodeURIComponent(tplStatus)}&type=${type}&recipient=${recipient}&facility_id=${facilityId || 3}`)
         .then(r => r.json())
         .then(tpl => {
             // Build message with template
             let message = '';
-            if (tpl.success && (tpl.wsp_message || tpl.email_message)) {
-                // Replace tokens
-                const rawTemplate = type === 'WSP' ? (tpl.wsp_message || '') : (tpl.email_message || '');
-                message = rawTemplate
-                    .replace(/\*\*\*NAME\*\*\*/g, patientName)
-                    .replace(/\*\*\*DATE\*\*\*/g, apptDate)
-                    .replace(/\*\*\*STARTTIME\*\*\*/g, apptTime)
-                    .replace(/\*\*\*PROVIDER\*\*\*/g, provider)
-                    .replace(/\*\*\*FACILITY_NAME\*\*\*/g, facility)
-                    .replace(/\*\*\*PATIENT_ADDRESS\*\*\*/g, patientAddress)
-                    .replace(/\*\*\*VISIT_ADDRESS\*\*\*/g, patientAddress)
-                    .replace(/\*\*\*VISIT_INSTRUCTIONS\*\*\*/g, 'N/A')
-                    .replace(/\*\*\*VIDEO_LINK\*\*\*/g, 'Por confirmar')
-                    .replace(/\*\*\*VIDEO_ROOM\*\*\*/g, 'N/A')
-                    .replace(/\*\*\*VIDEO_PASSWORD\*\*\*/g, 'N/A');
-            } else {
-                // Fallback message
-                message = type === 'WSP' ? 
-                    `Hola ${patientName}, le recordamos su cita para ${apptDate} a las ${apptTime} Hs. con ${provider} en ${facility}.` :
-                    `<p>Estimado/a ${patientName},</p><p>Le recordamos su cita para ${apptDate} a las ${apptTime} Hs.</p>`;
-            }
+            let recipientDisplayName = '';
             
+            if (tpl.success && (tpl.wsp_message || tpl.email_message)) {
+                // Replace tokens - provider templates use ***PATIENT_NAME*** etc
+                const rawTemplate = type === 'WSP' ? (tpl.wsp_message || '') : (tpl.email_message || '');
+                
+                if (recipient === 'provider') {
+                    // Provider notification: provider is the recipient
+                    recipientDisplayName = provider; // Show provider name
+                    message = rawTemplate
+                        .replace(/\*\*\*PROVIDER\*\*\*/g, provider)
+                        .replace(/\*\*\*PATIENT_NAME\*\*\*/g, patientName)
+                        .replace(/\*\*\*PATIENT_ADDRESS\*\*\*/g, patientAddress)
+                        .replace(/\*\*\*PATIENT_PHONE\*\*\*/g, contact || 'N/A')
+                        .replace(/\*\*\*DATE\*\*\*/g, apptDate)
+                        .replace(/\*\*\*STARTTIME\*\*\*/g, apptTime)
+                        .replace(/\*\*\*FACILITY_NAME\*\*\*/g, facility)
+                        .replace(/\*\*\*VISIT_ADDRESS\*\*\*/g, patientAddress)
+                        .replace(/\*\*\*VISIT_INSTRUCTIONS\*\*\*/g, 'N/A')
+                        .replace(/\*\*\*VIDEO_LINK\*\*\*/g, 'Por confirmar')
+                        .replace(/\*\*\*VIDEO_ROOM\*\*\*/g, 'N/A')
+                        .replace(/\*\*\*VIDEO_PASSWORD\*\*\*/g, 'N/A')
+                        .replace(/\*\*\*NAME\*\*\*/g, provider)  // For provider, NAME = provider
+                        .replace(/\*\*\*USER_PREFFIX\*\*\*/g, 'Dr.')
+                        .replace(/\*\*\*ENDTIME\*\*\*/g, 'N/A')
+                        .replace(/\*\*\*FACILITY_ADDRESS\*\*\*/g, '')
+                        .replace(/\*\*\*FACILITY_PHONE\*\*\*/g, '')
+                        .replace(/\*\*\*FACILITY_EMAIL\*\*\*/g, '')
+                        .replace(/\*\*\*FACILITY_MAP_LINK\*\*\*/g, '')
+                        .replace(/\*\*\*FACILITY_WEBSITE\*\*\*/g, '')
+                        .replace(/\*\*\*PID\*\*\*/g, pid)
+                        .replace(/\*\*\*REASON\*\*\*/g, '')
+                        .replace(/\*\*\*TITLE\*\*\*/g, '');
+                } else {
+                    // Patient notification: patient is the recipient
+                    recipientDisplayName = patientName;
+                    message = rawTemplate
+                        .replace(/\*\*\*NAME\*\*\*/g, patientName)
+                        .replace(/\*\*\*DATE\*\*\*/g, apptDate)
+                        .replace(/\*\*\*STARTTIME\*\*\*/g, apptTime)
+                        .replace(/\*\*\*PROVIDER\*\*\*/g, provider)
+                        .replace(/\*\*\*FACILITY_NAME\*\*\*/g, facility)
+                        .replace(/\*\*\*PATIENT_ADDRESS\*\*\*/g, patientAddress)
+                        .replace(/\*\*\*VISIT_ADDRESS\*\*\*/g, patientAddress)
+                        .replace(/\*\*\*VISIT_INSTRUCTIONS\*\*\*/g, 'N/A')
+                        .replace(/\*\*\*VIDEO_LINK\*\*\*/g, 'Por confirmar')
+                        .replace(/\*\*\*VIDEO_ROOM\*\*\*/g, 'N/A')
+                        .replace(/\*\*\*VIDEO_PASSWORD\*\*\*/g, 'N/A')
+                        .replace(/\*\*\*USER_PREFFIX\*\*\*/g, '')
+                        .replace(/\*\*\*ENDTIME\*\*\*/g, 'N/A')
+                        .replace(/\*\*\*FACILITY_ADDRESS\*\*\*/g, '')
+                        .replace(/\*\*\*FACILITY_PHONE\*\*\*/g, '')
+                        .replace(/\*\*\*FACILITY_EMAIL\*\*\*/g, '')
+                        .replace(/\*\*\*FACILITY_MAP_LINK\*\*\*/g, '')
+                        .replace(/\*\*\*FACILITY_WEBSITE\*\*\*/g, '')
+                        .replace(/\*\*\*PID\*\*\*/g, pid)
+                        .replace(/\*\*\*REASON\*\*\*/g, '')
+                        .replace(/\*\*\*TITLE\*\*\*/g, '')
+                        .replace(/\*\*\*PATIENT_NAME\*\*\*/g, patientName)
+                        .replace(/\*\*\*PATIENT_ADDRESS\*\*\*/g, patientAddress)
+                        .replace(/\*\*\*PATIENT_PHONE\*\*\*/g, contact || 'N/A');
+                }
+            } else {
+                // Fallback messages
+                if (recipient === 'provider') {
+                    recipientDisplayName = provider;
+                    const apptType = catid === 80 ? 'Telehealth' : (catid === 70 || catid === 71 ? 'HBC' : 'Cita');
+                    message = type === 'WSP' ?
+                        `Dr. ${provider}, tiene ${apptType} programada para ${apptDate} a las ${apptTime} Hs.\nPaciente: ${patientName}\nTel: ${contact || 'N/A'}\nDir: ${patientAddress}` :
+                        `<p>Dr. ${provider},</p><p>Tiene ${apptType} programada para ${apptDate} a las ${apptTime} Hs.</p><p><strong>Paciente:</strong> ${patientName}</p><p><strong>Teléfono:</strong> ${contact || 'N/A'}</p><p><strong>Dirección:</strong> ${patientAddress}</p>`;
+                } else {
+                    recipientDisplayName = patientName;
+                    message = type === 'WSP' ?
+                        `Hola ${patientName}, le recordamos su cita para ${apptDate} a las ${apptTime} Hs. con ${provider} en ${facility}.` :
+                        `<p>Estimado/a ${patientName},</p><p>Le recordamos su cita para ${apptDate} a las ${apptTime} Hs.</p>`;
+                }
+            }
+
             // Store data in hidden fields
             document.getElementById('mnEid').value = eid;
             document.getElementById('mnPid').value = pid;
             document.getElementById('mnType').value = type;
-            document.getElementById('mnRecipient').value = 'patient';
-            document.getElementById('mnContact').value = type === 'WSP' ? phone : email;
+            document.getElementById('mnRecipient').value = recipient;
+            document.getElementById('mnContact').value = type === 'WSP' ? contact : email;
             document.getElementById('mnEmail').value = email;
             document.getElementById('mnFacilityId').value = facilityId || 3;
-            document.getElementById('mnPatientName').textContent = patientName;
+            document.getElementById('mnPatientName').textContent = recipientDisplayName;
             document.getElementById('mnMessage').value = message;
-            
-            // Set badge
+
+            // Update recipient badge and contact info
+            const recipientBadge = document.getElementById('mnRecipientBadge');
+            const contactInfo = document.getElementById('mnContactInfo');
+            if (recipient === 'provider') {
+                recipientBadge.innerHTML = '<span class="badge bg-warning text-dark"><i class="fas fa-user-md me-1"></i>Provider</span>';
+                contactInfo.textContent = type === 'WSP' ? (contact || 'No phone') : (email || 'No email');
+            } else {
+                recipientBadge.innerHTML = '<span class="badge bg-info"><i class="fas fa-user me-1"></i>Patient</span>';
+                contactInfo.textContent = type === 'WSP' ? (contact || 'No phone') : (email || 'No email');
+            }
+
+            // Set badge with recipient indicator
             const badge = document.getElementById('mnChannelBadge');
             if (type === 'WSP') {
                 badge.innerHTML = '<span class="badge bg-success"><i class="fab fa-whatsapp me-1"></i>WhatsApp</span>';
             } else {
                 badge.innerHTML = '<span class="badge bg-primary"><i class="fas fa-envelope me-1"></i>Email</span>';
             }
-            
+
             // Show modal
             try {
                 const modalEl = document.getElementById('modalManualNotify');
@@ -1986,6 +2090,10 @@ function saveTemplates() {
                     
                     <div class="mb-2">
                         <small class="text-muted"><?php echo xlt('To:'); ?> <strong id="mnPatientName"></strong></small>
+                        <div id="mnRecipientBadge" class="mt-1"></div>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted"><?php echo xlt('Contact:'); ?> <strong id="mnContactInfo"></strong></small>
                     </div>
                     <div class="mb-3">
                         <small class="text-muted"><?php echo xlt('Channel:'); ?> <strong id="mnChannelBadge"></strong></small>

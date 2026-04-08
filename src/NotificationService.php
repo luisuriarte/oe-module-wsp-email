@@ -192,21 +192,31 @@ class NotificationService
         copy($icsPath, $publicIcsDir . $icsBase);
         @unlink($icsPath);
 
-        $result = $this->wspSender->send($config, $patient);
-        $msgId  = $result['msgId'] ?? null;
-        $rawStatus = $result['status'] ?? 'error';
-        $vendor = $config['vendor'] ?? 'default';
+        try {
+            $result = $this->wspSender->send($config, $patient);
+            $msgId  = $result['msgId'] ?? null;
+            $rawStatus = $result['status'] ?? 'error';
+            $vendor = $config['vendor'] ?? 'default';
 
-        // Normalize status using StatusNormalizer
-        $canonicalStatus = StatusNormalizer::normalize($vendor, $rawStatus);
-        $statusPriority = StatusNormalizer::getPriority($canonicalStatus);
+            // Normalize status using StatusNormalizer
+            $canonicalStatus = StatusNormalizer::normalize($vendor, $rawStatus);
+            $statusPriority = StatusNormalizer::getPriority($canonicalStatus);
 
-        $this->insertLog('WSP', $patient, $config, $msgId, $rawStatus, $seq, $canonicalStatus, $statusPriority, $vendor, $result);
+            $this->insertLog('WSP', $patient, $config, $msgId, $rawStatus, $seq, $canonicalStatus, $statusPriority, $vendor, $result);
 
-        if ($updateCalFlag) {
-            $this->markEventSent('WSP', (int)$patient['pid'], (int)$patient['pc_eid']);
+            if ($updateCalFlag) {
+                $this->markEventSent('WSP', (int)$patient['pid'], (int)$patient['pc_eid']);
+            }
+            $this->updateTracker($patient, 'WSP');
+        } catch (\Throwable $e) {
+            // Log the error even if send fails catastrophically
+            $errorMsg = $e->getMessage();
+            $errorLog = 'EXCEPTION in deliverWsp: ' . $errorMsg . "\nTrace: " . $e->getTraceAsString();
+            
+            $this->insertLog('WSP', $patient, $config, null, 'error', $seq, 'ERROR', 0, $config['vendor'] ?? 'default', ['error' => $errorMsg, 'log' => $errorLog]);
+            
+            echo "    ERROR: " . $errorMsg . "\n";
         }
-        $this->updateTracker($patient, 'WSP');
 
         // Allow time for vendor to download the .ics before deleting it
         sleep(5);
@@ -257,21 +267,26 @@ class NotificationService
         $windowStart = date('Y-m-d H:i:s');
         $windowEnd   = date('Y-m-d H:i:s', strtotime("+{$hoursBefore} hours"));
 
-        $sql = "SELECT pd.pid, pd.title, pd.fname, pd.lname, pd.mname, pd.phone_cell,
+        $sql = "SELECT DISTINCT pd.pid, pd.title, pd.fname, pd.lname, pd.mname, pd.phone_cell,
                        pd.email, pd.hipaa_allowsms, pd.hipaa_allowemail,
                        ope.pc_eid, ope.pc_pid, ope.pc_title, ope.pc_hometext,
                        ope.pc_eventDate, ope.pc_endDate, ope.pc_duration,
                        ope.pc_startTime, ope.pc_endTime, ope.pc_facility, ope.pc_catid,
                        ope.pc_apptstatus,
+                       COALESCE(pt_latest.status, ope.pc_apptstatus) AS tracker_status,
                        CONCAT(u.fname,' ',IFNULL(u.mname,''),' ',u.lname) AS user_name,
                        u.suffix AS user_preffix
                 FROM openemr_postcalendar_events ope
                 INNER JOIN patient_data pd ON pd.pid = ope.pc_pid
                 LEFT  JOIN users        u  ON u.id   = ope.pc_aid
+                LEFT JOIN patient_tracker pt ON pt.eid = ope.pc_eid
+                LEFT JOIN patient_tracker_element pt_latest ON pt_latest.pt_tracker_id = pt.id
+                    AND pt_latest.seq = (SELECT MAX(seq) FROM patient_tracker_element WHERE pt_tracker_id = pt.id)
                 WHERE ope.pc_facility = ?
                   AND CONCAT(ope.pc_eventDate, ' ', ope.pc_startTime) > ?
                   AND CONCAT(ope.pc_eventDate, ' ', ope.pc_startTime) <= ?
                   AND ope.pc_apptstatus NOT IN ('X', '%', '^', '*', '-cancelled', '-noshow')
+                  AND COALESCE(pt_latest.status, ope.pc_apptstatus) NOT IN ('x', '%', '?', '^', 'wsp-err')
                   $hipaaFilter
                   AND NOT EXISTS (
                       SELECT 1 FROM notification_log nl
