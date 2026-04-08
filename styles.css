@@ -884,3 +884,42 @@ h6 {
     pointer-events: none;
 }
 
+/* =========================================================================
+   OpenEMR Patient Tracker Status Integration
+   ========================================================================= */
+
+/* WhatsApp Status Badges for Tracker */
+.status-wsp-sent {
+    background-color: #e8f5e9 !important; /* Light Green */
+    color: #2e7d32 !important;            /* Dark Green Text */
+    border-left: 4px solid #2e7d32;
+}
+
+.status-wsp-deliv {
+    background-color: #e3f2fd !important; /* Light Blue */
+    color: #1565c0 !important;            /* Dark Blue Text */
+    border-left: 4px solid #1565c0;
+}
+
+.status-wsp-read {
+    background-color: #f3e5f5 !important; /* Light Purple */
+    color: #7b1fa2 !important;            /* Dark Purple Text */
+    border-left: 4px solid #7b1fa2;
+}
+
+.status-wsp-err {
+    background-color: #ffebee !important; /* Light Red */
+    color: #c62828 !important;            /* Dark Red Text */
+    border-left: 4px solid #c62828;
+}
+
+/* General Tracker Status Styling */
+.tracker-status-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    margin-right: 4px;
+}
+

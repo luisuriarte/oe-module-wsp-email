@@ -48,9 +48,11 @@ $safe = array_map(function (array $row): array {
     return [
         'iLogId'        => (int)$row['iLogId'],
         'pid'           => (int)$row['pid'],
+        'pc_eid'        => (int)($row['pc_eid'] ?? 0),
         'fname'         => text($row['fname'] ?? ''),
         'lname'         => text($row['lname'] ?? ''),
         'phone_cell'    => text($row['phone_cell'] ?? ''),
+        'email'         => text($row['email'] ?? ''),
         'pc_eventDate'  => !empty($row['pc_eventDate']) ? oeFormatShortDate($row['pc_eventDate']) : '',
         'pc_startTime'  => $row['pc_startTime']  ?? '',
         'type'          => $row['type']           ?? '',

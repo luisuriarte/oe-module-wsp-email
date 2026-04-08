@@ -81,6 +81,11 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
             </a>
         </li>
         <li class="nav-item">
+            <a class="nav-link <?php echo $activeTab === 'schedules' ? 'active' : ''; ?>" href="?tab=schedules">
+                <i class="fas fa-calendar-alt me-1"></i><?php echo xlt('Schedules'); ?>
+            </a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link <?php echo in_array($activeTab, ['facility','config']) ? 'active' : ''; ?>" href="?tab=facility">
                 <i class="fas fa-hospital me-1"></i><?php echo xlt('Facilities'); ?>
             </a>
@@ -237,12 +242,79 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                         </tr>
                     </thead>
                     <tbody id="patientTableBody">
-                        <tr><td colspan="7" class="text-center text-muted py-4"><?php echo xlt('Enter a search term above.'); ?></td></tr>
+                        <tr><td colspan="8" class="text-center text-muted py-4"><?php echo xlt('Enter a search term above.'); ?></td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div><!-- /tab-patients -->
+
+    <!-- ===================================================================
+         TAB: SCHEDULES (Manual Notifications)
+    ==================================================================== -->
+    <div id="tab-schedules" class="<?php echo $activeTab === 'schedules' ? '' : 'd-none'; ?>">
+        <div class="chart-card">
+            <h5 class="mb-3"><i class="fas fa-calendar-alt me-2 text-success"></i><?php echo xlt('Upcoming Appointments - Manual Notifications'); ?></h5>
+            
+            <!-- Filters -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('From Date'); ?></label>
+                    <input type="text" id="schedFromDate" class="form-control form-control-sm datepicker" value="<?php echo attr(oeFormatShortDate(date('Y-m-d', strtotime('-7 days')))); ?>">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('To Date'); ?></label>
+                    <input type="text" id="schedToDate" class="form-control form-control-sm datepicker" value="<?php echo attr(oeFormatShortDate(date('Y-m-d', strtotime('+30 days')))); ?>">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('Patient'); ?></label>
+                    <input type="text" id="schedPatient" class="form-control form-control-sm" placeholder="<?php echo attr(xlt('Name...')); ?>">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('Appt Status'); ?></label>
+                    <select id="schedStatus" class="form-select form-select-sm">
+                        <option value=""><?php echo xlt('All Statuses'); ?></option>
+                        <!-- Options loaded dynamically from list_options.apptstat -->
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('Facility'); ?></label>
+                    <select id="schedFacility" class="form-select form-select-sm">
+                        <option value=""><?php echo xlt('All Facilities'); ?></option>
+                        <?php foreach ($facilities as $sf): ?>
+                        <option value="<?php echo attr((string)$sf['facility_id']); ?>"><?php echo text($sf['facility_name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button id="btnLoadSchedules" class="btn btn-sm btn-success w-100">
+                        <i class="fas fa-search me-1"></i><?php echo xlt('Load'); ?>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0" id="schedulesTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th><?php echo xlt('Date/Time'); ?></th>
+                            <th><?php echo xlt('Patient'); ?></th>
+                            <th><?php echo xlt('Phone'); ?></th>
+                            <th><?php echo xlt('Email'); ?></th>
+                            <th><?php echo xlt('Provider'); ?></th>
+                            <th><?php echo xlt('Type'); ?></th>
+                            <th><?php echo xlt('Status'); ?></th>
+                            <th class="text-center"><?php echo xlt('Actions'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody id="schedulesTableBody">
+                        <tr><td colspan="8" class="text-center text-muted py-4"><?php echo xlt('Click Load to fetch appointments.'); ?></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div><!-- /tab-schedules -->
 
     <!-- ===================================================================
          TAB: FACILITIES CONFIG
@@ -461,35 +533,7 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                         </button>
 
                         <hr>
-                        <h6><?php echo xlt('Message Templates'); ?></h6>
-                        <p class="text-muted small mb-1">
-                            <strong><?php echo xlt('Available tokens'); ?>:</strong><br>
-                            <code>***NAME***</code> &mdash; <?php echo xlt('Patient full name'); ?><br>
-                            <code>***PID***</code> &mdash; <?php echo xlt('Patient ID'); ?><br>
-                            <code>***PROVIDER***</code> &mdash; <?php echo xlt('Provider name'); ?><br>
-                            <code>***USER_PREFFIX***</code> &mdash; <?php echo xlt('Provider title / suffix (from Users)'); ?><br>
-                            <code>***DATE***</code> &mdash; <?php echo xlt('Appointment date'); ?><br>
-                            <code>***STARTTIME***</code> / <code>***ENDTIME***</code> &mdash; <?php echo xlt('Appointment start/end time'); ?><br>
-                            <code>***TITLE***</code> / <code>***REASON***</code> &mdash; <?php echo xlt('Appointment title and reason'); ?><br>
-                            <code>***FACILITY_NAME***</code> / <code>***FACILITY_ADDRESS***</code> /
-                             <code>***FACILITY_PHONE***</code> / <code>***FACILITY_EMAIL***</code> /<br>
-                             <code>***FACILITY_MAP_LINK***</code> / <code>***FACILITY_WEBSITE***</code>
-                            &mdash; <?php echo xlt('Taken from the Facility record in OpenEMR / coordinates'); ?>
-                        </p>
-                        <div class="mb-3">
-                            <label class="form-label"><?php echo xlt('WhatsApp message template'); ?></label>
-                            <textarea name="wsp_message" id="cfgWspMsg" rows="5" class="form-control mono"></textarea>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label"><?php echo xlt('Email subject'); ?></label>
-                            <input type="text" name="email_subject" id="cfgEmailSubject" class="form-control form-control-sm">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label"><?php echo xlt('Email message template'); ?></label>
-                            <textarea name="email_message" id="cfgEmailMsg" rows="6" class="form-control mono"></textarea>
-                        </div>
-
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-2 mt-3">
                             <button type="submit" class="btn btn-success btn-save">
                                 <i class="fas fa-save me-1"></i><?php echo xlt('Save Configuration'); ?>
                             </button>
@@ -501,6 +545,20 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                             </span>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- Notification Templates Manager (Centralized) -->
+            <div class="card mt-4 shadow-sm border-0 bg-light">
+                <div class="card-body py-5 text-center">
+                    <i class="fas fa-file-alt fa-4x text-info mb-3"></i>
+                    <h4 class="text-info mb-2"><?php echo xlt('Notification Templates Manager'); ?></h4>
+                    <p class="text-muted mb-4 mx-auto" style="max-width: 600px;">
+                        <?php echo xlt('Configure specific messages for each appointment type (Ambulatory, HBC, Telehealth) and recipient (Patient/Provider).'); ?>
+                    </p>
+                    <button type="button" class="btn btn-primary btn-lg px-5 shadow-sm" onclick="openTemplateManager()">
+                        <i class="fas fa-edit me-2"></i><?php echo xlt('Open Template Manager'); ?>
+                    </button>
                 </div>
             </div>
         </div>
@@ -763,11 +821,11 @@ function searchPatients() {
     if (wsp && !email) channel = 'WSP';
     else if (!wsp && email) channel = 'Email';
     else if (!wsp && !email) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><?php echo js_escape(xlt('Please select at least one channel.')); ?></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><?php echo js_escape(xlt('Please select at least one channel.')); ?></td></tr>';
         return;
     }
 
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x text-success"></i></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x text-success"></i></td></tr>';
 
     const params = new URLSearchParams({
         q: q,
@@ -782,7 +840,7 @@ function searchPatients() {
         .then(data => {
             const rows = data.rows || [];
             if (!rows.length) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><?php echo js_escape(xlt('No records found for the selected criteria.')); ?></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><?php echo js_escape(xlt('No records found for the selected criteria.')); ?></td></tr>';
                 return;
             }
             tbody.innerHTML = rows.map(r => {
@@ -820,7 +878,7 @@ function searchPatients() {
             }).join('');
         })
         .catch(err => {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">Error: ${err}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Error: ${err}</td></tr>`;
         });
 }
 
@@ -1027,9 +1085,7 @@ function loadFacilityConfig(facilityId) {
             initFacilityMap(c.latitude || -34.6037, c.longitude || -58.3816);
             document.getElementById('cfgEnabledWsp').checked    = parseInt(c.enabled_wsp   ?? 1) === 1;
             document.getElementById('cfgEnabledEmail').checked  = parseInt(c.enabled_email ?? 1) === 1;
-            document.getElementById('cfgWspMsg').value          = c.wsp_message         || '';
-            document.getElementById('cfgEmailSubject').value    = c.email_subject       || '';
-            document.getElementById('cfgEmailMsg').value        = c.email_message       || '';
+            // ... Templates are now managed in the separate Manager Modal ...
             document.getElementById('facilityConfigForm').style.display = 'block';
 
             // Handle vendor-specific field visibility
@@ -1296,10 +1352,20 @@ function escHtml(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function escJs(s) {
+    return String(s || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"').replace(/\n/g,'\\n');
+}
+
 // Auto-load stats on dashboard tab
 <?php if ($activeTab === 'dashboard'): ?>
 renderStatusFilters(); // Render status filter checkboxes
 loadStats();
+<?php endif; ?>
+
+// Auto-load schedules if on schedules tab
+<?php if ($activeTab === 'schedules'): ?>
+loadApptStatuses();
+loadSchedules();
 <?php endif; ?>
 /**
  * Leaflet Map Picker Initialization
@@ -1426,6 +1492,458 @@ $(function() {
         searchTimer = setTimeout(searchPatients, 500);
     });
 });
+
+// =========================================================================
+// Manual Notification Functions
+// =========================================================================
+
+/**
+ * Opens the manual notification modal
+ */
+function openManualNotify(eid, pid, type, recipient, phone, patientName, email) {
+    document.getElementById('mnEid').value = eid;
+    document.getElementById('mnPid').value = pid;
+    document.getElementById('mnType').value = type;
+    document.getElementById('mnRecipient').value = recipient;
+    document.getElementById('mnContact').value = phone;
+    document.getElementById('mnEmail').value = email || '';
+    document.getElementById('mnPatientName').textContent = patientName || 'Unknown';
+    
+    // Set channel badge
+    const badge = document.getElementById('mnChannelBadge');
+    if (type === 'WSP') {
+        badge.innerHTML = '<span class="badge bg-success"><i class="fab fa-whatsapp me-1"></i>WhatsApp</span>';
+    } else {
+        badge.innerHTML = '<span class="badge bg-primary"><i class="fas fa-envelope me-1"></i>Email</span>';
+    }
+    
+    // Default message template
+    let defaultMsg = '';
+    if (type === 'WSP') {
+        defaultMsg = `Hola ${patientName}, le escribimos desde la clínica para recordarle su próxima cita. Por favor contáctenos si tiene alguna pregunta.`;
+    } else {
+        defaultMsg = `<p>Estimado/a ${patientName},</p><p>Le escribimos desde la clínica para informarle sobre su próxima cita.</p><p>Saludos cordiales.</p>`;
+    }
+    document.getElementById('mnMessage').value = defaultMsg;
+    
+    // Show modal
+    try {
+        const modalEl = document.getElementById('modalManualNotify');
+        if (!modalEl) {
+            console.error('Modal element not found!');
+            alert('Error: Modal not found in page.');
+            return;
+        }
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    } catch (e) {
+        console.error('Error showing modal:', e);
+        alert('Error showing modal: ' + e.message);
+    }
+}
+
+/**
+ * Logs the manual notification and opens wa.me or mailto:
+ */
+function executeManualNotify() {
+    const eid     = document.getElementById('mnEid').value;
+    const pid     = document.getElementById('mnPid').value;
+    const type    = document.getElementById('mnType').value;
+    const recipient = document.getElementById('mnRecipient').value;
+    const phone   = document.getElementById('mnContact').value;
+    const email   = document.getElementById('mnEmail').value;
+    const msg     = document.getElementById('mnMessage').value;
+
+    // Determine contact based on type
+    let contact = '';
+    if (type === 'WSP') {
+        contact = phone;
+    } else {
+        contact = email;
+    }
+
+    if (!contact) {
+        const contactType = type === 'WSP' ? 'phone number' : 'email address';
+        alert(`No ${contactType} available for this patient.`);
+        return;
+    }
+
+    // 1. Log the notification attempt
+    const formData = new URLSearchParams({
+        pc_eid: eid,
+        pid: pid,
+        type: type,
+        recipient: recipient,
+        message: msg,
+        phone: type === 'WSP' ? contact : '',
+        email_addr: type === 'Email' ? contact : ''
+    });
+
+    fetch(`${moduleRoot}/pages/ajax/log_manual_notify.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            // 2. Open the appropriate app
+            if (type === 'WSP') {
+                // Clean phone number for wa.me (remove +, spaces, dashes)
+                const cleanPhone = contact.replace(/\D/g, '');
+                const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+                window.open(waUrl, '_blank');
+            } else if (type === 'Email') {
+                // Send email via PHPMailer on server
+                const facilityId = document.getElementById('mnFacilityId').value || 3;
+                const emailData = new URLSearchParams({
+                    to: contact,
+                    subject: 'Recordatorio de Cita',
+                    message: msg,
+                    facility_id: facilityId
+                });
+
+                fetch(`${moduleRoot}/pages/ajax/send_manual_email.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: emailData
+                })
+                .then(r => r.json())
+                .then(emailResult => {
+                    if (emailResult.success) {
+                        alert('✅ Email sent successfully to ' + contact);
+                    } else {
+                        alert('❌ Email send failed: ' + (emailResult.message || 'Unknown error'));
+                    }
+                })
+                .catch(err => {
+                    alert('❌ Email send error: ' + err);
+                });
+            }
+            
+            // Close modal
+            try {
+                bootstrap.Modal.getInstance(document.getElementById('modalManualNotify')).hide();
+            } catch (e) {
+                // Modal might already be hidden
+            }
+            
+            // Refresh patient list
+            searchPatients();
+        } else {
+            alert('Error logging notification: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(err => {
+        alert('Error: ' + err);
+    });
+}
+
+// =========================================================================
+// Schedules Tab Functions
+// =========================================================================
+
+function loadApptStatuses() {
+    fetch(`${moduleRoot}/pages/ajax/get_appt_statuses.php`)
+        .then(r => r.json())
+        .then(data => {
+            const select = document.getElementById('schedStatus');
+            select.innerHTML = '<option value="">' + '<?php echo js_escape(xlt('All Statuses')); ?>' + '</option>';
+            if (data.statuses) {
+                data.statuses.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = s.title;
+                    select.appendChild(opt);
+                });
+            }
+        })
+        .catch(err => console.error('Error loading statuses:', err));
+}
+
+function loadSchedules() {
+    const fromDate   = document.getElementById('schedFromDate').value;
+    const toDate     = document.getElementById('schedToDate').value;
+    const patient    = document.getElementById('schedPatient').value;
+    const apptStatus = document.getElementById('schedStatus').value;
+    const facilityId = document.getElementById('schedFacility').value;
+    const tbody      = document.getElementById('schedulesTableBody');
+
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x text-success"></i></td></tr>';
+
+    const params = new URLSearchParams({
+        from_date: fromDate,
+        to_date: toDate,
+        patient: patient,
+        appt_status: apptStatus,
+        facility_id: facilityId
+    });
+
+    fetch(`${moduleRoot}/pages/ajax/get_schedules.php?${params.toString()}`)
+        .then(r => r.json())
+        .then(data => {
+            const rows = data.rows || [];
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><?php echo js_escape(xlt('No appointments found.')); ?></td></tr>';
+                return;
+            }
+            tbody.innerHTML = rows.map(r => {
+                const statusBadge = r.status_title ? 
+                    `<span class="badge bg-secondary">${escHtml(r.status_title)}</span>` : 
+                    `<span class="badge bg-light text-dark">${escHtml(r.pc_apptstatus || '-')}</span>`;
+                
+                const typeLabel = getApptTypeLabel(r.pc_catid, r.pc_title);
+                
+                // Manual notify buttons
+                const canWsp = r.hipaa_allowsms === 'YES' && r.phone_cell;
+                const canEmail = r.hipaa_allowemail === 'YES' && r.email;
+                
+                let actions = '<div class="btn-group">';
+                if (canWsp) {
+                    actions += `<button class="btn btn-xs btn-outline-success" onclick="openScheduleNotify(${r.pc_eid}, ${r.pc_pid}, ${r.pc_catid}, '${escHtml(r.pc_apptstatus)}', 'WSP', '${escJs(r.patient_name)}', '${escJs(r.phone_cell)}', '${escJs(r.email)}', '${escJs(r.pc_eventDate)}', '${escJs(r.pc_startTime)}', '${escJs(r.provider_name)}', '${escJs(r.facility_name)}', '${escJs(r.street || '')}', '${escJs(r.city || '')}', ${r.pc_facility})" title="<?php echo attr(xlt('Send WhatsApp')); ?>">
+                        <i class="fab fa-whatsapp"></i>
+                    </button>`;
+                }
+                if (canEmail) {
+                    actions += `<button class="btn btn-xs btn-outline-primary" onclick="openScheduleNotify(${r.pc_eid}, ${r.pc_pid}, ${r.pc_catid}, '${escHtml(r.pc_apptstatus)}', 'Email', '${escJs(r.patient_name)}', '${escJs(r.phone_cell)}', '${escJs(r.email)}', '${escJs(r.pc_eventDate)}', '${escJs(r.pc_startTime)}', '${escJs(r.provider_name)}', '${escJs(r.facility_name)}', '${escJs(r.street || '')}', '${escJs(r.city || '')}', ${r.pc_facility})" title="<?php echo attr(xlt('Send Email')); ?>">
+                        <i class="fas fa-envelope"></i>
+                    </button>`;
+                }
+                actions += '</div>';
+                
+                return `
+                <tr>
+                    <td><strong>${escHtml(r.pc_eventDate)}</strong><br><small class="text-muted">${escHtml(r.pc_startTime)} - ${escHtml(r.pc_endTime)}</small></td>
+                    <td><strong>${escHtml(r.patient_name)}</strong><br><small class="text-muted">PID: ${r.pc_pid}</small></td>
+                    <td>${escHtml(r.phone_cell || '-')}${canWsp ? ' <i class="fab fa-whatsapp text-success" title="HIPAA SMS OK"></i>' : ''}</td>
+                    <td>${escHtml(r.email || '-')}${canEmail ? ' <i class="fas fa-check-circle text-success" title="HIPAA Email OK"></i>' : ''}</td>
+                    <td>${escHtml(r.provider_name || '-')}</td>
+                    <td>${typeLabel}</td>
+                    <td>${statusBadge}</td>
+                    <td class="text-center">${actions}</td>
+                </tr>`;
+            }).join('');
+        })
+        .catch(err => {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Error: ${err}</td></tr>`;
+        });
+}
+
+/**
+ * Get appointment type label based on pc_catid
+ */
+function getApptTypeLabel(catid, title) {
+    const catId = parseInt(catid) || 0;
+    if (catId === 70 || catId === 71) return '<span class="badge bg-info">HBC</span>';
+    if (catId === 80) return '<span class="badge bg-warning text-dark">Telehealth</span>';
+    return '<span class="badge bg-secondary">Ambulatorio</span>';
+}
+
+/**
+ * Opens manual notification modal for a schedule row
+ */
+function openScheduleNotify(eid, pid, catid, apptStatus, type, patientName, phone, email, apptDate, apptTime, provider, facility, street, city, facilityId) {
+    const patientAddress = [street, city].filter(Boolean).join(', ') || 'N/A';
+    
+    // Fetch the appropriate template from the server
+    fetch(`${moduleRoot}/pages/ajax/get_notification_template.php?pc_catid=${catid}&pc_apptstatus=${encodeURIComponent(apptStatus)}&type=${type}&recipient=patient&facility_id=${facilityId || 3}`)
+        .then(r => r.json())
+        .then(tpl => {
+            // Build message with template
+            let message = '';
+            if (tpl.success && (tpl.wsp_message || tpl.email_message)) {
+                // Replace tokens
+                const rawTemplate = type === 'WSP' ? (tpl.wsp_message || '') : (tpl.email_message || '');
+                message = rawTemplate
+                    .replace(/\*\*\*NAME\*\*\*/g, patientName)
+                    .replace(/\*\*\*DATE\*\*\*/g, apptDate)
+                    .replace(/\*\*\*STARTTIME\*\*\*/g, apptTime)
+                    .replace(/\*\*\*PROVIDER\*\*\*/g, provider)
+                    .replace(/\*\*\*FACILITY_NAME\*\*\*/g, facility)
+                    .replace(/\*\*\*PATIENT_ADDRESS\*\*\*/g, patientAddress)
+                    .replace(/\*\*\*VISIT_ADDRESS\*\*\*/g, patientAddress)
+                    .replace(/\*\*\*VISIT_INSTRUCTIONS\*\*\*/g, 'N/A')
+                    .replace(/\*\*\*VIDEO_LINK\*\*\*/g, 'Por confirmar')
+                    .replace(/\*\*\*VIDEO_ROOM\*\*\*/g, 'N/A')
+                    .replace(/\*\*\*VIDEO_PASSWORD\*\*\*/g, 'N/A');
+            } else {
+                // Fallback message
+                message = type === 'WSP' ? 
+                    `Hola ${patientName}, le recordamos su cita para ${apptDate} a las ${apptTime} Hs. con ${provider} en ${facility}.` :
+                    `<p>Estimado/a ${patientName},</p><p>Le recordamos su cita para ${apptDate} a las ${apptTime} Hs.</p>`;
+            }
+            
+            // Store data in hidden fields
+            document.getElementById('mnEid').value = eid;
+            document.getElementById('mnPid').value = pid;
+            document.getElementById('mnType').value = type;
+            document.getElementById('mnRecipient').value = 'patient';
+            document.getElementById('mnContact').value = type === 'WSP' ? phone : email;
+            document.getElementById('mnEmail').value = email;
+            document.getElementById('mnFacilityId').value = facilityId || 3;
+            document.getElementById('mnPatientName').textContent = patientName;
+            document.getElementById('mnMessage').value = message;
+            
+            // Set badge
+            const badge = document.getElementById('mnChannelBadge');
+            if (type === 'WSP') {
+                badge.innerHTML = '<span class="badge bg-success"><i class="fab fa-whatsapp me-1"></i>WhatsApp</span>';
+            } else {
+                badge.innerHTML = '<span class="badge bg-primary"><i class="fas fa-envelope me-1"></i>Email</span>';
+            }
+            
+            // Show modal
+            try {
+                const modalEl = document.getElementById('modalManualNotify');
+                if (!modalEl) {
+                    alert('Error: Modal not found.');
+                    return;
+                }
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        })
+        .catch(err => {
+            console.error('Template fetch error:', err);
+            // Fallback to direct notification
+            const contact = type === 'WSP' ? phone : email;
+            if (!contact) {
+                alert(`No ${type === 'WSP' ? 'phone' : 'email'} available.`);
+                return;
+            }
+            
+            if (type === 'WSP') {
+                const cleanPhone = phone.replace(/\D/g, '');
+                const msg = `Hola ${patientName}, su cita es ${apptDate} ${apptTime} Hs.`;
+                window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+            } else {
+                // Send email via PHPMailer
+                const emailData = new URLSearchParams({
+                    to: email,
+                    subject: 'Recordatorio de Cita',
+                    message: `<p>Estimado/a ${patientName},</p><p>Le recordamos su cita para ${apptDate} a las ${apptTime} Hs.</p>`,
+                    facility_id: facilityId || 3
+                });
+
+                fetch(`${moduleRoot}/pages/ajax/send_manual_email.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: emailData
+                })
+                .then(r => r.json())
+                .then(emailResult => {
+                    if (emailResult.success) {
+                        alert('✅ Email sent successfully to ' + email);
+                    } else {
+                        alert('❌ Email send failed: ' + (emailResult.message || 'Unknown error'));
+                    }
+                })
+                .catch(err => {
+                    alert('❌ Email send error: ' + err);
+                });
+            }
+        });
+}
+
+// Button handlers
+document.getElementById('btnLoadSchedules')?.addEventListener('click', loadSchedules);
+
+// =========================================================================
+// Template Manager Functions
+// =========================================================================
+let allTemplatesData = [];
+
+function openTemplateManager() {
+    const facId = document.getElementById('cfgFacilityId').value;
+    if (!facId) { alert('Please select a facility first.'); return; }
+    
+    document.getElementById('tmFacilityId').value = facId;
+    const tbody = document.getElementById('templateTableBody');
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalTemplateManager'));
+    modal.show();
+
+    fetch(`${moduleRoot}/pages/ajax/get_templates.php?facility_id=${facId}`)
+        .then(r => r.json())
+        .then(data => {
+            allTemplatesData = data.rows || [];
+            renderTemplateTable();
+        })
+        .catch(err => {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-danger">Error loading templates: ${err}</td></tr>`;
+        });
+}
+
+function renderTemplateTable() {
+    const tbody = document.getElementById('templateTableBody');
+    tbody.innerHTML = '';
+
+    allTemplatesData.forEach((tpl, index) => {
+        const tr = document.createElement('tr');
+        const chanBadge = tpl.channel === 'wsp' ? 'bg-success' : 'bg-primary';
+        const recvBadge = tpl.recipient_type === 'patient' ? 'bg-info' : 'bg-warning text-dark';
+        
+        tr.innerHTML = `
+            <td>
+                <strong>${escHtml(tpl.category_name || tpl.pc_catid)}</strong><br>
+                <span class="badge bg-secondary">${escHtml(tpl.pc_apptstatus)}</span>
+            </td>
+            <td><span class="badge ${chanBadge}">${tpl.channel}</span></td>
+            <td><span class="badge ${recvBadge}">${tpl.recipient_type}</span></td>
+            <td><textarea class="form-control form-control-sm mono" rows="3" onchange="updateTpl(${index}, 'wsp_message', this.value)">${escHtml(tpl.wsp_message)}</textarea></td>
+            <td><input type="text" class="form-control form-control-sm" value="${escHtml(tpl.email_subject)}" onchange="updateTpl(${index}, 'email_subject', this.value)"></td>
+            <td><textarea class="form-control form-control-sm mono" rows="3" onchange="updateTpl(${index}, 'email_message', this.value)">${escHtml(tpl.email_message)}</textarea></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function updateTpl(index, field, value) {
+    allTemplatesData[index][field] = value;
+}
+
+function saveTemplates() {
+    const facId = document.getElementById('tmFacilityId').value;
+    const btn = document.querySelector('#modalTemplateManager .btn-primary');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+    fetch(`${moduleRoot}/pages/ajax/save_templates.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facility_id: facId, templates: allTemplatesData })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert('Templates saved successfully.');
+            // Cierre compatible con Bootstrap 4 y 5
+            try {
+                const modalEl = document.getElementById('modalTemplateManager');
+                if (window.bootstrap) {
+                    // Bootstrap 5
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) modalInstance.hide();
+                } else {
+                    // Bootstrap 4 (jQuery)
+                    $(modalEl).modal('hide');
+                }
+            } catch (e) {
+                console.error('Modal close error:', e);
+            }
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(err => alert('Error: ' + err))
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save Changes';
+    });
+}
 </script>
 
 <!-- Modal: Notification Details / Timeline -->
@@ -1448,10 +1966,89 @@ $(function() {
     </div>
 </div>
 
+<!-- Modal: Manual Notification -->
+<div class="modal fade" id="modalManualNotify" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-paper-plane me-2"></i><?php echo xlt('Manual Notification'); ?></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="manualNotifyForm">
+                    <input type="hidden" id="mnEid">
+                    <input type="hidden" id="mnPid">
+                    <input type="hidden" id="mnType">
+                    <input type="hidden" id="mnRecipient">
+                    <input type="hidden" id="mnContact">
+                    <input type="hidden" id="mnEmail">
+                    <input type="hidden" id="mnFacilityId">
+                    
+                    <div class="mb-2">
+                        <small class="text-muted"><?php echo xlt('To:'); ?> <strong id="mnPatientName"></strong></small>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted"><?php echo xlt('Channel:'); ?> <strong id="mnChannelBadge"></strong></small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><?php echo xlt('Message Content:'); ?></label>
+                        <textarea id="mnMessage" class="form-control mono" rows="6"></textarea>
+                        <div class="form-text"><?php echo xlt('Edit the message if needed.'); ?></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?php echo xlt('Cancel'); ?></button>
+                <button type="button" class="btn btn-success" onclick="executeManualNotify()">
+                    <i class="fas fa-external-link-alt me-1"></i><?php echo xlt('Open & Log'); ?>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 .extra-small { font-size: 0.75rem; }
 .timeline-v2 { position: relative; padding-left: 5px; }
 </style>
+
+<!-- Modal: Template Manager -->
+<div class="modal fade" id="modalTemplateManager" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="fas fa-file-alt me-2"></i>Manage Notification Templates</h5>
+                <button type="button" class="btn-close btn-close-white" data-dismiss="modal" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">Edit messages for different scenarios. Tokens like <code>***NAME***</code>, <code>***DATE***</code> will be replaced automatically.</p>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="20%">Scenario</th>
+                                <th width="10%">Channel</th>
+                                <th width="15%">Recipient</th>
+                                <th>WhatsApp Message</th>
+                                <th>Email Subject</th>
+                                <th>HTML Email Body</th>
+                            </tr>
+                        </thead>
+                        <tbody id="templateTableBody">
+                            <!-- Rows injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <input type="hidden" id="tmFacilityId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="saveTemplates()"><i class="fas fa-save me-1"></i> Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>

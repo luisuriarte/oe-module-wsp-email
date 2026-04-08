@@ -261,7 +261,8 @@ class NotificationService
                        pd.email, pd.hipaa_allowsms, pd.hipaa_allowemail,
                        ope.pc_eid, ope.pc_pid, ope.pc_title, ope.pc_hometext,
                        ope.pc_eventDate, ope.pc_endDate, ope.pc_duration,
-                       ope.pc_startTime, ope.pc_endTime, ope.pc_facility,
+                       ope.pc_startTime, ope.pc_endTime, ope.pc_facility, ope.pc_catid,
+                       ope.pc_apptstatus,
                        CONCAT(u.fname,' ',IFNULL(u.mname,''),' ',u.lname) AS user_name,
                        u.suffix AS user_preffix
                 FROM openemr_postcalendar_events ope
@@ -270,6 +271,7 @@ class NotificationService
                 WHERE ope.pc_facility = ?
                   AND CONCAT(ope.pc_eventDate, ' ', ope.pc_startTime) > ?
                   AND CONCAT(ope.pc_eventDate, ' ', ope.pc_startTime) <= ?
+                  AND ope.pc_apptstatus NOT IN ('X', '%', '^', '*', '-cancelled', '-noshow')
                   $hipaaFilter
                   AND NOT EXISTS (
                       SELECT 1 FROM notification_log nl
