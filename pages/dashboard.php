@@ -2089,32 +2089,29 @@ function saveTemplates() {
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form id="manualNotifyForm">
-                    <input type="hidden" id="mnEid">
-                    <input type="hidden" id="mnPid">
-                    <input type="hidden" id="mnType">
-                    <input type="hidden" id="mnRecipient">
-                    <input type="hidden" id="mnContact">
-                    <input type="hidden" id="mnEmail">
-                    <input type="hidden" id="mnFacilityId">
-                    
-                    <div class="mb-2">
-                        <small class="text-muted"><?php echo xlt('To:'); ?> <strong id="mnPatientName"></strong></small>
-                        <div id="mnRecipientBadge" class="mt-1"></div>
-                    </div>
-                    <div class="mb-3">
-                        <small class="text-muted"><?php echo xlt('Contact:'); ?> <strong id="mnContactInfo"></strong></small>
-                    </div>
-                    <div class="mb-3">
-                        <small class="text-muted"><?php echo xlt('Channel:'); ?> <strong id="mnChannelBadge"></strong></small>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold"><?php echo xlt('Message Content:'); ?></label>
-                        <textarea id="mnMessage" class="form-control mono" rows="6"></textarea>
-                        <div class="form-text"><?php echo xlt('Edit the message if needed.'); ?></div>
-                    </div>
-                </form>
+                <div class="mb-2">
+                    <small class="text-muted"><?php echo xlt('To:'); ?> <strong id="mnPatientName"></strong></small>
+                    <div id="mnRecipientBadge" class="mt-1"></div>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted"><?php echo xlt('Contact:'); ?> <strong id="mnContactInfo"></strong></small>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted"><?php echo xlt('Channel:'); ?> <strong id="mnChannelBadge"></strong></small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold"><?php echo xlt('Message Content:'); ?></label>
+                    <textarea id="mnMessage" class="form-control mono" rows="6"></textarea>
+                    <div class="form-text"><?php echo xlt('Edit the message if needed.'); ?></div>
+                </div>
+                <input type="hidden" id="mnEid">
+                <input type="hidden" id="mnPid">
+                <input type="hidden" id="mnType">
+                <input type="hidden" id="mnRecipient">
+                <input type="hidden" id="mnContact">
+                <input type="hidden" id="mnEmail">
+                <input type="hidden" id="mnFacilityId">
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?php echo xlt('Cancel'); ?></button>
