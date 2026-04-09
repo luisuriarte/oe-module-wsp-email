@@ -1752,7 +1752,7 @@ function loadSchedules() {
                     <td><strong>${escHtml(r.patient_name)}</strong><br><small class="text-muted">PID: ${r.pc_pid}</small></td>
                     <td>${escHtml(r.provider_name || '-')}<br><small class="text-muted">${escHtml(r.provider_phone || '—')}</small></td>
                     <td>${typeLabel}</td>
-                    <td>${statusBadge}<br><small class="text-muted">tpl: ${escHtml(r.template_status || '(blocked)')}</small></td>
+                    <td>${statusBadge}</td>
                     <td class="text-center">${ptActions}</td>
                     <td class="text-center">${provActions}</td>
                 </tr>`;

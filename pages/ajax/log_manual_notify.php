@@ -83,10 +83,32 @@ try {
         'MANUAL_' . $type // status (e.g., MANUAL_WSP)
     );
 
+    // Update patient_tracker_element status to match list_options.apptstat
+    // WSP → 'wsp-sent', EMAIL → 'EMAIL'
+    $trackerStatus = ($type === 'WSP') ? 'wsp-sent' : 'EMAIL';
+
+    // 1. Update openemr_postcalendar_events.pc_apptstatus
+    sqlStatement(
+        "UPDATE openemr_postcalendar_events SET pc_apptstatus = ? WHERE pc_eid = ?",
+        [$trackerStatus, $pcEid]
+    );
+
+    // 2. Update patient_tracker_element.status (latest sequence for this eid)
+    sqlStatement(
+        "UPDATE patient_tracker_element pte
+         INNER JOIN patient_tracker pt ON pt.id = pte.pt_tracker_id
+         SET pte.status = ?
+         WHERE pt.eid = ? AND pte.seq = (
+             SELECT MAX(seq) FROM patient_tracker_element
+             WHERE pt_tracker_id = pt.id
+         )",
+        [$trackerStatus, $pcEid]
+    );
+
     echo json_encode([
         'success' => true,
         'logId' => $logId,
-        'message' => 'Manual notification logged successfully'
+        'message' => "Manual notification logged successfully. Tracker status updated to '{$trackerStatus}'."
     ]);
 
 } catch (\Exception $e) {

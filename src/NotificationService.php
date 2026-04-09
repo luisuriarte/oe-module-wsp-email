@@ -407,20 +407,38 @@ class NotificationService
         }
     }
 
-    /** Updates the calendar event flag so legacy compatibility is maintained. */
+    /**
+     * Updates the calendar event flag and tracker status after sending a notification.
+     * Sets pc_apptstatus to 'wsp-sent' or 'EMAIL' to match list_options.apptstat.
+     */
     private function markEventSent(string $type, int $pid, int $pcEid): void
     {
+        $trackerStatus = ($type === 'WSP') ? 'wsp-sent' : 'EMAIL';
+
+        // Legacy flags
         if ($type === 'WSP') {
             sqlStatement(
-                "UPDATE openemr_postcalendar_events SET pc_sendalertwsp = 'YES' WHERE pc_pid = ? AND pc_eid = ?",
-                [$pid, $pcEid]
+                "UPDATE openemr_postcalendar_events SET pc_sendalertwsp = 'YES', pc_apptstatus = ? WHERE pc_pid = ? AND pc_eid = ?",
+                [$trackerStatus, $pid, $pcEid]
             );
         } else {
             sqlStatement(
-                "UPDATE openemr_postcalendar_events SET pc_sendalertemail = 'YES' WHERE pc_pid = ? AND pc_eid = ?",
-                [$pid, $pcEid]
+                "UPDATE openemr_postcalendar_events SET pc_sendalertemail = 'YES', pc_apptstatus = ? WHERE pc_pid = ? AND pc_eid = ?",
+                [$trackerStatus, $pid, $pcEid]
             );
         }
+
+        // Update patient_tracker_element.status to match
+        sqlStatement(
+            "UPDATE patient_tracker_element pte
+             INNER JOIN patient_tracker pt ON pt.id = pte.pt_tracker_id
+             SET pte.status = ?
+             WHERE pt.eid = ? AND pte.seq = (
+                 SELECT MAX(seq) FROM patient_tracker_element
+                 WHERE pt_tracker_id = pt.id
+             )",
+            [$trackerStatus, $pcEid]
+        );
     }
 
     /** Updates the patient tracker with the notification event. */
