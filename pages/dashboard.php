@@ -1693,16 +1693,20 @@ function loadSchedules() {
 
                 const typeLabel = getApptTypeLabel(r.pc_catid, r.pc_title);
 
-                // Patient action buttons - skip if cancelled or already notified
+                // Check if appointment is in the past
+                const apptDateTime = r.pc_eventDateRaw ? `${r.pc_eventDateRaw} ${r.pc_startTime}` : '';
+                const isPast = apptDateTime && new Date(apptDateTime.replace(' ', 'T')) < new Date();
+
+                // Patient action buttons - skip if cancelled, blocked, or past
                 const isBlocked = !r.template_status;  // empty template_status = blocked
                 const isCancelled = (r.template_status === '-cancelled' || r.template_status === '-error');
-                const canPtWsp = !isBlocked && !isCancelled && r.hipaa_allowsms === 'YES' && r.phone_cell;
-                const canPtEmail = !isBlocked && !isCancelled && r.hipaa_allowemail === 'YES' && r.email;
+                const canPtWsp = !isBlocked && !isCancelled && !isPast && r.hipaa_allowsms === 'YES' && r.phone_cell;
+                const canPtEmail = !isBlocked && !isCancelled && !isPast && r.hipaa_allowemail === 'YES' && r.email;
 
                 // Provider action buttons (only for Telehealth catid=80 and HBC catid=70/71)
                 const isTelehealthOrHBC = (r.pc_catid === 80 || r.pc_catid === 70 || r.pc_catid === 71);
-                const canProvWsp = !isBlocked && !isCancelled && isTelehealthOrHBC && r.provider_phone;
-                const canProvEmail = !isBlocked && !isCancelled && isTelehealthOrHBC && r.provider_email;
+                const canProvWsp = !isBlocked && !isCancelled && !isPast && isTelehealthOrHBC && r.provider_phone;
+                const canProvEmail = !isBlocked && !isCancelled && !isPast && isTelehealthOrHBC && r.provider_email;
 
                 // Pt. Actions column
                 let ptActions = '<div class="btn-group btn-group-sm">';
@@ -1720,6 +1724,8 @@ function loadSchedules() {
                     ptActions += '<span class="text-muted small" title="<?php echo attr(xlt('Cancelled - no notifications sent')); ?>">🚫</span>';
                 } else if (isBlocked) {
                     ptActions += '<span class="text-muted small" title="<?php echo attr(xlt('Already notified/confirmed')); ?>">✅</span>';
+                } else if (isPast) {
+                    ptActions += '<span class="text-muted small" title="<?php echo attr(xlt('Appointment already passed')); ?>">⏰</span>';
                 } else if (!canPtWsp && !canPtEmail) {
                     ptActions += '<span class="text-muted small">—</span>';
                 }
@@ -1739,6 +1745,10 @@ function loadSchedules() {
                 }
                 if (isCancelled) {
                     provActions += '<span class="text-muted small" title="<?php echo attr(xlt('Cancelled - no notifications sent')); ?>">🚫</span>';
+                } else if (isPast) {
+                    provActions += '<span class="text-muted small" title="<?php echo attr(xlt('Appointment already passed')); ?>">⏰</span>';
+                } else if (isBlocked) {
+                    provActions += '<span class="text-muted small" title="<?php echo attr(xlt('Already notified/confirmed')); ?>">✅</span>';
                 } else if (!isTelehealthOrHBC) {
                     provActions += '<span class="text-muted small" title="<?php echo attr(xlt('Only for Telehealth and HBC')); ?>">—</span>';
                 } else if (!canProvWsp && !canProvEmail) {

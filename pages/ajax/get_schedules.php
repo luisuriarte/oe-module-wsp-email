@@ -102,7 +102,7 @@ function normalizeApptStatusForTemplate(string $trackerStatus, string $eventStat
     ];
 
     // If tracker has a blocked status, return empty to prevent sending
-    if (!empty($trackerStatus) && isset($blockedStatuses[$trackerStatus])) {
+    if (!empty($trackerStatus) && $trackerStatus !== '-' && isset($blockedStatuses[$trackerStatus])) {
         return $blockedStatuses[$trackerStatus];
     }
 
@@ -114,6 +114,11 @@ function normalizeApptStatusForTemplate(string $trackerStatus, string $eventStat
 
     if (!empty($trackerStatus) && isset($allowMap[$trackerStatus])) {
         return $allowMap[$trackerStatus];
+    }
+
+    // Tracker status is '-' (none) or unknown = treat as scheduled (can notify)
+    if ($trackerStatus === '-' || empty($trackerStatus)) {
+        return '-scheduled';
     }
 
     // Fallback to event status (if already in dash format)
