@@ -369,6 +369,7 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                             <select name="current_vendor" id="cfgCurrentVendor" class="form-select form-select-sm" onchange="handleVendorChange()">
                                 <option value="ultramsg">UltraMsg</option>
                                 <option value="wasenderapi">WaSenderAPI</option>
+                                <option value="openwa">OpenWA</option>
                             </select>
                             <small class="text-muted"><?php echo xlt('Active vendor for sending WhatsApp messages'); ?></small>
                         </div>
@@ -421,6 +422,39 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                                         </button>
                                     </div>
                                     <small class="text-muted" id="waWebhookHint" style="display:none;">Current webhook secret is set</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- OpenWA Configuration -->
+                        <div id="openwaConfig" style="display:none;">
+                            <h6 class="text-warning"><?php echo xlt('OpenWA Credentials'); ?></h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label"><?php echo xlt('Session ID (Instance)'); ?></label>
+                                    <input type="text" name="openwa_instance" id="cfgOwaInstance" class="form-control form-control-sm" autocomplete="off" placeholder="e.g., session1">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label"><?php echo xlt('API Key'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="openwa_api_key" id="cfgOwaApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleOwaApiKey()" title="Show/Hide API Key">
+                                            <i class="fas fa-eye" id="owaApiKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="owaApiKeyHint" style="display:none;">Current API key is set</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label"><?php echo xlt('Webhook Secret'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="openwa_webhook_secret" id="cfgOwaWebhook" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleOwaWebhook()" title="Show/Hide Webhook Secret">
+                                            <i class="fas fa-eye" id="owaWebhookIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="owaWebhookHint" style="display:none;">Current webhook secret is set</small>
                                 </div>
                             </div>
                         </div>
@@ -979,9 +1013,14 @@ function loadFacilityConfig(facilityId) {
 
             // Add active vendor badge
             const activeVendor = c.current_vendor || 'wasenderapi';
-            const vendorBadge = activeVendor === 'ultramsg' ?
-                '<span class="badge bg-primary ms-2 small">UltraMsg Active</span>' :
-                '<span class="badge bg-info ms-2 small">WaSenderAPI Active</span>';
+            let vendorBadge = '';
+            if (activeVendor === 'ultramsg') {
+                vendorBadge = '<span class="badge bg-primary ms-2 small">UltraMsg Active</span>';
+            } else if (activeVendor === 'wasenderapi') {
+                vendorBadge = '<span class="badge bg-info ms-2 small">WaSenderAPI Active</span>';
+            } else if (activeVendor === 'openwa') {
+                vendorBadge = '<span class="badge bg-warning ms-2 small">OpenWA Active</span>';
+            }
             title.innerHTML += vendorBadge;
 
             if (isInactive) {
@@ -1049,6 +1088,37 @@ function loadFacilityConfig(facilityId) {
                 waWebhookInput.value = '';
                 waWebhookHint.style.display = 'none';
                 waWebhookInput.required = false;
+            }
+
+            // OpenWA credentials - load and show hint if exists
+            document.getElementById('cfgOwaInstance').value = c.openwa_instance || '';
+
+            const owaApiKeyInput = document.getElementById('cfgOwaApiKey');
+            const owaApiKeyHint = document.getElementById('owaApiKeyHint');
+            if (c.openwa_api_key && c.openwa_api_key.length > 0) {
+                owaApiKeyInput.dataset.fullKey = c.openwa_api_key;
+                owaApiKeyInput.value = '••••••••' + c.openwa_api_key.slice(-8);
+                owaApiKeyHint.style.display = 'block';
+                owaApiKeyInput.required = false;
+            } else {
+                delete owaApiKeyInput.dataset.fullKey;
+                owaApiKeyInput.value = '';
+                owaApiKeyHint.style.display = 'none';
+                owaApiKeyInput.required = false;
+            }
+
+            const owaWebhookInput = document.getElementById('cfgOwaWebhook');
+            const owaWebhookHint = document.getElementById('owaWebhookHint');
+            if (c.openwa_webhook_secret && c.openwa_webhook_secret.length > 0) {
+                owaWebhookInput.dataset.fullKey = c.openwa_webhook_secret;
+                owaWebhookInput.value = '••••••••' + c.openwa_webhook_secret.slice(-8);
+                owaWebhookHint.style.display = 'block';
+                owaWebhookInput.required = false;
+            } else {
+                delete owaWebhookInput.dataset.fullKey;
+                owaWebhookInput.value = '';
+                owaWebhookHint.style.display = 'none';
+                owaWebhookInput.required = false;
             }
 
             // Show/hide sections based on active vendor
@@ -1261,24 +1331,66 @@ function toggleWaWebhook() {
     }
 }
 
+function toggleOwaApiKey() {
+    const input = document.getElementById('cfgOwaApiKey');
+    const icon = document.getElementById('owaApiKeyIcon');
+    if (input && icon) {
+        if (input.type === 'password') {
+            input.type = 'text';
+            input.value = input.dataset.fullKey || input.value;
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            if (input.dataset.fullKey) {
+                input.value = '••••••••' + input.dataset.fullKey.slice(-8);
+            }
+            icon.className = 'fas fa-eye';
+        }
+    }
+}
+
+function toggleOwaWebhook() {
+    const input = document.getElementById('cfgOwaWebhook');
+    const icon = document.getElementById('owaWebhookIcon');
+    if (input && icon) {
+        if (input.type === 'password') {
+            input.type = 'text';
+            input.value = input.dataset.fullKey || input.value;
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            if (input.dataset.fullKey) {
+                input.value = '••••••••' + input.dataset.fullKey.slice(-8);
+            }
+            icon.className = 'fas fa-eye';
+        }
+    }
+}
+
 /**
  * Show/hide sections based on selected active vendor
  * - UltraMsg: shows UltraMsg credentials section
  * - WaSenderAPI: shows WaSenderAPI credentials section
+ * - OpenWA: shows OpenWA credentials section
  */
 function handleVendorChange() {
     const vendor = document.getElementById('cfgCurrentVendor').value;
     const ultramsgConfig = document.getElementById('ultramsgConfig');
     const wasenderConfig = document.getElementById('wasenderConfig');
+    const openwaConfig = document.getElementById('openwaConfig');
 
     if (vendor === 'ultramsg') {
-        // UltraMsg active: show UltraMsg section, hide WaSenderAPI
         if (ultramsgConfig) ultramsgConfig.style.display = 'block';
         if (wasenderConfig) wasenderConfig.style.display = 'none';
+        if (openwaConfig) openwaConfig.style.display = 'none';
     } else if (vendor === 'wasenderapi') {
-        // WaSenderAPI active: show WaSenderAPI section, hide UltraMsg
         if (ultramsgConfig) ultramsgConfig.style.display = 'none';
         if (wasenderConfig) wasenderConfig.style.display = 'block';
+        if (openwaConfig) openwaConfig.style.display = 'none';
+    } else if (vendor === 'openwa') {
+        if (ultramsgConfig) ultramsgConfig.style.display = 'none';
+        if (wasenderConfig) wasenderConfig.style.display = 'none';
+        if (openwaConfig) openwaConfig.style.display = 'block';
     }
 }
 

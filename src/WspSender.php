@@ -2,7 +2,7 @@
 /**
  * WspSender — Sends WhatsApp notifications via multiple vendor APIs.
  *
- * Supported vendors: ultramsg, wasenderapi
+ * Supported vendors: ultramsg, wasenderapi, openwa
  * optionally an iCalendar (.ics) file and a location pin.
  *
  * @package   OpenEMR\Modules\WspEmail
@@ -59,13 +59,31 @@ class WspSender
         } elseif ($vendor === 'wasenderapi') {
             $instance = '';  // WaSenderAPI doesn't use instance
             $apiKey   = $config['wasenderapi_api_key'] ?? '';
+        } elseif ($vendor === 'openwa') {
+            $instance = $config['openwa_instance'] ?? '';
+            $apiKey   = $config['openwa_api_key'] ?? '';
         } else {
             // Fallback to legacy fields
             $instance = $config['vendor_instance'] ?? '';
             $apiKey   = $config['vendor_api_key'] ?? '';
         }
 
-        $message  = $patient['_message'] ?? '';  // pre-built message body
+        $message  = $patient['_message'] ?? '';
+        // Fallback: resolve template from DB if message is empty
+        if (empty($message)) {
+            $facilityId = (int)($config['facility_id'] ?? $patient['pc_facility'] ?? 0);
+            $pcCatid    = (int)($patient['pc_catid'] ?? 0);
+            $pcStatus   = self::normalizeApptStatusForTemplate(
+                (string)($patient['tracker_status'] ?? ''),
+                (string)($patient['pc_apptstatus'] ?? '')
+            );
+            if (!empty($pcCatid)) {
+                $template = self::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'wsp', 'patient');
+                if (!empty($template)) {
+                    $message = self::buildMessage($template, $patient);
+                }
+            }
+        }
 
         // Build logo URL using facility website URL as base
         $logoFilename = $config['logo_wsp'] ?? '';
@@ -96,6 +114,10 @@ class WspSender
                     $result = $this->sendViaWaSenderApi($apiKey, $phone, $message, $logoUrl, $icsUrl, $config, $log);
                     break;
 
+                case 'openwa':
+                    $result = $this->sendViaOpenWA($instance, $apiKey, $phone, $message, $logoUrl, $icsUrl, $config, $log);
+                    break;
+
                 default:
                     $log[] = "Unknown vendor: $vendor";
                     break;
@@ -105,6 +127,24 @@ class WspSender
         }
 
         $result['log'] = implode("\n", $log);
+
+        // Write detailed log to local module file
+        $logMessage = date('Y-m-d H:i:s') . " — " . $result['log'] . "\n" . str_repeat('-', 80) . "\n";
+        $logFile = __DIR__ . '/../logs/wsp_notify.log';
+        $logDir = dirname($logFile);
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0755, true);
+        }
+        @file_put_contents($logFile, $logMessage, FILE_APPEND | LOCK_EX);
+
+        // Write standard info to PHP system error log
+        $statusStr = $result['status'] ?? 'unknown';
+        $msgIdStr = $result['msgId'] ?? 'none';
+        error_log("WspSender: Sent message to phone=$phone via vendor=$vendor. Status=$statusStr, MsgId=$msgIdStr");
+        if ($statusStr === 'error') {
+            error_log("WspSender Error Details:\n" . $result['log']);
+        }
+
         return $result;
     }
 
@@ -334,6 +374,119 @@ class WspSender
         return ['status' => $msgId ? 'success' : 'error', 'msgId' => $msgId, 'log' => ''];
     }
 
+    // -------------------------------------------------------------------------
+    // OpenWA  (https://wa.origen.ar)  — REST API with X-API-Key header
+    // Docs: https://github.com/rmyndharis/OpenWA
+    // Auth: X-API-Key: owa_xxx...
+    // Send: POST /api/sessions/{sessionId}/messages
+    // Webhook events: message.received, message.sent, message.ack, session.status
+    // -------------------------------------------------------------------------
+    private function sendViaOpenWA(
+        string $sessionId, string $apiKey,  string $phone,
+        string $message,   string $logoUrl, string $icsUrl,
+        array  $config,    array  &$log
+    ): array {
+        $result = ['status' => 'error', 'msgId' => null, 'log' => ''];
+
+        if (empty($sessionId) || empty($apiKey)) {
+            $log[] = 'OpenWA: Missing credentials (session ID or API key)';
+            $result['log'] = implode("\n", $log);
+            return $result;
+        }
+
+        // OpenWA chatId format: {phone}@c.us  (e.g. 5493404540440@c.us)
+        $cleanPhone = preg_replace('/\D/', '', $phone);
+        $chatId     = $cleanPhone . '@c.us';
+
+        $baseUrl  = 'https://wa.origen.ar/api';
+        $imageUrl = "{$baseUrl}/sessions/{$sessionId}/messages/send-image";
+        $docUrl   = "{$baseUrl}/sessions/{$sessionId}/messages/send-document";
+
+        $headers = [
+            'X-API-Key'    => $apiKey,
+            'Content-Type' => 'application/json',
+            'Accept'       => 'application/json',
+        ];
+        $msgId = null;
+
+        try {
+            // Helper: extract message ID from any OpenWA response format
+            $extractMsgId = function (array $body): ?string {
+                return $body['messageId']
+                    ?? $body['data']['messageId']
+                    ?? $body['data']['id']
+                    ?? null;
+            };
+
+            // Helper: POST with safe error handling (non-critical failures are logged, not thrown)
+            $safePost = function (string $url, array $payload, string $label) use ($headers, &$log): ?array {
+                try {
+                    $resp = $this->http->post($url, ['headers' => $headers, 'json' => $payload]);
+                    $body = json_decode((string)$resp->getBody(), true);
+                    $log[] = "OpenWA ($label): " . $resp->getBody();
+                    return $body;
+                } catch (RequestException $e) {
+                    $log[] = "OpenWA ($label) error: " . $e->getMessage();
+                    if ($e->hasResponse()) {
+                        $log[] = "Response: " . $e->getResponse()->getBody();
+                    }
+                    return null;
+                } catch (\Throwable $e) {
+                    $log[] = "OpenWA ($label) unexpected error: " . $e->getMessage();
+                    return null;
+                }
+            };
+
+            // 1. Send image with message as caption (appends map link if coordinates configured)
+            if (!empty($logoUrl)) {
+                $imgPayload = ['chatId' => $chatId, 'url' => $logoUrl];
+                $caption = $message;
+                if (!empty($config['latitude']) && !empty($config['longitude'])) {
+                    $lat = (float)$config['latitude'];
+                    $lon = (float)$config['longitude'];
+                    $mapLink = "https://www.google.com/maps/search/?api=1&query={$lat},{$lon}";
+                    $caption .= "\n\n📍 " . $mapLink;
+                }
+                if (!empty($caption)) {
+                    $imgPayload['caption'] = mb_substr($caption, 0, 1024);
+                }
+                $imgBody = $safePost($imageUrl, $imgPayload, 'imagen');
+                if ($imgBody) {
+                    $msgId = $extractMsgId($imgBody) ?? $msgId;
+                }
+            }
+
+            // 2. Try sending .ics document (optional)
+            if (!empty($icsUrl)) {
+                $docBody = $safePost($docUrl, [
+                    'chatId'   => $chatId,
+                    'url'      => $icsUrl,
+                    'filename' => 'calendario.ics',
+                    'caption'  => mb_substr(LocalizationHelper::appointmentAttachmentCaption(
+                        (string)($config['facility_name'] ?? '')
+                    ), 0, 1024),
+                ], '.ics');
+                if ($docBody) {
+                    $msgId = $extractMsgId($docBody) ?? $msgId;
+                }
+            }
+
+        } catch (RequestException $e) {
+            $log[] = 'OpenWA REQUEST ERROR: ' . $e->getMessage();
+            if ($e->hasResponse()) {
+                $log[] = 'Response: ' . $e->getResponse()->getBody();
+            }
+            $result['log'] = implode("\n", $log);
+            return $result;
+        } catch (\Throwable $e) {
+            $log[] = 'OpenWA EXCEPTION: ' . $e->getMessage();
+            $result['log'] = implode("\n", $log);
+            return $result;
+        }
+
+        return ['status' => $msgId ? 'success' : 'error', 'msgId' => $msgId, 'log' => implode("\n", $log)];
+    }
+
     public function syncStatus(array $config, string $msgId): array
     {
         $vendor = strtolower($config['vendor'] ?? '');
@@ -388,6 +541,72 @@ class WspSender
         $response = (string)curl_exec($ch);
         curl_close($ch);
         return $response;
+    }
+
+    // -------------------------------------------------------------------------
+    // Template resolution from wsp_email_notification_templates
+    // -------------------------------------------------------------------------
+
+    public static function normalizeApptStatusForTemplate(string $trackerStatus, string $eventStatus): string
+    {
+        $blockedStatuses = [
+            'x' => '', '%' => '', '?' => '', '*' => '', '@' => '',
+            '~' => '', '!' => '', '#' => '', '<' => '', '>' => '', '$' => '',
+            'AVM' => '', 'SMS' => '', 'EMAIL' => '',
+            'wsp-sent' => '', 'wsp-deliv' => '', 'wsp-read' => '', 'wsp-err' => '',
+        ];
+        if (!empty($trackerStatus) && $trackerStatus !== '-' && isset($blockedStatuses[$trackerStatus])) {
+            return $blockedStatuses[$trackerStatus];
+        }
+        $allowMap = ['^' => '-pending', 'CALL' => '-callback'];
+        if (!empty($trackerStatus) && isset($allowMap[$trackerStatus])) {
+            return $allowMap[$trackerStatus];
+        }
+        if ($trackerStatus === '-' || empty($trackerStatus)) {
+            return '-scheduled';
+        }
+        if (!empty($eventStatus) && str_starts_with($eventStatus, '-')) {
+            if (in_array($eventStatus, ['-scheduled', '-pending'])) {
+                return $eventStatus;
+            }
+            return '';
+        }
+        return '-scheduled';
+    }
+
+    public static function resolveTemplate(int $facilityId, int $pcCatid, string $pcApptstatus, string $channel, string $recipientType = 'patient'): string
+    {
+        // 1. Exact match: facility_id + pc_catid + pc_apptstatus + channel + recipient_type
+        $sql = "SELECT wsp_message FROM wsp_email_notification_templates
+                WHERE facility_id = ? AND pc_catid = ? AND pc_apptstatus = ?
+                  AND channel = ? AND recipient_type = ? AND enabled = 1
+                LIMIT 1";
+        $row = sqlQuery($sql, [$facilityId, $pcCatid, $pcApptstatus, $channel, $recipientType]);
+        if (!empty($row['wsp_message'])) {
+            return $row['wsp_message'];
+        }
+        // 2. Fallback: facility_id + pc_catid, any status (prefer scheduled over cancelled)
+        $sql = "SELECT wsp_message FROM wsp_email_notification_templates
+                WHERE facility_id = ? AND pc_catid = ?
+                  AND channel = ? AND recipient_type = ? AND enabled = 1
+                ORDER BY CASE pc_apptstatus
+                    WHEN '-scheduled' THEN 0 WHEN '-confirmed' THEN 1
+                    WHEN '-' THEN 2
+                    WHEN '-cancelled' THEN 3 WHEN '-noshow' THEN 4
+                    ELSE 5
+                END
+                LIMIT 1";
+        $row = sqlQuery($sql, [$facilityId, $pcCatid, $channel, $recipientType]);
+        if (!empty($row['wsp_message'])) {
+            return $row['wsp_message'];
+        }
+        // 3. Fallback: facility_id only, wildcard category
+        $sql = "SELECT wsp_message FROM wsp_email_notification_templates
+                WHERE facility_id = ? AND pc_catid = 0
+                  AND channel = ? AND recipient_type = ? AND enabled = 1
+                LIMIT 1";
+        $row = sqlQuery($sql, [$facilityId, $channel, $recipientType]);
+        return $row['wsp_message'] ?? '';
     }
 
     // -------------------------------------------------------------------------
@@ -484,7 +703,7 @@ class WspSender
              . "END:VEVENT\r\n"
              . "END:VCALENDAR\r\n";
 
-        $filename = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'appt-' . substr(md5(uniqid()), 0, 8) . '.ics';
+        $filename = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'calendario-' . substr(md5(uniqid()), 0, 8) . '.ics';
         file_put_contents($filename, $ics);
         return $filename;
     }

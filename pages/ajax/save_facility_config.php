@@ -53,6 +53,10 @@ $data = [
     // WaSenderAPI specific - check if user changed the key or kept existing
     'wasenderapi_api_key'      => (!empty($_POST['wasenderapi_api_key']) && !str_contains($_POST['wasenderapi_api_key'], '•')) ? trim($_POST['wasenderapi_api_key']) : ($current['wasenderapi_api_key'] ?? ''),
     'wasenderapi_webhook_secret' => (!empty($_POST['wasenderapi_webhook_secret']) && !str_contains($_POST['wasenderapi_webhook_secret'], '•')) ? trim($_POST['wasenderapi_webhook_secret']) : ($current['wasenderapi_webhook_secret'] ?? ''),
+    // OpenWA specific - check if user changed the key or kept existing
+    'openwa_instance'          => !empty($_POST['openwa_instance']) ? trim($_POST['openwa_instance']) : ($current['openwa_instance'] ?? ''),
+    'openwa_api_key'           => (!empty($_POST['openwa_api_key']) && !str_contains($_POST['openwa_api_key'], '•')) ? trim($_POST['openwa_api_key']) : ($current['openwa_api_key'] ?? ''),
+    'openwa_webhook_secret'    => (!empty($_POST['openwa_webhook_secret']) && !str_contains($_POST['openwa_webhook_secret'], '•')) ? trim($_POST['openwa_webhook_secret']) : ($current['openwa_webhook_secret'] ?? ''),
     // Common configuration
     'logo_wsp'            => $_FILES['logo_wsp']['name'] ?? ($current['logo_wsp'] ?? ''),
     'logo_email'          => $_FILES['logo_email']['name'] ?? ($current['logo_email'] ?? ''),
@@ -101,7 +105,7 @@ if (!empty($uploadErrors)) {
 }
 
 // Validate vendor value
-$allowedVendors = ['wasenderapi', 'ultramsg'];
+$allowedVendors = ['wasenderapi', 'ultramsg', 'openwa'];
 if (!in_array($data['vendor'], $allowedVendors, true)) {
     echo json_encode(['success' => false, 'error' => 'Invalid vendor']);
     exit;

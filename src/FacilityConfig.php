@@ -41,6 +41,7 @@ class FacilityConfig
                        wfc.vendor_api_key, wfc.webhook_secret,
                        wfc.ultramsg_instance, wfc.ultramsg_api_key,
                        wfc.wasenderapi_api_key, wfc.wasenderapi_webhook_secret,
+                       wfc.openwa_instance, wfc.openwa_api_key, wfc.openwa_webhook_secret,
                        wfc.logo_wsp, wfc.logo_email,
                        wfc.latitude, wfc.longitude, f.website AS website_url,
                        wfc.wsp_message, wfc.email_message, wfc.email_subject,
@@ -85,6 +86,10 @@ class FacilityConfig
             // WaSenderAPI specific
             'wasenderapi_api_key'      => $data['wasenderapi_api_key']      ?? null,
             'wasenderapi_webhook_secret' => $data['wasenderapi_webhook_secret'] ?? null,
+            // OpenWA specific
+            'openwa_instance'          => $data['openwa_instance']          ?? null,
+            'openwa_api_key'           => $data['openwa_api_key']           ?? null,
+            'openwa_webhook_secret'    => $data['openwa_webhook_secret']    ?? null,
             // Common configuration
             'logo_wsp'                 => $data['logo_wsp']                 ?? null,
             'logo_email'               => $data['logo_email']               ?? null,

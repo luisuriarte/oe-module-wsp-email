@@ -174,29 +174,39 @@ class NotificationService
 
     private function deliverWsp(array &$patient, array $config, int $seq, bool $updateCalFlag): void
     {
-        $template        = $config['wsp_message'] ?? '';
+        // Resolve message template (same logic as WspSender::send())
+        $facilityId = (int)($config['facility_id'] ?? $patient['pc_facility'] ?? 0);
+        $pcCatid    = (int)($patient['pc_catid'] ?? 0);
+        $pcStatus   = WspSender::normalizeApptStatusForTemplate(
+            (string)($patient['tracker_status'] ?? ''),
+            (string)($patient['pc_apptstatus'] ?? '')
+        );
+        $template = '';
+        if (!empty($pcCatid)) {
+            $template = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'wsp', 'patient');
+        }
         $patient['_message'] = WspSender::buildMessage($template, $patient);
 
         // Build and publish the temporary .ics file
         $icsPath            = WspSender::buildIcsFile($patient, $config);
-        $icsBase            = basename($icsPath);
+        $icsPublicName      = 'calendario.ics';
 
         // Use facility website URL as base for ICS URL (must be publicly accessible)
         $baseUrl = rtrim($config['website_url'] ?? '', '/');
-        $patient['_ics_url'] = "{$baseUrl}/interface/modules/custom_modules/oe-module-wsp-email/public/ics/{$icsBase}";
+        $patient['_ics_url'] = "{$baseUrl}/interface/modules/custom_modules/oe-module-wsp-email/public/ics/{$icsPublicName}";
 
         $publicIcsDir = __DIR__ . '/../public/ics/';
         if (!is_dir($publicIcsDir)) {
             mkdir($publicIcsDir, 0755, true);
         }
-        copy($icsPath, $publicIcsDir . $icsBase);
+        copy($icsPath, $publicIcsDir . $icsPublicName);
         @unlink($icsPath);
 
         try {
             $result = $this->wspSender->send($config, $patient);
             $msgId  = $result['msgId'] ?? null;
             $rawStatus = $result['status'] ?? 'error';
-            $vendor = $config['vendor'] ?? 'default';
+            $vendor = strtolower($config['current_vendor'] ?? $config['vendor'] ?? 'wasenderapi');
 
             // Normalize status using StatusNormalizer
             $canonicalStatus = StatusNormalizer::normalize($vendor, $rawStatus);
@@ -213,7 +223,7 @@ class NotificationService
             $errorMsg = $e->getMessage();
             $errorLog = 'EXCEPTION in deliverWsp: ' . $errorMsg . "\nTrace: " . $e->getTraceAsString();
             
-            $this->insertLog('WSP', $patient, $config, null, 'error', $seq, 'ERROR', 0, $config['vendor'] ?? 'default', ['error' => $errorMsg, 'log' => $errorLog]);
+            $this->insertLog('WSP', $patient, $config, null, 'error', $seq, 'ERROR', 0, strtolower($config['current_vendor'] ?? $config['vendor'] ?? 'wasenderapi'), ['error' => $errorMsg, 'log' => $errorLog]);
             
             echo "    ERROR: " . $errorMsg . "\n";
         }
@@ -225,7 +235,13 @@ class NotificationService
 
     private function deliverEmail(array &$patient, array $config, int $seq, bool $updateCalFlag): void
     {
-        $template        = $config['email_message'] ?? '';
+        $template = $this->resolveNotificationTemplate(
+            (int)$config['facility_id'],
+            (int)($patient['pc_catid'] ?? 0),
+            (string)($patient['pc_apptstatus'] ?? ''),
+            'email',
+            'patient'
+        );
         $patient['_message'] = WspSender::buildMessage($template, $patient);
 
         $ok     = $this->emailSender->send($config, $patient);
@@ -241,6 +257,47 @@ class NotificationService
             $this->markEventSent('EMAIL', (int)$patient['pid'], (int)$patient['pc_eid']);
         }
         $this->updateTracker($patient, 'EMAIL');
+    }
+
+    private function resolveNotificationTemplate(int $facilityId, int $pcCatid, string $pcApptstatus, string $channel, string $recipientType = 'patient'): string
+    {
+        // Try exact match first: facility_id + pc_catid + pc_apptstatus + recipient_type
+        $sql = "SELECT wsp_message FROM wsp_email_notification_templates
+                WHERE facility_id = ?
+                  AND pc_catid = ?
+                  AND pc_apptstatus = ?
+                  AND channel = ?
+                  AND recipient_type = ?
+                  AND enabled = 1
+                LIMIT 1";
+        $row = sqlQuery($sql, [$facilityId, $pcCatid, $pcApptstatus, $channel, $recipientType]);
+        if (!empty($row['wsp_message'])) {
+            return $row['wsp_message'];
+        }
+        // Fallback: match facility_id + pc_catid (any status)
+        $sql = "SELECT wsp_message FROM wsp_email_notification_templates
+                WHERE facility_id = ?
+                  AND pc_catid = ?
+                  AND pc_apptstatus = '-'
+                  AND channel = ?
+                  AND recipient_type = ?
+                  AND enabled = 1
+                LIMIT 1";
+        $row = sqlQuery($sql, [$facilityId, $pcCatid, $channel, $recipientType]);
+        if (!empty($row['wsp_message'])) {
+            return $row['wsp_message'];
+        }
+        // Fallback: match facility_id only (wildcard category)
+        $sql = "SELECT wsp_message FROM wsp_email_notification_templates
+                WHERE facility_id = ?
+                  AND pc_catid = 0
+                  AND pc_apptstatus = '-'
+                  AND channel = ?
+                  AND recipient_type = ?
+                  AND enabled = 1
+                LIMIT 1";
+        $row = sqlQuery($sql, [$facilityId, $channel, $recipientType]);
+        return $row['wsp_message'] ?? '';
     }
 
     // =========================================================================
@@ -358,7 +415,7 @@ class NotificationService
         $patientInfo = trim(($patient['title'] ?? '') . ' ' . $patient['fname'] . ' ' . $patient['lname'])
                      . '|||' . $patient['phone_cell']
                      . '|||' . $patient['email'];
-        $gatewayType  = $config['vendor'] ?? '';
+        $gatewayType  = strtolower($config['current_vendor'] ?? $config['vendor'] ?? '');
         $gatewayInfo  = ($type === 'WSP') ? $gatewayType : (($config['facility_email'] ?? '') . '|||' . ($config['email_subject'] ?? ''));
 
         // Normalize canonical status if not provided

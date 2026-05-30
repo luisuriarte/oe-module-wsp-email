@@ -239,6 +239,17 @@ class StatusNormalizer
                 $nativeStatus = $webhookData['status'] ?? '';
                 break;
             
+            case 'openwa':
+                $event = $webhookData['event'] ?? '';
+                if ($event === 'message.sent') {
+                    $nativeStatus = 'sent';
+                } elseif ($event === 'message.ack') {
+                    $nativeStatus = isset($webhookData['data']['ack']) ? (string)$webhookData['data']['ack'] : 'unknown';
+                } else {
+                    $nativeStatus = $event;
+                }
+                break;
+
             case 'twilio':
                 $nativeStatus = $webhookData['message_status'] ?? '';
                 break;

@@ -37,6 +37,9 @@ function webhookLog(string $message): void
     @file_put_contents(WSP_WEBHOOK_LOG, date('Y-m-d H:i:s') . ' — ' . $message . "\n", FILE_APPEND | LOCK_EX);
 }
 
+// Extract all headers
+$headers = getallheaders() ?: [];
+
 // --- Log every incoming request immediately ---
 webhookLog('Request received. Method: ' . ($_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN'));
 webhookLog('Headers: ' . json_encode($headers));
@@ -49,7 +52,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 }
 
 // Validate Content-Type
-$headers     = getallheaders() ?: [];
 $contentType = $headers['Content-Type'] ?? $headers['content-type'] ?? '';
 if (stripos($contentType, 'application/json') === false) {
     webhookLog("Rejected: invalid Content-Type ($contentType).");

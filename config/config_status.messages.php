@@ -100,6 +100,27 @@ return [
         ],
 
         /**
+         * OpenWA
+         * https://github.com/rmyndharis/OpenWA
+         */
+        'openwa' => [
+            'sent'      => 'SENT',
+            'success'   => 'SENT',
+            'ack_0'     => 'QUEUED',
+            'ack_1'     => 'SENT',
+            'ack_2'     => 'DELIVERED',
+            'ack_3'     => 'READ',
+            'ack_4'     => 'READ',
+            'ack_-1'    => 'FAILED',
+            '0'         => 'QUEUED',
+            '1'         => 'SENT',
+            '2'         => 'DELIVERED',
+            '3'         => 'READ',
+            '4'         => 'READ',
+            '-1'        => 'FAILED',
+        ],
+
+        /**
          * Twilio WhatsApp API
          * https://www.twilio.com/docs/whatsapp/api
          */
@@ -138,6 +159,7 @@ return [
             'queued'    => 'QUEUED',
             'sending'   => 'SENT',
             'sent'      => 'SENT',
+            'success'   => 'SENT',
             'delivered' => 'DELIVERED',
             'read'      => 'READ',
             'failed'    => 'FAILED',

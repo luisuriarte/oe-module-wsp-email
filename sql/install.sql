@@ -6,7 +6,7 @@
 
 -- ---------------------------------------------------------------------------
 -- 1. Facility Configuration Table
--- Supports multi-vendor credentials (UltraMsg, WaSenderAPI) and Telehealth
+-- Supports multi-vendor credentials (UltraMsg, WaSenderAPI, OpenWA) and Telehealth
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
   `id`                  int(11)       NOT NULL AUTO_INCREMENT,
@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
   -- WaSenderAPI Credentials
   `wasenderapi_api_key`      varchar(255)  DEFAULT NULL         COMMENT 'WaSenderAPI Bearer Token',
   `wasenderapi_webhook_secret` varchar(255) DEFAULT NULL        COMMENT 'WaSenderAPI Webhook Secret',
+
+  -- OpenWA Credentials (https://wa.origen.ar)
+  `openwa_instance`          varchar(100)  DEFAULT NULL         COMMENT 'OpenWA Session ID',
+  `openwa_api_key`           varchar(255)  DEFAULT NULL         COMMENT 'OpenWA API Key (owa_xxx...)',
+  `openwa_webhook_secret`    varchar(255)  DEFAULT NULL         COMMENT 'OpenWA Webhook HMAC Secret',
   
   -- General Configuration
   `logo_wsp`            varchar(255)  DEFAULT NULL               COMMENT 'Logo URL for WhatsApp',

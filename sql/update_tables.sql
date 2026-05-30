@@ -37,6 +37,22 @@ ALTER TABLE `wsp_email_facility_config`
   COMMENT 'WaSenderAPI Webhook Secret'
   AFTER `wasenderapi_api_key`;
 
+-- OpenWA specific credentials (https://wa.origen.ar)
+ALTER TABLE `wsp_email_facility_config`
+  ADD COLUMN IF NOT EXISTS `openwa_instance` varchar(100) DEFAULT NULL
+  COMMENT 'OpenWA Session ID'
+  AFTER `wasenderapi_webhook_secret`;
+
+ALTER TABLE `wsp_email_facility_config`
+  ADD COLUMN IF NOT EXISTS `openwa_api_key` varchar(255) DEFAULT NULL
+  COMMENT 'OpenWA API Key (owa_xxx...)'
+  AFTER `openwa_instance`;
+
+ALTER TABLE `wsp_email_facility_config`
+  ADD COLUMN IF NOT EXISTS `openwa_webhook_secret` varchar(255) DEFAULT NULL
+  COMMENT 'OpenWA Webhook HMAC Secret'
+  AFTER `openwa_api_key`;
+
 -- Telehealth Settings
 ALTER TABLE `wsp_email_facility_config`
   ADD COLUMN IF NOT EXISTS `th_jitsi_domain` varchar(255) DEFAULT NULL
