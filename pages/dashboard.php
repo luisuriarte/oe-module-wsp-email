@@ -814,21 +814,24 @@ document.getElementById('btnLoadStats')?.addEventListener('click', loadStats);
 /* =========================================================================
    Patient Status Tab
    ========================================================================= */
-function renderStatus(status) {
+function renderStatus(status, type) {
     // Normalize to uppercase for canonical status
     status = (status || 'UNSENT').toUpperCase().trim();
+    type = (type || '').toUpperCase().trim();
 
     // Define status configuration with icon, label, and CSS class
     // Uses canonical statuses from StatusNormalizer
     const statusConfig = {
         'QUEUED':    { icon: 'fa-clock',         label: 'Queued',    css: 'badge-queue' },
-        'SENT':      { icon: 'fa-check',         label: 'Sent',      css: 'badge-sent' },
+        'SENT':      { icon: 'fa-check',         label: 'Sent',      css: 'badge-sent ' + (type === 'WSP' ? 'type-wsp' : type === 'EMAIL' ? 'type-email' : '') },
         'DELIVERED': { icon: 'fa-box',           label: 'Delivered', css: 'badge-delivered' },
         'READ':      { icon: 'fa-eye',           label: 'Read',      css: 'badge-read' },
         'FAILED':    { icon: 'fa-times-circle',  label: 'Failed',    css: 'badge-error' },
         'INVALID':   { icon: 'fa-question-circle', label: 'Invalid', css: 'badge-invalid' },
         'ERROR':     { icon: 'fa-exclamation-triangle', label: 'Error', css: 'badge-error' },
-        'UNSENT':    { icon: 'fa-envelope',      label: 'Unsent',    css: 'badge-unsent' }
+        'UNSENT':    { icon: 'fa-envelope',      label: 'Unsent',    css: 'badge-unsent' },
+        'MANUAL_WSP':   { icon: 'fa-paper-plane',  label: 'Manual WSP',  css: 'badge-sent type-wsp' },
+        'MANUAL_EMAIL': { icon: 'fa-paper-plane',  label: 'Manual Email', css: 'badge-sent type-email' }
     };
 
     const config = statusConfig[status] || { icon: 'fa-question', label: status, css: 'badge-secondary' };
@@ -893,7 +896,7 @@ function searchPatients() {
                     <td>${apptInfo}</td>
                     <td class="text-center">${typeIcon}</td>
                     <td><small class="text-muted">${escHtml(r.dSentDateTime || '')}</small></td>
-                    <td>${renderStatus(r.status)}</td>
+                    <td>${renderStatus(r.status, r.type)}</td>
                     <td class="text-center">
                         <div class="btn-group">
                             <button class="btn btn-xs btn-outline-info" onclick="viewLogDetail(${r.iLogId})" title="<?php echo attr(xlt('View Details')); ?>">
@@ -2178,7 +2181,7 @@ function saveTemplates() {
         <div class="modal-content">
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title fw-bold"><?php echo xlt('Notification Lifecycle'); ?></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn btn-sm btn-link text-secondary" data-dismiss="modal" data-bs-dismiss="modal" aria-label="Close" onclick="closeModalParent(this)"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body py-4">
                 <div id="logHistoryTimeline">
@@ -2186,7 +2189,7 @@ function saveTemplates() {
                 </div>
             </div>
             <div class="modal-footer border-0 pt-0">
-                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal"><?php echo xlt('Close'); ?></button>
+                <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal" data-bs-dismiss="modal" onclick="closeModalParent(this)"><?php echo xlt('Close'); ?></button>
             </div>
         </div>
     </div>
@@ -2198,7 +2201,7 @@ function saveTemplates() {
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
                 <h5 class="modal-title"><i class="fas fa-paper-plane me-2"></i><?php echo xlt('Manual Notification'); ?></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn btn-sm btn-link text-white" data-dismiss="modal" data-bs-dismiss="modal" aria-label="Close" onclick="closeModalParent(this)"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div class="mb-2">
@@ -2226,7 +2229,7 @@ function saveTemplates() {
                 <input type="hidden" id="mnFacilityId">
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?php echo xlt('Cancel'); ?></button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" data-bs-dismiss="modal" onclick="closeModalParent(this)"><?php echo xlt('Cancel'); ?></button>
                 <button type="button" class="btn btn-success" onclick="executeManualNotify()">
                     <i class="fas fa-external-link-alt me-1"></i><?php echo xlt('Open & Log'); ?>
                 </button>
@@ -2238,6 +2241,11 @@ function saveTemplates() {
 <style>
 .extra-small { font-size: 0.75rem; }
 .timeline-v2 { position: relative; padding-left: 5px; }
+
+/* Status badge channel colors */
+.badge-status .fa-check { margin-right: 3px; }
+.badge-sent.type-wsp { background-color: #C8E6C9 !important; color: #2E7D32 !important; }
+.badge-sent.type-email { background-color: #BBDEFB !important; color: #1565C0 !important; }
 </style>
 
 <!-- Modal: Template Manager -->
@@ -2246,7 +2254,7 @@ function saveTemplates() {
         <div class="modal-content">
             <div class="modal-header bg-info text-white">
                 <h5 class="modal-title"><i class="fas fa-file-alt me-2"></i>Manage Notification Templates</h5>
-                <button type="button" class="btn-close btn-close-white" data-dismiss="modal" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn btn-sm btn-link text-white" data-dismiss="modal" data-bs-dismiss="modal" onclick="closeModalParent(this)"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <p class="text-muted small">Edit messages for different scenarios. Tokens like <code>***NAME***</code>, <code>***DATE***</code> will be replaced automatically.</p>
@@ -2270,12 +2278,28 @@ function saveTemplates() {
                 <input type="hidden" id="tmFacilityId">
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" data-bs-dismiss="modal" onclick="closeModalParent(this)">Close</button>
                 <button type="button" class="btn btn-primary" onclick="saveTemplates()"><i class="fas fa-save me-1"></i> Save Changes</button>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+function closeModalParent(el) {
+    var modal = el.closest('.modal');
+    if (modal) {
+        try {
+            var inst = bootstrap.Modal.getInstance(modal);
+            if (inst) { inst.hide(); return; }
+        } catch(e) {}
+        modal.classList.remove('show');
+        modal.style.display = 'none';
+        document.querySelectorAll('.modal-backdrop').forEach(function(b) { b.remove(); });
+        document.body.classList.remove('modal-open');
+    }
+}
+</script>
 
 </body>
 </html>

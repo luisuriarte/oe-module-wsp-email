@@ -154,23 +154,23 @@ class EmailSender
         string $facilityPhone, string $facilityEmail, string $facilityUrl,
         string $gcalUrl, string $mapLinkUrl
     ): string {
-        $logoTag  = '<img src="cid:logo" alt="' . htmlspecialchars($facilityName) . '" style="max-width:200px;">';
+        $logoTag  = '<img src="cid:logo" alt="' . htmlspecialchars($facilityName) . '" style="width:100%;height:auto;">';
 
         $mapBlock = '';
         if ($mapLinkUrl) {
-            $mapBlock = '<p style="margin-top:24px;">
+            $mapBlock = '<p style="margin-top:24px;text-align:center;">
                 <a href="' . htmlspecialchars($mapLinkUrl) . '" target="_blank"
-                   style="display:inline-block;padding:10px 20px;background-color:#4285f4;color:#fff;text-decoration:none;border-radius:5px;">
-                   <i class="fas fa-map-marker-alt"></i> ' . htmlspecialchars(LocalizationHelper::translate('View location in Google Maps')) . '
+                   style="display:inline-block;padding:12px 28px;background-color:#4285f4;color:#fff;text-decoration:none;border-radius:5px;font-size:16px;">
+                   ' . htmlspecialchars(LocalizationHelper::translate('View location in Google Maps')) . '
                 </a>
             </p>';
         }
 
         $gcalBlock = '';
         if ($gcalUrl) {
-            $gcalBlock = '<p style="margin:16px 0;">
+            $gcalBlock = '<p style="margin:16px 0;text-align:center;">
                 <a href="' . htmlspecialchars($gcalUrl) . '" target="_blank"
-                   style="display:inline-block;padding:10px 20px;background-color:#4285f4;color:#fff;text-decoration:none;border-radius:5px;font-weight:bold;">
+                   style="display:inline-block;padding:12px 28px;background-color:#4285f4;color:#fff;text-decoration:none;border-radius:5px;font-size:16px;font-weight:bold;">
                    ' . htmlspecialchars(LocalizationHelper::translate('Add to Google Calendar')) . '
                 </a>
             </p>';
@@ -182,12 +182,12 @@ class EmailSender
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
 </head>
-<body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:auto;padding:20px;">
-    <div style="text-align:center;margin-bottom:20px;">' . $logoTag . '</div>
-    <div style="background:#f9f9f9;border-radius:8px;padding:24px;border:1px solid #e0e0e0;">
-        <p style="white-space:pre-line;">' . nl2br(htmlspecialchars($messageBody)) . '</p>
-        <hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;">
-        <p><strong>' . htmlspecialchars($facilityName) . '</strong><br>
+        <body style="font-family:Arial,sans-serif;color:#333;margin:0;padding:0;font-size:16px;">
+            <div style="text-align:center;padding:20px 20px 0;">' . $logoTag . '</div>
+            <div style="background:#f9f9f9;border-radius:8px;padding:24px;margin:10px 20px 20px;border:1px solid #e0e0e0;font-size:16px;line-height:1.6;">
+                <p style="white-space:pre-line;font-size:16px;">' . nl2br(htmlspecialchars($messageBody)) . '</p>
+                <hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;">
+                <p style="font-size:15px;"><strong>' . htmlspecialchars($facilityName) . '</strong><br>
            ' . htmlspecialchars($facilityAddr) . '<br>
            ' . htmlspecialchars(LocalizationHelper::translate('Phone')) . ': ' . htmlspecialchars($facilityPhone) . '<br>
            ' . htmlspecialchars(LocalizationHelper::translate('Email')) . ': <a href="mailto:' . htmlspecialchars($facilityEmail) . '">' . htmlspecialchars($facilityEmail) . '</a><br>
@@ -195,7 +195,7 @@ class EmailSender
         </p>
         ' . $gcalBlock . '
         ' . $mapBlock . '
-        <p style="margin-top:20px;font-size:12px;color:#888;">
+        <p style="margin-top:20px;font-size:13px;color:#888;">
             ' . htmlspecialchars(LocalizationHelper::translate('A calendar file (.ics) is attached — open it to save the appointment directly in your calendar application.')) . '
         </p>
     </div>

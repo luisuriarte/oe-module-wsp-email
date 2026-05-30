@@ -574,19 +574,19 @@ class WspSender
         return '-scheduled';
     }
 
-    public static function resolveTemplate(int $facilityId, int $pcCatid, string $pcApptstatus, string $channel, string $recipientType = 'patient'): string
+    public static function resolveTemplate(int $facilityId, int $pcCatid, string $pcApptstatus, string $channel, string $recipientType = 'patient', string $field = 'wsp_message'): string
     {
         // 1. Exact match: facility_id + pc_catid + pc_apptstatus + channel + recipient_type
-        $sql = "SELECT wsp_message FROM wsp_email_notification_templates
+        $sql = "SELECT $field FROM wsp_email_notification_templates
                 WHERE facility_id = ? AND pc_catid = ? AND pc_apptstatus = ?
                   AND channel = ? AND recipient_type = ? AND enabled = 1
                 LIMIT 1";
         $row = sqlQuery($sql, [$facilityId, $pcCatid, $pcApptstatus, $channel, $recipientType]);
-        if (!empty($row['wsp_message'])) {
-            return $row['wsp_message'];
+        if (!empty($row[$field])) {
+            return $row[$field];
         }
         // 2. Fallback: facility_id + pc_catid, any status (prefer scheduled over cancelled)
-        $sql = "SELECT wsp_message FROM wsp_email_notification_templates
+        $sql = "SELECT $field FROM wsp_email_notification_templates
                 WHERE facility_id = ? AND pc_catid = ?
                   AND channel = ? AND recipient_type = ? AND enabled = 1
                 ORDER BY CASE pc_apptstatus
@@ -597,16 +597,16 @@ class WspSender
                 END
                 LIMIT 1";
         $row = sqlQuery($sql, [$facilityId, $pcCatid, $channel, $recipientType]);
-        if (!empty($row['wsp_message'])) {
-            return $row['wsp_message'];
+        if (!empty($row[$field])) {
+            return $row[$field];
         }
         // 3. Fallback: facility_id only, wildcard category
-        $sql = "SELECT wsp_message FROM wsp_email_notification_templates
+        $sql = "SELECT $field FROM wsp_email_notification_templates
                 WHERE facility_id = ? AND pc_catid = 0
                   AND channel = ? AND recipient_type = ? AND enabled = 1
                 LIMIT 1";
         $row = sqlQuery($sql, [$facilityId, $channel, $recipientType]);
-        return $row['wsp_message'] ?? '';
+        return $row[$field] ?? '';
     }
 
     // -------------------------------------------------------------------------

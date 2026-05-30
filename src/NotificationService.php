@@ -235,17 +235,33 @@ class NotificationService
 
     private function deliverEmail(array &$patient, array $config, int $seq, bool $updateCalFlag): void
     {
-        $template = $this->resolveNotificationTemplate(
-            (int)$config['facility_id'],
-            (int)($patient['pc_catid'] ?? 0),
-            (string)($patient['pc_apptstatus'] ?? ''),
-            'email',
-            'patient'
+        // Resolve message template (same logic as WspSender::send())
+        $facilityId = (int)($config['facility_id'] ?? $patient['pc_facility'] ?? 0);
+        $pcCatid    = (int)($patient['pc_catid'] ?? 0);
+        $pcStatus   = WspSender::normalizeApptStatusForTemplate(
+            (string)($patient['tracker_status'] ?? ''),
+            (string)($patient['pc_apptstatus'] ?? '')
         );
+        $template = '';
+        if (!empty($pcCatid)) {
+            $template = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'email', 'patient');
+        }
         $patient['_message'] = WspSender::buildMessage($template, $patient);
+        // Also resolve email subject from templates
+        $config['email_subject'] = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'email', 'patient', 'email_subject');
 
         $ok     = $this->emailSender->send($config, $patient);
         $rawStatus = $ok ? 'sent' : 'error';
+        echo "    Email result: $rawStatus\n";
+
+        // Log to module file
+        $logLine = date('Y-m-d H:i:s') . " — Email to={$patient['email']} pid={$patient['pid']} status=$rawStatus\n";
+        $logFile = __DIR__ . '/../logs/email_notify.log';
+        $logDir  = dirname($logFile);
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0755, true);
+        }
+        @file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
 
         // Normalize email status
         $canonicalStatus = StatusNormalizer::normalize('default', $rawStatus);
