@@ -209,9 +209,20 @@ class NotificationLog
             $params[] = $dateTo . ' 23:59:59';
         }
 
-        if ($type && in_array($type, ['WSP', 'Email'])) {
-            $where .= " AND nl.type = ?";
-            $params[] = $type;
+        if ($type) {
+            $channels = array_map('trim', explode(',', $type));
+            $valid = [];
+            foreach ($channels as $ch) {
+                $upper = strtoupper($ch);
+                if (in_array($upper, ['WSP', 'EMAIL', 'SMS', 'VOZ'])) {
+                    $valid[] = $upper === 'EMAIL' ? 'Email' : $upper;
+                }
+            }
+            if (!empty($valid)) {
+                $placeholders = implode(',', array_fill(0, count($valid), '?'));
+                $where .= " AND nl.type IN ($placeholders)";
+                $params = array_merge($params, $valid);
+            }
         }
 
         // Filter by status if provided
@@ -293,5 +304,82 @@ class NotificationLog
             'failed'      => 0,
             'grand_total' => 0,
         ];
+    }
+
+    /**
+     * Returns detailed report data for PDF generation.
+     * Grouped by type and status with patient info.
+     */
+    public function getReportData(string $dateFrom, string $dateTo, ?int $facilityId = null, int $limit = 500): array
+    {
+        $params = [$dateFrom, $dateTo];
+        $facilityJoin = '';
+
+        if ($facilityId) {
+            $facilityJoin = "INNER JOIN openemr_postcalendar_events pe
+                               ON pe.pc_eid = nl.pc_eid AND pe.pc_facility = ?";
+            $params[] = $facilityId;
+        }
+
+        $sql = "SELECT
+                  nl.pid,
+                  nl.pc_eid,
+                  nl.type,
+                  nl.status_current AS status,
+                  nl.dSentDateTime,
+                  nl.msg_id,
+                  pd.fname,
+                  pd.lname,
+                  pd.phone_cell,
+                  pd.email,
+                  pe.pc_title,
+                  pe.pc_eventDate,
+                  pe.pc_startTime
+                FROM notification_log nl
+                LEFT JOIN patient_data pd ON pd.pid = nl.pid
+                LEFT JOIN openemr_postcalendar_events pe ON pe.pc_eid = nl.pc_eid
+                $facilityJoin
+                WHERE DATE(nl.dSentDateTime) BETWEEN ? AND ?
+                ORDER BY nl.dSentDateTime DESC
+                LIMIT " . (int)$limit;
+
+        $res  = sqlStatement($sql, $params);
+        $rows = [];
+        while ($row = sqlFetchArray($res)) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    /**
+     * Returns summary counts grouped by type and canonical status.
+     */
+    public function getSummaryByStatus(string $dateFrom, string $dateTo, ?int $facilityId = null): array
+    {
+        $params = [$dateFrom, $dateTo];
+        $facilityJoin = '';
+
+        if ($facilityId) {
+            $facilityJoin = "INNER JOIN openemr_postcalendar_events pe
+                               ON pe.pc_eid = nl.pc_eid AND pe.pc_facility = ?";
+            $params[] = $facilityId;
+        }
+
+        $sql = "SELECT
+                  nl.type,
+                  nl.status_current AS status,
+                  COUNT(*) AS total
+                FROM notification_log nl
+                $facilityJoin
+                WHERE DATE(nl.dSentDateTime) BETWEEN ? AND ?
+                GROUP BY nl.type, nl.status_current
+                ORDER BY nl.type, nl.status_current";
+
+        $res  = sqlStatement($sql, $params);
+        $rows = [];
+        while ($row = sqlFetchArray($res)) {
+            $rows[] = $row;
+        }
+        return $rows;
     }
 }

@@ -99,25 +99,25 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
 
         <!-- Summary cards -->
         <div class="row g-3 mb-4">
-            <div class="col-6 col-md-3">
+            <div class="col-3">
                 <div class="stat-card stat-wsp">
                     <div class="number"><?php echo (int)($totals['total_wsp'] ?? 0); ?></div>
                     <div class="label"><?php echo xlt('WhatsApp sent'); ?><br><small><?php echo xlt('last 7 days'); ?></small></div>
                 </div>
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-3">
                 <div class="stat-card stat-email">
                     <div class="number"><?php echo (int)($totals['total_email'] ?? 0); ?></div>
                     <div class="label"><?php echo xlt('Emails sent'); ?><br><small><?php echo xlt('last 7 days'); ?></small></div>
                 </div>
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-3">
                 <div class="stat-card stat-pending">
                     <div class="number"><?php echo (int)($totals['pending'] ?? 0); ?></div>
                     <div class="label"><?php echo xlt('Pending'); ?></div>
                 </div>
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-3">
                 <div class="stat-card stat-failed">
                     <div class="number"><?php echo (int)($totals['failed'] ?? 0); ?></div>
                     <div class="label"><?php echo xlt('Errors'); ?></div>
@@ -151,6 +151,11 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                 <div class="col-auto">
                     <button id="btnLoadStats" class="btn btn-sm btn-success">
                         <i class="fas fa-sync me-1"></i><?php echo xlt('Refresh'); ?>
+                    </button>
+                </div>
+                <div class="col-auto">
+                    <button id="btnPdfReport" class="btn btn-sm btn-danger">
+                        <i class="fas fa-file-pdf me-1"></i><?php echo xlt('PDF Report'); ?>
                     </button>
                 </div>
             </div>
@@ -190,7 +195,7 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                 </div>
                 <div class="col-auto">
                     <label class="form-label small mb-1 d-block"><?php echo xlt('Channels'); ?></label>
-                    <div class="d-flex gap-4 pt-1 align-items-center">
+                    <div class="d-flex gap-4 pt-1 align-items-center flex-wrap">
                         <div class="d-flex align-items-center gap-2">
                             <label class="custom-checkbox">
                                 <input type="checkbox" id="filterWsp" checked onchange="searchPatients()">
@@ -204,6 +209,20 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                                 <span class="slider"></span>
                             </label>
                             <span class="small">E-Mail</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="custom-checkbox">
+                                <input type="checkbox" id="filterSms" onchange="searchPatients()">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="small">SMS</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="custom-checkbox">
+                                <input type="checkbox" id="filterVoz" onchange="searchPatients()">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="small">Voz</span>
                         </div>
                     </div>
                 </div>
@@ -573,25 +592,14 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                             <button type="button" id="btnCancelConfig" class="btn btn-outline-secondary btn-cancel">
                                 <i class="fas fa-times me-1"></i><?php echo xlt('Cancel'); ?>
                             </button>
+                            <button type="button" class="btn btn-outline-info" onclick="openTemplateManager()">
+                                <i class="fas fa-edit me-1"></i><?php echo xlt('Templates'); ?>
+                            </button>
                             <span id="cfgSaveMsg" class="align-self-center text-success" style="display:none;">
                                 <i class="fas fa-check-circle"></i> <?php echo xlt('Saved!'); ?>
                             </span>
                         </div>
                     </form>
-                </div>
-            </div>
-
-            <!-- Notification Templates Manager (Centralized) -->
-            <div class="card mt-4 shadow-sm border-0 bg-light">
-                <div class="card-body py-5 text-center">
-                    <i class="fas fa-file-alt fa-4x text-info mb-3"></i>
-                    <h4 class="text-info mb-2"><?php echo xlt('Notification Templates Manager'); ?></h4>
-                    <p class="text-muted mb-4 mx-auto" style="max-width: 600px;">
-                        <?php echo xlt('Configure specific messages for each appointment type (Ambulatory, HBC, Telehealth) and recipient (Patient/Provider).'); ?>
-                    </p>
-                    <button type="button" class="btn btn-primary btn-lg px-5 shadow-sm" onclick="openTemplateManager()">
-                        <i class="fas fa-edit me-2"></i><?php echo xlt('Open Template Manager'); ?>
-                    </button>
                 </div>
             </div>
         </div>
@@ -810,6 +818,13 @@ function loadStats() {
 }
 
 document.getElementById('btnLoadStats')?.addEventListener('click', loadStats);
+document.getElementById('btnPdfReport')?.addEventListener('click', function() {
+    const from = document.getElementById('statsFrom').value;
+    const to   = document.getElementById('statsTo').value;
+    const facility = document.getElementById('statsFacility').value;
+    const url = moduleRoot + '/pages/ajax/generate_report.php?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to) + '&facility_id=' + encodeURIComponent(facility);
+    window.open(url, '_blank');
+});
 
 /* =========================================================================
    Patient Status Tab
@@ -831,7 +846,9 @@ function renderStatus(status, type) {
         'ERROR':     { icon: 'fa-exclamation-triangle', label: 'Error', css: 'badge-error' },
         'UNSENT':    { icon: 'fa-envelope',      label: 'Unsent',    css: 'badge-unsent' },
         'MANUAL_WSP':   { icon: 'fa-paper-plane',  label: 'Manual WSP',  css: 'badge-sent type-wsp' },
-        'MANUAL_EMAIL': { icon: 'fa-paper-plane',  label: 'Manual Email', css: 'badge-sent type-email' }
+        'MANUAL_EMAIL': { icon: 'fa-paper-plane',  label: 'Manual Email', css: 'badge-sent type-email' },
+        'MANUAL_SMS':   { icon: 'fa-sms',          label: 'Manual SMS',  css: 'badge-sms' },
+        'MANUAL_VOZ':   { icon: 'fa-phone-alt',    label: 'Manual Voz',  css: 'badge-voz' }
     };
 
     const config = statusConfig[status] || { icon: 'fa-question', label: status, css: 'badge-secondary' };
@@ -848,15 +865,19 @@ function searchPatients() {
     const to    = document.getElementById('patientTo').value;
     const wsp   = document.getElementById('filterWsp').checked;
     const email = document.getElementById('filterEmail').checked;
+    const sms   = document.getElementById('filterSms').checked;
+    const voz   = document.getElementById('filterVoz').checked;
     const status = document.getElementById('filterStatus').value;
     const tbody = document.getElementById('patientTableBody');
 
-    // If both unchecked, show nothing or show both? Usually both.
-    // But if they clicked some, we filter.
-    let channel = '';
-    if (wsp && !email) channel = 'WSP';
-    else if (!wsp && email) channel = 'Email';
-    else if (!wsp && !email) {
+    // Build channel list
+    const channels = [];
+    if (wsp) channels.push('WSP');
+    if (email) channels.push('Email');
+    if (sms) channels.push('SMS');
+    if (voz) channels.push('VOZ');
+
+    if (channels.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><?php echo js_escape(xlt('Please select at least one channel.')); ?></td></tr>';
         return;
     }
@@ -867,7 +888,7 @@ function searchPatients() {
         q: q,
         from: from,
         to: to,
-        channel: channel,
+        channel: channels.join(','),
         status: status
     });
 
@@ -880,9 +901,13 @@ function searchPatients() {
                 return;
             }
             tbody.innerHTML = rows.map(r => {
-                const typeIcon = r.type === 'WSP' 
-                    ? '<i class="fab fa-whatsapp text-success fa-lg" title="WhatsApp"></i>' 
-                    : '<i class="fas fa-envelope text-primary fa-lg" title="Email"></i>';
+                const typeIcons = {
+                    'WSP': '<i class="fab fa-whatsapp text-success fa-lg" title="WhatsApp"></i>',
+                    'EMAIL': '<i class="fas fa-envelope text-primary fa-lg" title="Email"></i>',
+                    'SMS': '<i class="fas fa-sms text-info fa-lg" title="SMS"></i>',
+                    'VOZ': '<i class="fas fa-phone-alt text-warning fa-lg" title="Voz"></i>'
+                };
+                const typeIcon = typeIcons[r.type] || '<i class="fas fa-question-circle text-secondary fa-lg" title="' + escHtml(r.type) + '"></i>';
                 
                 const apptInfo = `<strong>${escHtml(r.pc_title || 'Appt')}</strong><br><small class="text-muted">${escHtml(r.pc_eventDate)} ${r.pc_startTime}</small>`;
                 
@@ -1802,9 +1827,13 @@ function loadSchedules() {
                 return;
             }
             tbody.innerHTML = rows.map(r => {
+                const rawStatus = r.pc_apptstatus || '';
+                const isPending = rawStatus === '^' || rawStatus === '-pending';
                 const statusBadge = r.status_title ?
-                    `<span class="badge bg-secondary">${escHtml(r.status_title)}</span>` :
-                    `<span class="badge bg-light text-dark">${escHtml(r.pc_apptstatus || '-')}</span>`;
+                    (isPending
+                        ? `<span class="badge" style="background:#FFF3E0;color:#E65100">${escHtml(r.status_title)}</span>`
+                        : `<span class="badge" style="background:#E3F2FD;color:#1565C0">${escHtml(r.status_title)}</span>`) :
+                    `<span class="badge bg-light text-dark">${escHtml(rawStatus || '-')}</span>`;
 
                 const typeLabel = getApptTypeLabel(r.pc_catid, r.pc_title);
 
@@ -1895,7 +1924,7 @@ function getApptTypeLabel(catid, title) {
     const catId = parseInt(catid) || 0;
     if (catId === 70 || catId === 71) return '<span class="badge bg-info">HBC</span>';
     if (catId === 80) return '<span class="badge bg-warning text-dark">Telehealth</span>';
-    return '<span class="badge bg-secondary">Ambulatorio</span>';
+    return '<span class="badge" style="background:#E8F5E9;color:#2E7D32">Ambulatorio</span>';
 }
 
 /**
@@ -2246,6 +2275,8 @@ function saveTemplates() {
 .badge-status .fa-check { margin-right: 3px; }
 .badge-sent.type-wsp { background-color: #C8E6C9 !important; color: #2E7D32 !important; }
 .badge-sent.type-email { background-color: #BBDEFB !important; color: #1565C0 !important; }
+.badge-sms { background-color: #FFF3CD !important; color: #856404 !important; }
+.badge-voz { background-color: #F8D7DA !important; color: #721C24 !important; }
 </style>
 
 <!-- Modal: Template Manager -->
