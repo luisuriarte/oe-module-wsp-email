@@ -172,6 +172,25 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
 
             <canvas id="chartNotifications" height="90"></canvas>
         </div>
+
+        <!-- Send Now -->
+        <div class="chart-card mt-4">
+            <div class="d-flex align-items-center gap-3">
+                <button id="btnSendNow" class="btn btn-primary">
+                    <i class="fas fa-paper-plane me-1"></i><?php echo xlt('Send Now'); ?>
+                </button>
+                <small class="text-muted"><?php echo xlt('Runs WSP and Email immediately, respecting the schedule.'); ?></small>
+            </div>
+            <div id="sendNowLog" class="mt-3" style="display:none">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <strong class="small"><?php echo xlt('Log'); ?></strong>
+                    <button type="button" class="btn btn-xs btn-outline-secondary" onclick="toggleSendNowLog()">
+                        <i class="fas fa-eye-slash"></i>
+                    </button>
+                </div>
+                <pre class="bg-dark text-light p-3 rounded" style="max-height:400px;overflow:auto;font-size:11px;line-height:1.3" id="sendNowLogContent"></pre>
+            </div>
+        </div>
     </div><!-- /tab-dashboard -->
 
     <!-- ===================================================================
@@ -818,6 +837,7 @@ function loadStats() {
 }
 
 document.getElementById('btnLoadStats')?.addEventListener('click', loadStats);
+document.getElementById('btnSendNow')?.addEventListener('click', sendNow);
 document.getElementById('btnPdfReport')?.addEventListener('click', function() {
     const from = document.getElementById('statsFrom').value;
     const to   = document.getElementById('statsTo').value;
@@ -825,6 +845,44 @@ document.getElementById('btnPdfReport')?.addEventListener('click', function() {
     const url = moduleRoot + '/pages/ajax/generate_report.php?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to) + '&facility_id=' + encodeURIComponent(facility);
     window.open(url, '_blank');
 });
+
+function sendNow() {
+    const btn = document.getElementById('btnSendNow');
+    const logDiv = document.getElementById('sendNowLog');
+    const logContent = document.getElementById('sendNowLogContent');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i><?php echo xlt('Sending...'); ?>';
+    logDiv.style.display = 'block';
+    logContent.textContent = '<?php echo xlt('Running...'); ?>';
+
+    fetch(moduleRoot + '/pages/ajax/run_now.php', { method: 'POST' })
+        .then(r => r.json().then(data => ({ ok: r.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok) {
+                logContent.textContent = '<?php echo xlt('Error'); ?>: ' + (data.error || data.log || JSON.stringify(data));
+                return;
+            }
+            logContent.textContent = data.log || '<?php echo xlt('No output.'); ?>';
+            logContent.scrollTop = logContent.scrollHeight;
+        })
+        .catch(err => {
+            logContent.textContent = '<?php echo xlt('Error'); ?>: ' + err.message;
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i><?php echo xlt('Send Now'); ?>';
+        });
+}
+
+function toggleSendNowLog() {
+    const el = document.getElementById('sendNowLogContent');
+    if (el.style.display === 'none') {
+        el.style.display = 'block';
+    } else {
+        el.style.display = 'none';
+    }
+}
 
 /* =========================================================================
    Patient Status Tab
