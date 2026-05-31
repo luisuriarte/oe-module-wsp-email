@@ -907,7 +907,8 @@ function searchPatients() {
                     'SMS': '<i class="fas fa-sms text-info fa-lg" title="SMS"></i>',
                     'VOZ': '<i class="fas fa-phone-alt text-warning fa-lg" title="Voz"></i>'
                 };
-                const typeIcon = typeIcons[r.type] || '<i class="fas fa-question-circle text-secondary fa-lg" title="' + escHtml(r.type) + '"></i>';
+                const typeKey = (r.type || '').toUpperCase();
+                const typeIcon = typeIcons[typeKey] || '<i class="fas fa-question-circle text-secondary fa-lg" title="' + escHtml(r.type) + '"></i>';
                 
                 const apptInfo = `<strong>${escHtml(r.pc_title || 'Appt')}</strong><br><small class="text-muted">${escHtml(r.pc_eventDate)} ${r.pc_startTime}</small>`;
                 
