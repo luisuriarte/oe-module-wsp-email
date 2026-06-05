@@ -399,6 +399,7 @@ class WspSender
         $chatId     = $cleanPhone . '@c.us';
 
         $baseUrl  = 'https://wa.origen.ar/api';
+        $textUrl  = "{$baseUrl}/sessions/{$sessionId}/messages/send-text";
         $imageUrl = "{$baseUrl}/sessions/{$sessionId}/messages/send-image";
         $docUrl   = "{$baseUrl}/sessions/{$sessionId}/messages/send-document";
 
@@ -428,11 +429,28 @@ class WspSender
                 } catch (RequestException $e) {
                     $log[] = "OpenWA ($label) error: " . $e->getMessage();
                     if ($e->hasResponse()) {
-                        $log[] = "Response: " . $e->getResponse()->getBody();
+                        $response = $e->getResponse();
+                        $statusCode = $response->getStatusCode();
+                        $body = (string)$response->getBody();
+                        $log[] = "Response: " . $body;
+
+                        if ($statusCode === 401 || $statusCode === 404) {
+                            throw $e;
+                        }
+
+                        // Check if it's an invalid number
+                        $bodyData = json_decode($body, true);
+                        $msg = $bodyData['message'] ?? $bodyData['error'] ?? '';
+                        if (stripos($msg, 'invalid number') !== false || stripos($msg, 'not on whatsapp') !== false || stripos($msg, 'does not exist') !== false) {
+                            throw new \Exception("INVALID: " . $msg);
+                        }
                     }
                     return null;
                 } catch (\Throwable $e) {
                     $log[] = "OpenWA ($label) unexpected error: " . $e->getMessage();
+                    if (strpos($e->getMessage(), 'INVALID:') === 0) {
+                        throw $e;
+                    }
                     return null;
                 }
             };
@@ -454,6 +472,19 @@ class WspSender
                 if ($imgBody) {
                     $msgId = $extractMsgId($imgBody) ?? $msgId;
                 }
+            } else {
+                // Send plain text message
+                $textPayload = ['chatId' => $chatId, 'text' => $message];
+                if (!empty($config['latitude']) && !empty($config['longitude'])) {
+                    $lat = (float)$config['latitude'];
+                    $lon = (float)$config['longitude'];
+                    $mapLink = "https://www.google.com/maps/search/?api=1&query={$lat},{$lon}";
+                    $textPayload['text'] .= "\n\n📍 " . $mapLink;
+                }
+                $textBody = $safePost($textUrl, $textPayload, 'texto');
+                if ($textBody) {
+                    $msgId = $extractMsgId($textBody) ?? $msgId;
+                }
             }
 
             // 2. Try sending .ics document (optional)
@@ -473,13 +504,30 @@ class WspSender
 
         } catch (RequestException $e) {
             $log[] = 'OpenWA REQUEST ERROR: ' . $e->getMessage();
+            $statusCode = 0;
             if ($e->hasResponse()) {
-                $log[] = 'Response: ' . $e->getResponse()->getBody();
+                $response = $e->getResponse();
+                $statusCode = $response->getStatusCode();
+                $log[] = 'Response: ' . $response->getBody();
             }
+            
+            $status = 'error';
+            if ($statusCode === 401) {
+                $status = 'UNAUTHORIZED';
+            } elseif ($statusCode === 404) {
+                $status = 'NOT_FOUND';
+            }
+            
+            $result['status'] = $status;
             $result['log'] = implode("\n", $log);
             return $result;
         } catch (\Throwable $e) {
             $log[] = 'OpenWA EXCEPTION: ' . $e->getMessage();
+            $status = 'error';
+            if (strpos($e->getMessage(), 'INVALID:') === 0) {
+                $status = 'INVALID';
+            }
+            $result['status'] = $status;
             $result['log'] = implode("\n", $log);
             return $result;
         }

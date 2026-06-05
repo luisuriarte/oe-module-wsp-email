@@ -90,6 +90,11 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                 <i class="fas fa-hospital me-1"></i><?php echo xlt('Facilities'); ?>
             </a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link <?php echo $activeTab === 'blacklist' ? 'active' : ''; ?>" href="?tab=blacklist">
+                <i class="fas fa-ban me-1"></i><?php echo xlt('Blacklist'); ?>
+            </a>
+        </li>
     </ul>
 
     <!-- ===================================================================
@@ -575,6 +580,117 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                             </div>
                         </div>
 
+                         <hr>
+                         <h6><?php echo xlt('Notification Sending Window'); ?></h6>
+                         <div class="row g-2 mb-3 align-items-center">
+                             <!-- Weekdays -->
+                             <div class="col-md-4">
+                                 <span class="fw-bold"><?php echo xlt('Monday – Friday'); ?></span>
+                             </div>
+                             <div class="col-md-4">
+                                 <div class="d-flex align-items-center gap-2">
+                                     <label class="form-label mb-0"><?php echo xlt('Start'); ?></label>
+                                     <select name="send_weekday_start" id="cfgSendWeekdayStart" class="form-select form-select-sm">
+                                         <?php for ($h = 0; $h < 24; $h++):
+                                             $formatted = sprintf('%02d:00', $h);
+                                             $ampm = ($h === 0) ? '12:00 AM' : (($h === 12) ? '12:00 PM' : (($h > 12) ? ($h - 12) . ':00 PM' : $h . ':00 AM'));
+                                         ?>
+                                             <option value="<?php echo $h; ?>"><?php echo "$formatted ($ampm)"; ?></option>
+                                         <?php endfor; ?>
+                                     </select>
+                                 </div>
+                             </div>
+                             <div class="col-md-4">
+                                 <div class="d-flex align-items-center gap-2">
+                                     <label class="form-label mb-0"><?php echo xlt('End'); ?></label>
+                                     <select name="send_weekday_end" id="cfgSendWeekdayEnd" class="form-select form-select-sm">
+                                         <?php for ($h = 0; $h < 24; $h++):
+                                             $formatted = sprintf('%02d:00', $h);
+                                             $ampm = ($h === 0) ? '12:00 AM' : (($h === 12) ? '12:00 PM' : (($h > 12) ? ($h - 12) . ':00 PM' : $h . ':00 AM'));
+                                         ?>
+                                             <option value="<?php echo $h; ?>"><?php echo "$formatted ($ampm)"; ?></option>
+                                         <?php endfor; ?>
+                                     </select>
+                                 </div>
+                             </div>
+                         </div>
+
+                         <div class="row g-2 mb-3 align-items-center">
+                             <!-- Saturday -->
+                             <div class="col-md-4 d-flex align-items-center gap-2">
+                                 <label class="custom-checkbox">
+                                     <input type="checkbox" name="send_saturday_enabled" id="cfgSendSaturdayEnabled" value="1">
+                                     <span class="slider"></span>
+                                 </label>
+                                 <span class="fw-bold"><?php echo xlt('Saturday'); ?></span>
+                             </div>
+                             <div class="col-md-4">
+                                 <div class="d-flex align-items-center gap-2">
+                                     <label class="form-label mb-0"><?php echo xlt('Start'); ?></label>
+                                     <select name="send_saturday_start" id="cfgSendSaturdayStart" class="form-select form-select-sm">
+                                         <?php for ($h = 0; $h < 24; $h++):
+                                             $formatted = sprintf('%02d:00', $h);
+                                             $ampm = ($h === 0) ? '12:00 AM' : (($h === 12) ? '12:00 PM' : (($h > 12) ? ($h - 12) . ':00 PM' : $h . ':00 AM'));
+                                         ?>
+                                             <option value="<?php echo $h; ?>"><?php echo "$formatted ($ampm)"; ?></option>
+                                         <?php endfor; ?>
+                                     </select>
+                                 </div>
+                             </div>
+                             <div class="col-md-4">
+                                 <div class="d-flex align-items-center gap-2">
+                                     <label class="form-label mb-0"><?php echo xlt('End'); ?></label>
+                                     <select name="send_saturday_end" id="cfgSendSaturdayEnd" class="form-select form-select-sm">
+                                         <?php for ($h = 0; $h < 24; $h++):
+                                             $formatted = sprintf('%02d:00', $h);
+                                             $ampm = ($h === 0) ? '12:00 AM' : (($h === 12) ? '12:00 PM' : (($h > 12) ? ($h - 12) . ':00 PM' : $h . ':00 AM'));
+                                         ?>
+                                             <option value="<?php echo $h; ?>"><?php echo "$formatted ($ampm)"; ?></option>
+                                         <?php endfor; ?>
+                                     </select>
+                                 </div>
+                             </div>
+                         </div>
+
+                         <div class="row g-2 mb-3 align-items-center">
+                             <!-- Sunday -->
+                             <div class="col-md-4 d-flex align-items-center gap-2">
+                                 <label class="custom-checkbox">
+                                     <input type="checkbox" name="send_sunday_enabled" id="cfgSendSundayEnabled" value="1">
+                                     <span class="slider"></span>
+                                 </label>
+                                 <span class="fw-bold"><?php echo xlt('Sunday'); ?></span>
+                             </div>
+                             <div class="col-md-4">
+                                 <div class="d-flex align-items-center gap-2">
+                                     <label class="form-label mb-0"><?php echo xlt('Start'); ?></label>
+                                     <select name="send_sunday_start" id="cfgSendSundayStart" class="form-select form-select-sm">
+                                         <?php for ($h = 0; $h < 24; $h++):
+                                             $formatted = sprintf('%02d:00', $h);
+                                             $ampm = ($h === 0) ? '12:00 AM' : (($h === 12) ? '12:00 PM' : (($h > 12) ? ($h - 12) . ':00 PM' : $h . ':00 AM'));
+                                         ?>
+                                             <option value="<?php echo $h; ?>"><?php echo "$formatted ($ampm)"; ?></option>
+                                         <?php endfor; ?>
+                                     </select>
+                                 </div>
+                             </div>
+                             <div class="col-md-4">
+                                 <div class="d-flex align-items-center gap-2">
+                                     <label class="form-label mb-0"><?php echo xlt('End'); ?></label>
+                                     <select name="send_sunday_end" id="cfgSendSundayEnd" class="form-select form-select-sm">
+                                         <?php for ($h = 0; $h < 24; $h++):
+                                             $formatted = sprintf('%02d:00', $h);
+                                             $ampm = ($h === 0) ? '12:00 AM' : (($h === 12) ? '12:00 PM' : (($h > 12) ? ($h - 12) . ':00 PM' : $h . ':00 AM'));
+                                         ?>
+                                             <option value="<?php echo $h; ?>"><?php echo "$formatted ($ampm)"; ?></option>
+                                         <?php endfor; ?>
+                                     </select>
+                                 </div>
+                             </div>
+                         </div>
+                         <small class="text-muted d-block mb-3">
+                             <i class="fas fa-info-circle me-1"></i><?php echo xlt('(When disabled, no messages are sent on that day)'); ?>
+                         </small>
                         <hr>
                         <h6><?php echo xlt('Notification Schedule'); ?></h6>
                         <p class="text-muted small mb-2">
@@ -628,6 +744,160 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
         <?php endif; ?>
 
     </div><!-- /tab-facility -->
+
+    <!-- ===================================================================
+         TAB: BLACKLIST
+    ==================================================================== -->
+    <div id="tab-blacklist" class="<?php echo $activeTab === 'blacklist' ? '' : 'd-none'; ?>">
+
+        <?php if (AclMain::aclCheckCore('admin', 'super')): ?>
+        <div class="chart-card">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h5 class="mb-0"><i class="fas fa-ban me-2 text-danger"></i><?php echo xlt('Blacklisted Numbers'); ?></h5>
+                <button class="btn btn-sm btn-outline-danger" onclick="showBlAddModal()">
+                    <i class="fas fa-plus me-1"></i><?php echo xlt('Add Number'); ?>
+                </button>
+            </div>
+
+            <!-- Filters -->
+            <div class="row g-2 mb-3">
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('Facility'); ?></label>
+                    <select id="blFilterFacility" class="form-select form-select-sm">
+                        <option value=""><?php echo xlt('All Facilities'); ?></option>
+                        <option value="0"><?php echo xlt('Global'); ?></option>
+                        <?php foreach ($facilities as $sf): ?>
+                        <option value="<?php echo attr((string)$sf['facility_id']); ?>"><?php echo text($sf['facility_name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('Vendor'); ?></label>
+                    <select id="blFilterVendor" class="form-select form-select-sm">
+                        <option value=""><?php echo xlt('All Vendors'); ?></option>
+                        <option value="ultramsg">UltraMsg</option>
+                        <option value="wasenderapi">WaSenderAPI</option>
+                        <option value="openwa">OpenWA</option>
+                        <option value="all"><?php echo xlt('All (global)'); ?></option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('Reason'); ?></label>
+                    <select id="blFilterReason" class="form-select form-select-sm">
+                        <option value=""><?php echo xlt('All Reasons'); ?></option>
+                        <option value="MANUAL"><?php echo xlt('Manual'); ?></option>
+                        <option value="INVALID"><?php echo xlt('Invalid Number'); ?></option>
+                        <option value="FAILED_MAX"><?php echo xlt('Too Many Failures'); ?></option>
+                        <option value="TRACKING"><?php echo xlt('Tracking (not blocked)'); ?></option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('Status'); ?></label>
+                    <select id="blFilterActive" class="form-select form-select-sm">
+                        <option value=""><?php echo xlt('All'); ?></option>
+                        <option value="1"><?php echo xlt('Active (blocked)'); ?></option>
+                        <option value="0"><?php echo xlt('Inactive (released)'); ?></option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1"><?php echo xlt('Search Phone/Notes'); ?></label>
+                    <input type="text" id="blFilterSearch" class="form-control form-control-sm" placeholder="<?php echo attr(xlt('Search...')); ?>">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-sm btn-success w-100" onclick="loadBlacklist()">
+                        <i class="fas fa-search me-1"></i><?php echo xlt('Search'); ?>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0" id="blTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th><?php echo xlt('Phone'); ?></th>
+                            <th><?php echo xlt('Facility'); ?></th>
+                            <th><?php echo xlt('Vendor'); ?></th>
+                            <th><?php echo xlt('Reason'); ?></th>
+                            <th class="text-center"><?php echo xlt('Failures'); ?></th>
+                            <th><?php echo xlt('Notes'); ?></th>
+                            <th><?php echo xlt('Last Updated'); ?></th>
+                            <th><?php echo xlt('Created'); ?></th>
+                            <th class="text-center"><?php echo xlt('Status'); ?></th>
+                            <th class="text-center"><?php echo xlt('Actions'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody id="blTableBody">
+                        <tr><td colspan="10" class="text-center text-muted py-4"><?php echo xlt('Use filters above and click Search.'); ?></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="blPagination" class="d-flex align-items-center gap-3 mt-2" style="display:none!important">
+                <small id="blCountLabel" class="text-muted"></small>
+                <div class="ms-auto d-flex gap-1">
+                    <button id="blPrevBtn" class="btn btn-xs btn-outline-secondary" onclick="blChangePage(-1)" disabled>
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <span id="blPageLabel" class="align-self-center small"></span>
+                    <button id="blNextBtn" class="btn btn-xs btn-outline-secondary" onclick="blChangePage(1)" disabled>
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <?php else: ?>
+        <div class="alert alert-warning"><?php echo xlt('Access to Blacklist requires administrator permissions.'); ?></div>
+        <?php endif; ?>
+
+    </div><!-- /tab-blacklist -->
+
+    <!-- Modal: Add Blacklist Entry -->
+    <div class="modal fade" id="blAddModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-ban me-2 text-danger"></i><?php echo xlt('Add to Blacklist'); ?></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="closeModalParent(this)"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo xlt('Facility'); ?></label>
+                        <select id="blAddFacility" class="form-select form-select-sm">
+                            <option value="0"><?php echo xlt('Global (all facilities)'); ?></option>
+                            <?php foreach ($facilities as $sf): ?>
+                            <option value="<?php echo attr((string)$sf['facility_id']); ?>"><?php echo text($sf['facility_name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo xlt('Vendor'); ?></label>
+                        <select id="blAddVendor" class="form-select form-select-sm">
+                            <option value="all"><?php echo xlt('All (global block)'); ?></option>
+                            <option value="ultramsg">UltraMsg</option>
+                            <option value="wasenderapi">WaSenderAPI</option>
+                            <option value="openwa">OpenWA</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo xlt('Phone Number'); ?> <span class="text-danger">*</span></label>
+                        <input type="text" id="blAddPhone" class="form-control form-control-sm" placeholder="e.g. 5491134567890">
+                        <div class="form-text"><?php echo xlt('International format without + (e.g. 5491134567890)'); ?></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo xlt('Notes'); ?></label>
+                        <textarea id="blAddNotes" class="form-control form-control-sm" rows="3" placeholder="<?php echo attr(xlt('Reason for manual blacklisting...')); ?>"></textarea>
+                    </div>
+                    <div id="blAddError" class="alert alert-danger py-2" style="display:none"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" onclick="closeModalParent(this)"><?php echo xlt('Cancel'); ?></button>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="blDoAdd()">
+                        <i class="fas fa-ban me-1"></i><?php echo xlt('Add to Blacklist'); ?>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
 </div><!-- /container-fluid -->
 
@@ -1241,6 +1511,16 @@ function loadFacilityConfig(facilityId) {
             initFacilityMap(c.latitude || -34.6037, c.longitude || -58.3816);
             document.getElementById('cfgEnabledWsp').checked    = parseInt(c.enabled_wsp   ?? 1) === 1;
             document.getElementById('cfgEnabledEmail').checked  = parseInt(c.enabled_email ?? 1) === 1;
+
+            // Sending Window
+            document.getElementById('cfgSendWeekdayStart').value = c.send_weekday_start ?? 7;
+            document.getElementById('cfgSendWeekdayEnd').value   = c.send_weekday_end   ?? 21;
+            document.getElementById('cfgSendSaturdayEnabled').checked = parseInt(c.send_saturday_enabled ?? 1) === 1;
+            document.getElementById('cfgSendSaturdayStart').value = c.send_saturday_start ?? 8;
+            document.getElementById('cfgSendSaturdayEnd').value   = c.send_saturday_end   ?? 13;
+            document.getElementById('cfgSendSundayEnabled').checked = parseInt(c.send_sunday_enabled ?? 0) === 1;
+            document.getElementById('cfgSendSundayStart').value  = c.send_sunday_start   ?? 9;
+            document.getElementById('cfgSendSundayEnd').value    = c.send_sunday_end     ?? 12;
             // ... Templates are now managed in the separate Manager Modal ...
             document.getElementById('facilityConfigForm').style.display = 'block';
 
@@ -1510,6 +1790,8 @@ document.getElementById('facilityConfigForm')?.addEventListener('submit', functi
     const fd = new FormData(this);
     fd.set('enabled_wsp',   document.getElementById('cfgEnabledWsp').checked   ? 1 : 0);
     fd.set('enabled_email', document.getElementById('cfgEnabledEmail').checked ? 1 : 0);
+    fd.set('send_saturday_enabled', document.getElementById('cfgSendSaturdayEnabled').checked ? 1 : 0);
+    fd.set('send_sunday_enabled',   document.getElementById('cfgSendSundayEnabled').checked ? 1 : 0);
 
     // Collect schedule rows and append as JSON
     const scheduleRows = [];
@@ -2389,6 +2671,207 @@ function closeModalParent(el) {
         document.body.classList.remove('modal-open');
     }
 }
+
+/* =========================================================================
+   BLACKLIST TAB
+   ========================================================================= */
+let blCurrentPage  = 0;
+const blPageSize   = 50;
+let blTotalRows    = 0;
+
+const blReasonLabels = {
+    MANUAL:     '<?php echo js_escape(xlt("Manual")); ?>',
+    INVALID:    '<?php echo js_escape(xlt("Invalid Number")); ?>',
+    FAILED_MAX: '<?php echo js_escape(xlt("Max Failures")); ?>',
+    TRACKING:   '<?php echo js_escape(xlt("Tracking")); ?>'
+};
+
+const blReasonColors = {
+    MANUAL:     'bg-warning text-dark',
+    INVALID:    'bg-secondary',
+    FAILED_MAX: 'bg-danger',
+    TRACKING:   'bg-light text-dark border'
+};
+
+function loadBlacklist(resetPage) {
+    if (resetPage) blCurrentPage = 0;
+    const facility = document.getElementById('blFilterFacility').value;
+    const vendor   = document.getElementById('blFilterVendor').value;
+    const reason   = document.getElementById('blFilterReason').value;
+    const active   = document.getElementById('blFilterActive').value;
+    const search   = document.getElementById('blFilterSearch').value.trim();
+
+    const params = new URLSearchParams({
+        limit:  blPageSize,
+        offset: blCurrentPage * blPageSize
+    });
+    if (facility !== '') params.set('facility_id', facility);
+    if (vendor   !== '') params.set('vendor',      vendor);
+    if (reason   !== '') params.set('reason',      reason);
+    if (active   !== '') params.set('active',      active);
+    if (search   !== '') params.set('search',      search);
+
+    const tbody = document.getElementById('blTableBody');
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i><?php echo js_escape(xlt("Loading...")); ?></td></tr>';
+
+    fetch(`${moduleRoot}/pages/ajax/get_blacklist.php?${params.toString()}`)
+        .then(r => r.json())
+        .then(data => {
+            blTotalRows = data.total || 0;
+            const rows  = data.rows  || [];
+
+            // Update pagination display
+            const pag = document.getElementById('blPagination');
+            pag.style.display = '';
+            document.getElementById('blCountLabel').textContent =
+                `${blTotalRows} <?php echo js_escape(xlt('records')); ?>`;
+            const totalPages = Math.max(1, Math.ceil(blTotalRows / blPageSize));
+            document.getElementById('blPageLabel').textContent =
+                `<?php echo js_escape(xlt('Page')); ?> ${blCurrentPage + 1} / ${totalPages}`;
+            document.getElementById('blPrevBtn').disabled = blCurrentPage <= 0;
+            document.getElementById('blNextBtn').disabled = (blCurrentPage + 1) >= totalPages;
+
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4"><?php echo js_escape(xlt("No records found.")); ?></td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = rows.map(r => {
+                const reasonBadge = `<span class="badge ${blReasonColors[r.reason] || 'bg-secondary'}">${escHtml(blReasonLabels[r.reason] || r.reason)}</span>`;
+
+                const activeBadge = r.is_active
+                    ? '<span class="badge bg-danger"><i class="fas fa-ban me-1"></i><?php echo js_escape(xlt("Blocked")); ?></span>'
+                    : '<span class="badge bg-success"><i class="fas fa-check me-1"></i><?php echo js_escape(xlt("Released")); ?></span>';
+
+                const toggleTitle = r.is_active ? '<?php echo js_escape(xlt("Release (re-enable)"));?>' : '<?php echo js_escape(xlt("Block again")); ?>';
+                const toggleClass = r.is_active ? 'btn-outline-success' : 'btn-outline-danger';
+                const toggleIcon  = r.is_active ? 'fa-unlock' : 'fa-lock';
+
+                const vendorBadge = `<span class="badge bg-light text-dark border">${escHtml(r.vendor)}</span>`;
+
+                const failCell = r.reason === 'TRACKING'
+                    ? `<span class="text-warning fw-bold">${r.fail_count}</span>`
+                    : (r.fail_count > 0 ? `<span class="text-danger fw-bold">${r.fail_count}</span>` : '—');
+
+                return `<tr class="${r.is_active ? '' : 'table-secondary opacity-75'}">
+                    <td><code>${escHtml(r.phone)}</code></td>
+                    <td><small>${escHtml(r.facility_name)}</small></td>
+                    <td>${vendorBadge}</td>
+                    <td>${reasonBadge}</td>
+                    <td class="text-center">${failCell}</td>
+                    <td><small class="text-muted" title="${escHtml(r.notes || '')}">${escHtml((r.notes || '').substring(0, 50))}${(r.notes || '').length > 50 ? '…' : ''}</small></td>
+                    <td><small class="text-muted">${escHtml(r.updated_at || '')}</small></td>
+                    <td><small class="text-muted">${escHtml(r.created_at || '')}</small></td>
+                    <td class="text-center">${activeBadge}</td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn ${toggleClass}" onclick="blToggle(${r.id})" title="${toggleTitle}">
+                                <i class="fas ${toggleIcon}"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="blRemove(${r.id}, '${escHtml(r.phone)}')" title="<?php echo js_escape(xlt('Delete permanently')); ?>">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        })
+        .catch(err => {
+            tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger py-4"><?php echo js_escape(xlt('Error loading data')); ?>: ${err}</td></tr>`;
+        });
+}
+
+function blChangePage(delta) {
+    const totalPages = Math.max(1, Math.ceil(blTotalRows / blPageSize));
+    blCurrentPage = Math.min(totalPages - 1, Math.max(0, blCurrentPage + delta));
+    loadBlacklist();
+}
+
+function blToggle(id) {
+    fetch(`${moduleRoot}/pages/ajax/manage_blacklist.php`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ action: 'toggle', id: id })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { alert(data.error); return; }
+        loadBlacklist();
+    })
+    .catch(err => alert('Error: ' + err));
+}
+
+function blRemove(id, phone) {
+    if (!confirm(`<?php echo js_escape(xlt('Permanently delete this record for')); ?> ${phone}?`)) return;
+    fetch(`${moduleRoot}/pages/ajax/manage_blacklist.php`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ action: 'remove', id: id })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { alert(data.error); return; }
+        loadBlacklist();
+    })
+    .catch(err => alert('Error: ' + err));
+}
+
+function showBlAddModal() {
+    document.getElementById('blAddPhone').value  = '';
+    document.getElementById('blAddNotes').value  = '';
+    document.getElementById('blAddError').style.display = 'none';
+    let modal;
+    try { modal = new bootstrap.Modal(document.getElementById('blAddModal')); }
+    catch(e) { modal = null; }
+    if (modal) { modal.show(); }
+    else {
+        document.getElementById('blAddModal').classList.add('show');
+        document.getElementById('blAddModal').style.display = 'block';
+    }
+}
+
+function blDoAdd() {
+    const phone  = document.getElementById('blAddPhone').value.trim();
+    const vendor = document.getElementById('blAddVendor').value;
+    const fac    = document.getElementById('blAddFacility').value;
+    const notes  = document.getElementById('blAddNotes').value.trim();
+    const errEl  = document.getElementById('blAddError');
+
+    if (!phone) {
+        errEl.textContent = '<?php echo js_escape(xlt("Phone number is required.")); ?>';
+        errEl.style.display = '';
+        return;
+    }
+    errEl.style.display = 'none';
+
+    fetch(`${moduleRoot}/pages/ajax/manage_blacklist.php`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ action: 'add', facility_id: parseInt(fac), vendor, phone, notes })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            errEl.textContent = data.error;
+            errEl.style.display = '';
+            return;
+        }
+        closeModalParent(document.getElementById('blAddModal').querySelector('button'));
+        loadBlacklist(true);
+    })
+    .catch(err => {
+        errEl.textContent = 'Error: ' + err;
+        errEl.style.display = '';
+    });
+}
+
+// Auto-load blacklist when that tab is active on page load
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('tab-blacklist') &&
+        !document.getElementById('tab-blacklist').classList.contains('d-none')) {
+        loadBlacklist(true);
+    }
+});
 </script>
 
 </body>

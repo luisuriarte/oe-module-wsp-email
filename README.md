@@ -143,30 +143,30 @@ Plus extended columns on `notification_log` (canonical status, priority, provide
 ## Architecture Overview
 
 ```
-┌──────────────┐     ┌───────────────────────────┐     ┌──────────────┐
-│    Cron      │────▶│  NotificationService      │────▶│  WspSender   │───▶ UltraMsg
-│  cron_wsp/   │     │  - runWsp/runEmail         │     │  - send()    │───▶ WaSenderAPI
-│  cron_email  │     │  - runOnBooking            │     │              │───▶ OpenWA
-└──────────────┘     │  - deliverWsp/deliverEmail │     └──────────────┘
-                     │  - syncLogStatus           │     ┌──────────────┐
-┌──────────────┐     │  - getPatientsForSlot      │────▶│  EmailSender │───▶ PHPMailer
-│ On-Booking   │────▶│  - insertLog               │     │  - send()    │     SMTP
-│ Hook         │     │  - markEventSent           │     └──────────────┘
-└──────────────┘     └───────────────────────────┘
+┌──────────────┐       ┌───────────────────────────┐      ┌──────────────┐
+│    Cron      │────▶  │  NotificationService      │────▶│  WspSender   │───▶ UltraMsg
+│  cron_wsp/   │       │  - runWsp/runEmail         │     │  - send()    │───▶ WaSenderAPI
+│  cron_email  │       │  - runOnBooking            │     │              │───▶ OpenWA
+└──────────────┘       │  - deliverWsp/deliverEmail │     └──────────────┘
+                       │  - syncLogStatus           │      ┌──────────────┐
+┌──────────────┐       │  - getPatientsForSlot      │────▶│  EmailSender │───▶ PHPMailer
+│ On-Booking   │────▶  │  - insertLog               │     │  - send()    │     SMTP
+│ Hook         │       │  - markEventSent           │      └──────────────┘
+└──────────────┘       └────────────────────────────┘
                               │
-                     ┌───────▼────────┐
+                     ┌───────▼─────────┐
                      │ NotificationLog │──▶ notification_log table
-                     │ - updateStatus │──▶ wsp_email_status_history
-                     └────────────────┘
-                              ▲
-                     ┌────────┴────────┐
-                     │  StatusNormalizer│
-                     │  - normalize    │
-                     │  - processWebhook│
+                     │ - updateStatus  │──▶ wsp_email_status_history
                      └─────────────────┘
                               ▲
+                     ┌────────┴─────────┐
+                     │  StatusNormalizer│
+                     │  - normalize     │
+                     │  - processWebhook│
+                     └──────────────────┘
+                              ▲
                      ┌────────┴────────┐
-                     │   Webhooks     │
+                     │   Webhooks      │
                      │  webhook.php    │
                      │  openwa/        │
                      │  webhook.php    │

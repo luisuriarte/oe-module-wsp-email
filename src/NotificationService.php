@@ -26,6 +26,8 @@ class NotificationService
     private EmailSender     $emailSender;
     private NotificationLog $log;
     private FacilityConfig  $facilityConfig;
+    private RateLimiter     $rateLimiter;
+    private Blacklist       $blacklist;
 
     /** Base public URL for temporary .ics files served to WhatsApp vendors. */
     private string $moduleBaseUrl;
@@ -38,6 +40,8 @@ class NotificationService
         $this->facilityConfig = new FacilityConfig();
         $this->moduleBaseUrl  = rtrim($GLOBALS['site_addr_oath'] ?? '', '/') .
                                 '/interface/modules/custom_modules/oe-module-wsp-email/public/ics/';
+        $this->rateLimiter = new RateLimiter();
+        $this->blacklist   = new Blacklist();
     }
 
     // =========================================================================
@@ -135,6 +139,41 @@ class NotificationService
                 $slots = [['seq' => 1, 'hours_before' => 48, 'send_on_booking' => 0, 'enabled_wsp' => 1, 'enabled_email' => 1]];
             }
 
+            // Check allowed sending window for this facility (day-aware)
+            $currentHour    = (int)date('G');
+            $currentDow     = (int)date('w'); // 0=Sunday, 1=Monday ... 6=Saturday
+
+            if ($currentDow === 6) {
+                // Saturday
+                $allowed = !empty($config['send_saturday_enabled']);
+                $start   = (int)($config['send_saturday_start'] ?? 8);
+                $end     = (int)($config['send_saturday_end']   ?? 13);
+                $dayName = 'Saturday';
+            } elseif ($currentDow === 0) {
+                // Sunday
+                $allowed = !empty($config['send_sunday_enabled']);
+                $start   = (int)($config['send_sunday_start'] ?? 9);
+                $end     = (int)($config['send_sunday_end']   ?? 12);
+                $dayName = 'Sunday';
+            } else {
+                // Monday to Friday
+                $allowed = true;
+                $start   = (int)($config['send_weekday_start'] ?? 7);
+                $end     = (int)($config['send_weekday_end']   ?? 21);
+                $dayName = 'Weekday';
+            }
+
+            if (!$allowed) {
+                echo "  Facility #{$facilityId} | {$dayName} sending disabled. Skipping.\n";
+                continue;
+            }
+
+            if ($currentHour < $start || $currentHour >= $end) {
+                echo "  Facility #{$facilityId} | Outside allowed hours "
+                . "({$currentHour}:00, allowed {$start}:00-{$end}:00 on {$dayName}). Skipping.\n";
+                continue;
+            }
+
             foreach ($slots as $slot) {
                 $seq         = (int)$slot['seq'];
                 $hoursBefore = (int)($slot['hours_before'] ?? 48);
@@ -151,7 +190,7 @@ class NotificationService
                     $this->mergeConfig($patient, $config);
 
                     echo "    pid={$patient['pid']} | "
-                       . trim($patient['fname'] . ' ' . $patient['lname']) . "\n";
+                    . trim($patient['fname'] . ' ' . $patient['lname']) . "\n";
 
                     if ($dryRun) {
                         echo "    [DRY-RUN] Skipping actual send.\n";
@@ -159,6 +198,14 @@ class NotificationService
                     }
 
                     if ($type === 'WSP') {
+                        $phone  = $patient['phone_cell'] ?? '';
+                        $vendor = strtolower($config['current_vendor'] ?? $config['vendor'] ?? 'wasenderapi');
+
+                        if ($this->blacklist->isBlacklisted($phone, $facilityId, $vendor)) {
+                            echo "    [BLACKLIST] Skipping phone={$phone} — blacklisted for vendor={$vendor}\n";
+                            continue;
+                        }
+
                         $this->deliverWsp($patient, $config, $seq, true);
                     } else {
                         $this->deliverEmail($patient, $config, $seq, true);
@@ -203,10 +250,34 @@ class NotificationService
         @unlink($icsPath);
 
         try {
+            $phone  = $patient['phone_cell'] ?? '';
+            $vendor = strtolower($config['current_vendor'] ?? $config['vendor'] ?? 'wasenderapi');
+            $facilityId = (int)($config['facility_id'] ?? $patient['pc_facility'] ?? 0);
+
+            // Rate limiting + delay aleatorio antes de enviar
+            $this->rateLimiter->throttle($facilityId, $vendor, $phone);
+
             $result = $this->wspSender->send($config, $patient);
             $msgId  = $result['msgId'] ?? null;
             $rawStatus = $result['status'] ?? 'error';
             $vendor = strtolower($config['current_vendor'] ?? $config['vendor'] ?? 'wasenderapi');
+
+            // Evaluate results for blacklisting
+            $this->blacklist->processResult($phone, $facilityId, $vendor, $result);
+
+            // Halt cron on critical errors (401 Unauthorized / 404 Not Found)
+            if ($rawStatus === 'UNAUTHORIZED') {
+                $err = "CRITICAL: API key is unauthorized (401) for facility #{$facilityId} on vendor={$vendor}. Halting cron execution.";
+                echo "    [CRITICAL] {$err}\n";
+                error_log($err);
+                throw new \Exception($err);
+            }
+            if ($rawStatus === 'NOT_FOUND') {
+                $err = "CRITICAL: Session ID not found (404) for facility #{$facilityId} on vendor={$vendor}. Halting cron execution.";
+                echo "    [CRITICAL] {$err}\n";
+                error_log($err);
+                throw new \Exception($err);
+            }
 
             // Normalize status using StatusNormalizer
             $canonicalStatus = StatusNormalizer::normalize($vendor, $rawStatus);
@@ -226,11 +297,16 @@ class NotificationService
             $this->insertLog('WSP', $patient, $config, null, 'error', $seq, 'ERROR', 0, strtolower($config['current_vendor'] ?? $config['vendor'] ?? 'wasenderapi'), ['error' => $errorMsg, 'log' => $errorLog]);
             
             echo "    ERROR: " . $errorMsg . "\n";
+
+            // If it's a critical halt exception, propagate it to stop the cron
+            if (strpos($errorMsg, 'CRITICAL:') === 0) {
+                throw $e;
+            }
         }
 
         // Allow time for vendor to download the .ics before deleting it
         sleep(5);
-        @unlink($publicIcsDir . $icsBase);
+        @unlink($publicIcsDir . $icsPublicName);
     }
 
     private function deliverEmail(array &$patient, array $config, int $seq, bool $updateCalFlag): void

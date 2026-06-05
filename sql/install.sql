@@ -35,12 +35,26 @@ CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
   `openwa_webhook_secret`    varchar(255)  DEFAULT NULL         COMMENT 'OpenWA Webhook HMAC Secret',
   
   -- General Configuration
-  `logo_wsp`            varchar(255)  DEFAULT NULL               COMMENT 'Logo URL for WhatsApp',
-  `logo_email`          varchar(255)  DEFAULT NULL               COMMENT 'Logo path for Email templates',
-  `latitude`            decimal(10,6) DEFAULT NULL               COMMENT 'Facility Latitude',
-  `longitude`           decimal(10,6) DEFAULT NULL               COMMENT 'Facility Longitude',
-  `geoapify_key`        varchar(255)  DEFAULT NULL               COMMENT 'Geoapify API Key',
-  
+  `logo_wsp`            varchar(255)  DEFAULT NULL              COMMENT 'Logo URL for WhatsApp',
+  `logo_email`          varchar(255)  DEFAULT NULL              COMMENT 'Logo path for Email templates',
+  `latitude`            decimal(10,6) DEFAULT NULL              COMMENT 'Facility Latitude',
+  `longitude`           decimal(10,6) DEFAULT NULL              COMMENT 'Facility Longitude',
+  `geoapify_key`        varchar(255)  DEFAULT NULL              COMMENT 'Geoapify API Key',
+
+  -- Weekday sending window (Monday to Friday)
+  `send_weekday_start`    tinyint(2)  NOT NULL DEFAULT 7        COMMENT 'Weekday first allowed send hour (0-23, inclusive)',
+  `send_weekday_end`      tinyint(2)  NOT NULL DEFAULT 21       COMMENT 'Weekday last allowed send hour (0-23, exclusive)',
+
+  -- Saturday
+  `send_saturday_enabled` tinyint(1)  NOT NULL DEFAULT 1        COMMENT 'Allow sending on Saturdays',
+  `send_saturday_start`   tinyint(2)  NOT NULL DEFAULT 8        COMMENT 'Saturday first allowed send hour (0-23, inclusive)',
+  `send_saturday_end`     tinyint(2)  NOT NULL DEFAULT 13       COMMENT 'Saturday last allowed send hour (0-23, exclusive)',
+
+  -- Sunday
+  `send_sunday_enabled`   tinyint(1)  NOT NULL DEFAULT 0        COMMENT 'Allow sending on Sundays',
+  `send_sunday_start`     tinyint(2)  NOT NULL DEFAULT 9        COMMENT 'Sunday first allowed send hour (0-23, inclusive)',
+  `send_sunday_end`       tinyint(2)  NOT NULL DEFAULT 12        COMMENT 'Sunday last allowed send hour (0-23, exclusive)',
+
   -- Legacy Templates (Deprecated: see wsp_email_notification_templates)
   `wsp_message`         text          DEFAULT NULL               COMMENT 'Deprecated: Global WhatsApp template',
   `email_message`       text          DEFAULT NULL               COMMENT 'Deprecated: Global Email template',
@@ -175,3 +189,38 @@ INSERT IGNORE INTO `list_options` (`list_id`, `option_id`, `title`, `seq`, `is_d
 ('apptstat', 'wsp-deliv',  'WSP: Delivered',  120, 0, 0, '', 'Message delivered to patient device'),
 ('apptstat', 'wsp-read',   'WSP: Read',       130, 0, 0, '', 'Message read by patient'),
 ('apptstat', 'wsp-err',    'WSP: Error',      140, 0, 0, '', 'Failed to send message');
+
+-- ---------------------------------------------------------------------------
+-- 7. Rate Limit Log (WhatsApp send rate control)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `wsp_email_rate_limit_log` (
+  `id`          int(11)      NOT NULL AUTO_INCREMENT,
+  `facility_id` int(11)      NOT NULL                           COMMENT 'FK -> facility.id',
+  `vendor`      varchar(50)  NOT NULL                           COMMENT 'Vendor identifier (openwa, ultramsg, wasenderapi)',
+  `phone`       varchar(30)  NOT NULL                           COMMENT 'Destination phone number',
+  `sent_at`     datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp of send attempt',
+  PRIMARY KEY (`id`),
+  KEY `idx_rate_facility_vendor_sent` (`facility_id`, `vendor`, `sent_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='WhatsApp send log for rate limiting control per time window';
+
+-- ---------------------------------------------------------------------------
+-- 8. Blacklist (numbers with permanent delivery failures)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `wsp_email_blacklist` (
+  `id`          int(11)      NOT NULL AUTO_INCREMENT,
+  `facility_id` int(11)      NOT NULL DEFAULT 0                 COMMENT 'FK -> facility.id (0 = global)',
+  `vendor`      varchar(50)  NOT NULL DEFAULT 'all'             COMMENT 'Affected vendor (all = applies to every vendor)',
+  `phone`       varchar(30)  NOT NULL                           COMMENT 'Blacklisted phone number',
+  `reason`      varchar(20)  NOT NULL DEFAULT 'FAILED_MAX'      COMMENT 'Reason: INVALID | FAILED_MAX | MANUAL',
+  `fail_count`  tinyint(3)   NOT NULL DEFAULT 0                 COMMENT 'Consecutive failure count',
+  `is_active`   tinyint(1)   NOT NULL DEFAULT 1                 COMMENT 'Active flag (0 = manually disabled)',
+  `notes`       varchar(255) DEFAULT NULL                       COMMENT 'Additional notes (e.g. number changed)',
+  `created_at`  datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`  datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_blacklist_facility_vendor_phone` (`facility_id`, `vendor`, `phone`),
+  KEY `idx_blacklist_phone` (`phone`),
+  KEY `idx_blacklist_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='Blacklist of WhatsApp numbers with permanent or manual delivery failures';

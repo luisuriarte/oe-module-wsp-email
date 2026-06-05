@@ -90,6 +90,15 @@ class FacilityConfig
             'openwa_instance'          => $data['openwa_instance']          ?? null,
             'openwa_api_key'           => $data['openwa_api_key']           ?? null,
             'openwa_webhook_secret'    => $data['openwa_webhook_secret']    ?? null,
+            // Sending Window Configuration
+            'send_weekday_start'       => isset($data['send_weekday_start'])    ? (int)$data['send_weekday_start']    : 7,
+            'send_weekday_end'         => isset($data['send_weekday_end'])      ? (int)$data['send_weekday_end']      : 21,
+            'send_saturday_enabled'    => isset($data['send_saturday_enabled']) ? (int)$data['send_saturday_enabled'] : 1,
+            'send_saturday_start'      => isset($data['send_saturday_start'])   ? (int)$data['send_saturday_start']   : 8,
+            'send_saturday_end'        => isset($data['send_saturday_end'])     ? (int)$data['send_saturday_end']     : 13,
+            'send_sunday_enabled'      => isset($data['send_sunday_enabled'])   ? (int)$data['send_sunday_enabled']   : 0,
+            'send_sunday_start'        => isset($data['send_sunday_start'])     ? (int)$data['send_sunday_start']     : 9,
+            'send_sunday_end'          => isset($data['send_sunday_end'])       ? (int)$data['send_sunday_end']       : 12,
             // Common configuration
             'logo_wsp'                 => $data['logo_wsp']                 ?? null,
             'logo_email'               => $data['logo_email']               ?? null,

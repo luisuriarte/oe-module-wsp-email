@@ -15,12 +15,14 @@ require_once __DIR__ . '/../../src/FacilityConfig.php';
 require_once __DIR__ . '/../../src/WspSender.php';
 require_once __DIR__ . '/../../src/EmailSender.php';
 require_once __DIR__ . '/../../src/NotificationService.php';
+require_once __DIR__ . '/../../src/Blacklist.php';
 
 use OpenEMR\Modules\WspEmail\NotificationLog;
 use OpenEMR\Modules\WspEmail\FacilityConfig;
 use OpenEMR\Modules\WspEmail\WspSender;
 use OpenEMR\Modules\WspEmail\EmailSender;
 use OpenEMR\Modules\WspEmail\NotificationService;
+use OpenEMR\Modules\WspEmail\Blacklist;
 
 header('Content-Type: application/json');
 
@@ -79,11 +81,25 @@ $row['facility_email']   = $config['facility_email']   ?? '';
 $type = $row['type'];
 
 if ($type === 'WSP') {
+    $phone  = $row['phone_cell'] ?? '';
+    $vendor = strtolower($config['current_vendor'] ?? $config['vendor'] ?? 'wasenderapi');
+    $facilityId = (int)($config['facility_id'] ?? $row['pc_facility'] ?? 0);
+
+    $blacklist = new Blacklist();
+    if ($blacklist->isBlacklisted($phone, $facilityId, $vendor)) {
+        echo json_encode(['success' => false, 'message' => 'Failed to resend: This number is blacklisted due to delivery failures.']);
+        exit;
+    }
+
     $template        = $config['wsp_message'] ?? '';
     $row['_message'] = WspSender::buildMessage($template, $row);
     $sender          = new WspSender();
     $result          = $sender->send($config, $row);
     $success         = $result['status'] === 'success';
+
+    // Update blacklist status based on the result
+    $blacklist->processResult($phone, $facilityId, $vendor, $result);
+
     $msgId           = $result['msgId'] ?? null;
     $notifLog->updateMsgId($logId, $msgId ?? '', $success ? 'in_progress' : 'error');
 } else {

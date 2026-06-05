@@ -68,6 +68,14 @@ $data = [
     'notify_hours_before' => (int)($_POST['notify_hours_before'] ?? 48),
     'enabled_wsp'         => (int)($_POST['enabled_wsp']         ?? 0),
     'enabled_email'       => (int)($_POST['enabled_email']       ?? 0),
+    'send_weekday_start'    => isset($_POST['send_weekday_start'])    ? (int)$_POST['send_weekday_start']    : 7,
+    'send_weekday_end'      => isset($_POST['send_weekday_end'])      ? (int)$_POST['send_weekday_end']      : 21,
+    'send_saturday_enabled' => isset($_POST['send_saturday_enabled']) ? (int)$_POST['send_saturday_enabled'] : 0,
+    'send_saturday_start'   => isset($_POST['send_saturday_start'])   ? (int)$_POST['send_saturday_start']   : 8,
+    'send_saturday_end'     => isset($_POST['send_saturday_end'])     ? (int)$_POST['send_saturday_end']     : 13,
+    'send_sunday_enabled'   => isset($_POST['send_sunday_enabled'])   ? (int)$_POST['send_sunday_enabled']   : 0,
+    'send_sunday_start'     => isset($_POST['send_sunday_start'])     ? (int)$_POST['send_sunday_start']     : 9,
+    'send_sunday_end'       => isset($_POST['send_sunday_end'])       ? (int)$_POST['send_sunday_end']       : 12,
 ];
 
 // Handle File Uploads
