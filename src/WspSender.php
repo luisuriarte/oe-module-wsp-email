@@ -455,43 +455,50 @@ class WspSender
                 }
             };
 
-            // 1. Send image with message as caption (appends map link if coordinates configured)
+            // Build text with optional map link (reused in fallback scenarios)
+            $textWithMap = $message;
+            if (!empty($config['latitude']) && !empty($config['longitude'])) {
+                $lat     = (float)$config['latitude'];
+                $lon     = (float)$config['longitude'];
+                $mapLink = "https://www.google.com/maps/search/?api=1&query={$lat},{$lon}";
+                $textWithMap .= "\n\n📍 " . $mapLink;
+            }
+
+            // 1. Send image with caption — fall back to plain text if image fails
             if (!empty($logoUrl)) {
-                $imgPayload = ['chatId' => $chatId, 'url' => $logoUrl];
-                $caption = $message;
-                if (!empty($config['latitude']) && !empty($config['longitude'])) {
-                    $lat = (float)$config['latitude'];
-                    $lon = (float)$config['longitude'];
-                    $mapLink = "https://www.google.com/maps/search/?api=1&query={$lat},{$lon}";
-                    $caption .= "\n\n📍 " . $mapLink;
-                }
-                if (!empty($caption)) {
-                    $imgPayload['caption'] = mb_substr($caption, 0, 1024);
-                }
+                $imgPayload          = ['chatId' => $chatId, 'image' => ['url' => $logoUrl]];
+                $imgPayload['caption'] = mb_substr($textWithMap, 0, 1024);
                 $imgBody = $safePost($imageUrl, $imgPayload, 'imagen');
+
                 if ($imgBody) {
                     $msgId = $extractMsgId($imgBody) ?? $msgId;
+                } else {
+                    // Image failed (e.g. logo URL not reachable from WA server) → send text
+                    $log[]    = 'OpenWA: image failed, falling back to send-text';
+                    $textBody = $safePost($textUrl, [
+                        'chatId' => $chatId,
+                        'text'   => mb_substr($textWithMap, 0, 4096),
+                    ], 'texto (fallback)');
+                    if ($textBody) {
+                        $msgId = $extractMsgId($textBody) ?? $msgId;
+                    }
                 }
             } else {
-                // Send plain text message
-                $textPayload = ['chatId' => $chatId, 'text' => $message];
-                if (!empty($config['latitude']) && !empty($config['longitude'])) {
-                    $lat = (float)$config['latitude'];
-                    $lon = (float)$config['longitude'];
-                    $mapLink = "https://www.google.com/maps/search/?api=1&query={$lat},{$lon}";
-                    $textPayload['text'] .= "\n\n📍 " . $mapLink;
-                }
-                $textBody = $safePost($textUrl, $textPayload, 'texto');
+                // No logo configured — send plain text directly
+                $textBody = $safePost($textUrl, [
+                    'chatId' => $chatId,
+                    'text'   => mb_substr($textWithMap, 0, 4096),
+                ], 'texto');
                 if ($textBody) {
                     $msgId = $extractMsgId($textBody) ?? $msgId;
                 }
             }
 
-            // 2. Try sending .ics document (optional)
+            // 2. Try sending .ics document (optional — failures are non-fatal)
             if (!empty($icsUrl)) {
                 $docBody = $safePost($docUrl, [
                     'chatId'   => $chatId,
-                    'url'      => $icsUrl,
+                    'document' => ['url' => $icsUrl],
                     'filename' => 'calendario.ics',
                     'caption'  => mb_substr(LocalizationHelper::appointmentAttachmentCaption(
                         (string)($config['facility_name'] ?? '')

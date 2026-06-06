@@ -2743,7 +2743,7 @@ function loadBlacklist(resetPage) {
                     ? '<span class="badge bg-danger"><i class="fas fa-ban me-1"></i><?php echo js_escape(xlt("Blocked")); ?></span>'
                     : '<span class="badge bg-success"><i class="fas fa-check me-1"></i><?php echo js_escape(xlt("Released")); ?></span>';
 
-                const toggleTitle = r.is_active ? '<?php echo js_escape(xlt("Release (re-enable)"));?>' : '<?php echo js_escape(xlt("Block again")); ?>';
+                const toggleTitle = r.is_active ? '<?php echo js_escape(xlt("Release — unblock this number"));?>' : '<?php echo js_escape(xlt("Block — re-blacklist this number")); ?>';
                 const toggleClass = r.is_active ? 'btn-outline-success' : 'btn-outline-danger';
                 const toggleIcon  = r.is_active ? 'fa-unlock' : 'fa-lock';
 
@@ -2765,16 +2765,21 @@ function loadBlacklist(resetPage) {
                     <td class="text-center">${activeBadge}</td>
                     <td class="text-center">
                         <div class="btn-group btn-group-sm">
-                            <button class="btn ${toggleClass}" onclick="blToggle(${r.id})" title="${toggleTitle}">
+                            <button class="btn ${toggleClass}" onclick="blToggle(${r.id})" title="${toggleTitle}" data-bs-toggle="tooltip" data-toggle="tooltip">
                                 <i class="fas ${toggleIcon}"></i>
                             </button>
-                            <button class="btn btn-outline-secondary" onclick="blRemove(${r.id}, '${escHtml(r.phone)}')" title="<?php echo js_escape(xlt('Delete permanently')); ?>">
+                            <button class="btn btn-outline-secondary" onclick="blRemove(${r.id}, '${escHtml(r.phone)}')" title="<?php echo js_escape(xlt('Delete permanently')); ?>" data-bs-toggle="tooltip" data-toggle="tooltip">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
                     </td>
                 </tr>`;
             }).join('');
+
+            // Initialise Bootstrap tooltips on newly added buttons
+            if (typeof $ !== 'undefined' && $.fn.tooltip) {
+                setTimeout(() => $('[data-bs-toggle="tooltip"]').tooltip('dispose').tooltip(), 0);
+            }
         })
         .catch(err => {
             tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger py-4"><?php echo js_escape(xlt('Error loading data')); ?>: ${err}</td></tr>`;
