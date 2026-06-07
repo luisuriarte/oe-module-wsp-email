@@ -608,6 +608,110 @@ class NotificationService
     }
 
     /**
+     * Send cancellation notification for an appointment that was cancelled (status 'x').
+     * Resolves the -cancelled template and sends via WSP and/or Email.
+     *
+     * @param int $pcEid     Appointment event ID
+     * @param int $facilityId Facility ID
+     */
+    public function sendCancellation(int $pcEid, int $facilityId): void
+    {
+        $config = $this->facilityConfig->getByFacilityId($facilityId);
+        if (empty($config)) {
+            echo "  Cancellation: No configuration for facility_id={$facilityId}\n";
+            return;
+        }
+
+        if (empty($config['enabled_wsp']) && empty($config['enabled_email'])) {
+            echo "  Cancellation: No channel enabled for facility_id={$facilityId}\n";
+            return;
+        }
+
+        // Fetch appointment + patient data
+        $sql = "SELECT pd.pid, pd.title, pd.fname, pd.lname, pd.mname, pd.phone_cell,
+                       pd.email, pd.hipaa_allowsms, pd.hipaa_allowemail,
+                       ope.pc_eid, ope.pc_pid, ope.pc_eventDate, ope.pc_endDate,
+                       ope.pc_startTime, ope.pc_endTime, ope.pc_facility, ope.pc_catid,
+                       ope.pc_apptstatus,
+                       CONCAT(u.fname,' ',IFNULL(u.mname,''),' ',u.lname) AS user_name,
+                       u.suffix AS user_preffix
+                FROM openemr_postcalendar_events ope
+                INNER JOIN patient_data pd ON pd.pid = ope.pc_pid
+                LEFT  JOIN users        u  ON u.id   = ope.pc_aid
+                WHERE ope.pc_eid = ?";
+        $patient = sqlQuery($sql, [$pcEid]);
+        if (empty($patient)) {
+            echo "  Cancellation: Appointment {$pcEid} not found\n";
+            return;
+        }
+
+        $this->mergeConfig($patient, $config);
+
+        // Normalise status for template lookup
+        $pcStatus = WspSender::normalizeApptStatusForTemplate(
+            (string)($patient['tracker_status'] ?? ''),
+            (string)($patient['pc_apptstatus'] ?? '')
+        );
+        $pcCatid = (int)($patient['pc_catid'] ?? 0);
+
+        // Resolve cancellation template once, reuse for both channels
+        $template = '';
+        if (!empty($pcCatid)) {
+            $template = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'wsp', 'patient');
+            if (empty($template)) {
+                // Fallback: try email channel template
+                $template = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'email', 'patient');
+            }
+        }
+        $patient['_message'] = WspSender::buildMessage($template, $patient);
+        // Resolve email subject from cancellation template
+        $config['email_subject'] = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'email', 'patient', 'email_subject');
+
+        $seq = 0; // cancellation uses seq=0 (not tied to schedule slots)
+
+        // Send WhatsApp
+        if (!empty($config['enabled_wsp'])) {
+            $phone  = $patient['phone_cell'] ?? '';
+            $vendor = strtolower($config['current_vendor'] ?? $config['vendor'] ?? 'wasenderapi');
+
+            if (!empty($phone) && ($patient['hipaa_allowsms'] ?? '') === 'YES') {
+                if (!$this->blacklist->isBlacklisted($phone, $facilityId, $vendor)) {
+                    try {
+                        $result = $this->wspSender->send($config, $patient);
+                        $msgId  = $result['msgId'] ?? null;
+                        $rawStatus = $result['status'] ?? 'error';
+                        $this->blacklist->processResult($phone, $facilityId, $vendor, $result);
+                        $canonicalStatus = StatusNormalizer::normalize($vendor, $rawStatus);
+                        $statusPriority  = StatusNormalizer::getPriority($canonicalStatus);
+                        $this->insertLog('WSP', $patient, $config, $msgId, $rawStatus, $seq, $canonicalStatus, $statusPriority, $vendor, $result);
+                        echo "  Cancellation WSP sent to {$phone}: {$rawStatus}\n";
+                    } catch (\Throwable $e) {
+                        $this->insertLog('WSP', $patient, $config, null, 'error', $seq, 'ERROR', 0, $vendor, ['error' => $e->getMessage()]);
+                        echo "  Cancellation WSP error: " . $e->getMessage() . "\n";
+                    }
+                } else {
+                    echo "  Cancellation WSP skipped for {$phone}: blacklisted\n";
+                }
+            }
+        }
+
+        // Send Email
+        if (!empty($config['enabled_email'])) {
+            $email = $patient['email'] ?? '';
+            if (!empty($email) && ($patient['hipaa_allowemail'] ?? '') === 'YES') {
+                try {
+                    $this->emailSender->send($config, $patient);
+                    $this->insertLog('EMAIL', $patient, $config, null, 'sent', $seq, 'SENT', 10, null, null);
+                    echo "  Cancellation Email sent to {$email}\n";
+                } catch (\Throwable $e) {
+                    $this->insertLog('EMAIL', $patient, $config, null, 'error', $seq, 'ERROR', 0, null, ['error' => $e->getMessage()]);
+                    echo "  Cancellation Email error: " . $e->getMessage() . "\n";
+                }
+            }
+        }
+    }
+
+    /**
      * Manually syncs the status of a specific log entry from the vendor API.
      */
     public function syncLogStatus(int $logId): array

@@ -466,7 +466,7 @@ class WspSender
 
             // 1. Send image with caption — fall back to plain text if image fails
             if (!empty($logoUrl)) {
-                $imgPayload          = ['chatId' => $chatId, 'image' => ['url' => $logoUrl]];
+                $imgPayload          = ['chatId' => $chatId, 'url' => $logoUrl];
                 $imgPayload['caption'] = mb_substr($textWithMap, 0, 1024);
                 $imgBody = $safePost($imageUrl, $imgPayload, 'imagen');
 
@@ -498,7 +498,7 @@ class WspSender
             if (!empty($icsUrl)) {
                 $docBody = $safePost($docUrl, [
                     'chatId'   => $chatId,
-                    'document' => ['url' => $icsUrl],
+                    'url'      => $icsUrl,
                     'filename' => 'calendario.ics',
                     'caption'  => mb_substr(LocalizationHelper::appointmentAttachmentCaption(
                         (string)($config['facility_name'] ?? '')

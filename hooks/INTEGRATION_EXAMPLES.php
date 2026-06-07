@@ -55,6 +55,30 @@ if ($mode == 'new' && !empty($newEid)) {
 
 
 // =========================================================================
+// CANCELACIÓN DE CITAS — Notificación al cancelar (AUTOMÁTICO)
+// =========================================================================
+
+// Si ya tenés integrado OnBookingHook::onAppointmentSave(), la cancelación
+// se detecta automáticamente: cuando pc_apptstatus = 'x', el hook envía
+// la notificación usando la plantilla con status -cancelled.
+//
+// No requiere cambios adicionales si ya llamás a onAppointmentSave().
+//
+// Si preferís un hook separado, usá on_cancel_hook.php:
+//
+//   if ($pc_apptstatus === 'x') {
+//       require_once __DIR__ . '/interface/modules/custom_modules/oe-module-wsp-email/hooks/on_cancel_hook.php';
+//       \OpenEMR\Modules\WspEmail\OnCancelHook::onAppointmentCancel($pcEid, $facility);
+//   }
+//
+// El hook de cancelación:
+// 1. Busca la plantilla con status -cancelled en wsp_email_notification_templates
+// 2. Envía WSP y/o Email según la configuración de la facility
+// 3. Registra el envío en notification_log con notification_seq = 0
+// 4. Requiere que la plantilla -cancelled esté configurada en el Template Manager
+
+
+// =========================================================================
 // Notas importantes:
 // =========================================================================
 // 1. El hook solo envía notificaciones si hay slots configurados con 
@@ -62,3 +86,4 @@ if ($mode == 'new' && !empty($newEid)) {
 // 2. El hook verifica las banderas enabled_wsp y enabled_email
 // 3. El hook verifica los permisos HIPAA del paciente
 // 4. Para edición de citas, usa editMode=true para NO re-enviar notificaciones
+// 5. Para cancelación, el template debe tener pc_apptstatus = -cancelled

@@ -24,7 +24,7 @@ if (!defined('OPENEMR')) {
 class OnBookingHook
 {
     /**
-     * Se llama cuando se guarda una cita (crear o editar).
+     * Se llama cuando se guarda una cita (crear, editar o cancelar).
      * 
      * @param array $appointment Datos de la cita:
      *   - pc_eid: ID del evento
@@ -34,11 +34,29 @@ class OnBookingHook
      *   - pc_startTime: Hora de inicio (HH:MM:SS)
      *   - pc_endTime: Hora de fin (HH:MM:SS)
      *   - pc_aid: ID del proveedor
+     *   - pc_apptstatus: Estado de la cita (opcional)
      *   - editMode: true si es edición, false si es nueva
      */
     public static function onAppointmentSave(array $appointment): void
     {
-        // Solo notificar si es una cita nueva (no en edición)
+        // Detectar cancelación (pc_apptstatus = 'x')
+        $apptStatus = $appointment['pc_apptstatus'] ?? '';
+        if (strtolower($apptStatus) === 'x') {
+            $facilityId = (int)($appointment['pc_facility'] ?? 0);
+            $pcEid      = (int)($appointment['pc_eid'] ?? 0);
+            if ($pcEid > 0 && $facilityId > 0) {
+                try {
+                    $notificationService = new NotificationService();
+                    $notificationService->sendCancellation($pcEid, $facilityId);
+                    error_log("WspEmail Hook: Cancellation notification sent for eid={$pcEid}");
+                } catch (\Exception $e) {
+                    error_log("WspEmail Hook Cancel Error: " . $e->getMessage());
+                }
+            }
+            return;
+        }
+
+        // Notificación on-booking solo para citas nuevas
         if (!empty($appointment['editMode'])) {
             return;
         }
