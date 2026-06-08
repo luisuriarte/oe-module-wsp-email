@@ -26,7 +26,6 @@ if (!AclMain::aclCheckCore('patients', 'demo')) {
 
 $pcCatId     = (int)($_GET['pc_catid'] ?? 0);
 $apptStatus  = $_GET['pc_apptstatus'] ?? '-scheduled';
-$type        = strtoupper($_GET['type'] ?? 'WSP');
 $recipient   = $_GET['recipient'] ?? 'patient';
 $facilityId  = (int)($_GET['facility_id'] ?? 0);
 
@@ -35,16 +34,14 @@ if (!$pcCatId) {
     exit;
 }
 
-$channel = ($type === 'EMAIL') ? 'email' : 'wsp';
-
 // Fetch template from wsp_email_notification_templates
 $sql = "SELECT * FROM wsp_email_notification_templates 
-        WHERE facility_id = ? AND pc_catid = ? AND pc_apptstatus = ? AND recipient_type = ? AND channel = ? AND enabled = 1
+        WHERE facility_id = ? AND pc_catid = ? AND pc_apptstatus = ? AND recipient_type = ? AND enabled = 1
         LIMIT 1";
 
-$tpl = sqlQuery($sql, [$facilityId, $pcCatId, $apptStatus, $recipient, $channel]);
+$tpl = sqlQuery($sql, [$facilityId, $pcCatId, $apptStatus, $recipient]);
 
-if ($tpl && !empty($tpl['wsp_message']) || !empty($tpl['email_message']) || !empty($tpl['email_subject'])) {
+if ($tpl && (!empty($tpl['wsp_message']) || !empty($tpl['email_message']) || !empty($tpl['email_subject']))) {
     echo json_encode([
         'success' => true,
         'wsp_message' => $tpl['wsp_message'] ?? '',
@@ -54,9 +51,9 @@ if ($tpl && !empty($tpl['wsp_message']) || !empty($tpl['email_message']) || !emp
 } else {
     // Fallback: try with default facility_id=0 or generic template
     $sqlFallback = "SELECT * FROM wsp_email_notification_templates 
-                    WHERE facility_id = 0 AND pc_catid = ? AND pc_apptstatus = ? AND recipient_type = ? AND channel = ? AND enabled = 1
+                    WHERE facility_id = 0 AND pc_catid = ? AND pc_apptstatus = ? AND recipient_type = ? AND enabled = 1
                     LIMIT 1";
-    $tplFallback = sqlQuery($sqlFallback, [$pcCatId, $apptStatus, $recipient, $channel]);
+    $tplFallback = sqlQuery($sqlFallback, [$pcCatId, $apptStatus, $recipient]);
     
     if ($tplFallback) {
         echo json_encode([

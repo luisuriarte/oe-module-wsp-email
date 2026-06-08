@@ -230,7 +230,7 @@ class NotificationService
         );
         $template = '';
         if (!empty($pcCatid)) {
-            $template = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'wsp', 'patient');
+            $template = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'patient');
         }
         $patient['_message'] = WspSender::buildMessage($template, $patient);
 
@@ -238,9 +238,13 @@ class NotificationService
         $icsPath            = WspSender::buildIcsFile($patient, $config);
         $icsPublicName      = 'calendario.ics';
 
-        // Use facility website URL as base for ICS URL (must be publicly accessible)
+        // Build public URL for the .ics file (must be reachable by the WhatsApp vendor)
         $baseUrl = rtrim($config['website_url'] ?? '', '/');
+        if (empty($baseUrl)) {
+            $baseUrl = rtrim($GLOBALS['site_addr_oath'] ?? '', '/');
+        }
         $patient['_ics_url'] = "{$baseUrl}/interface/modules/custom_modules/oe-module-wsp-email/public/ics/{$icsPublicName}";
+        error_log("WspEmail deliverWsp: _ics_url={$patient['_ics_url']}, website_url={$config['website_url']}, site_addr_oath=" . ($GLOBALS['site_addr_oath'] ?? '(not set)'));
 
         $publicIcsDir = __DIR__ . '/../public/ics/';
         if (!is_dir($publicIcsDir)) {
@@ -320,11 +324,11 @@ class NotificationService
         );
         $template = '';
         if (!empty($pcCatid)) {
-            $template = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'email', 'patient');
+            $template = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'patient');
         }
         $patient['_message'] = WspSender::buildMessage($template, $patient);
         // Also resolve email subject from templates
-        $config['email_subject'] = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'email', 'patient', 'email_subject');
+        $config['email_subject'] = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'patient', 'email_subject');
 
         $ok     = $this->emailSender->send($config, $patient);
         $rawStatus = $ok ? 'sent' : 'error';
@@ -351,18 +355,17 @@ class NotificationService
         $this->updateTracker($patient, 'EMAIL');
     }
 
-    private function resolveNotificationTemplate(int $facilityId, int $pcCatid, string $pcApptstatus, string $channel, string $recipientType = 'patient'): string
+    private function resolveNotificationTemplate(int $facilityId, int $pcCatid, string $pcApptstatus, string $recipientType = 'patient'): string
     {
         // Try exact match first: facility_id + pc_catid + pc_apptstatus + recipient_type
         $sql = "SELECT wsp_message FROM wsp_email_notification_templates
                 WHERE facility_id = ?
                   AND pc_catid = ?
                   AND pc_apptstatus = ?
-                  AND channel = ?
                   AND recipient_type = ?
                   AND enabled = 1
                 LIMIT 1";
-        $row = sqlQuery($sql, [$facilityId, $pcCatid, $pcApptstatus, $channel, $recipientType]);
+        $row = sqlQuery($sql, [$facilityId, $pcCatid, $pcApptstatus, $recipientType]);
         if (!empty($row['wsp_message'])) {
             return $row['wsp_message'];
         }
@@ -371,11 +374,10 @@ class NotificationService
                 WHERE facility_id = ?
                   AND pc_catid = ?
                   AND pc_apptstatus = '-'
-                  AND channel = ?
                   AND recipient_type = ?
                   AND enabled = 1
                 LIMIT 1";
-        $row = sqlQuery($sql, [$facilityId, $pcCatid, $channel, $recipientType]);
+        $row = sqlQuery($sql, [$facilityId, $pcCatid, $recipientType]);
         if (!empty($row['wsp_message'])) {
             return $row['wsp_message'];
         }
@@ -384,11 +386,10 @@ class NotificationService
                 WHERE facility_id = ?
                   AND pc_catid = 0
                   AND pc_apptstatus = '-'
-                  AND channel = ?
                   AND recipient_type = ?
                   AND enabled = 1
                 LIMIT 1";
-        $row = sqlQuery($sql, [$facilityId, $channel, $recipientType]);
+        $row = sqlQuery($sql, [$facilityId, $recipientType]);
         return $row['wsp_message'] ?? '';
     }
 
@@ -473,6 +474,7 @@ class NotificationService
                        pd.email, pd.hipaa_allowsms, pd.hipaa_allowemail,
                        ope.pc_eid, ope.pc_pid, ope.pc_eventDate, ope.pc_endDate,
                        ope.pc_startTime, ope.pc_endTime, ope.pc_facility,
+                       ope.pc_catid, ope.pc_apptstatus, ope.pc_hometext,
                        CONCAT(u.fname,' ',IFNULL(u.mname,''),' ',u.lname) AS user_name,
                        u.suffix AS user_preffix
                 FROM openemr_postcalendar_events ope
@@ -622,6 +624,11 @@ class NotificationService
             return;
         }
 
+        if (empty($config['notify_cancelled'])) {
+            echo "  Cancellation: Notifications disabled for facility_id={$facilityId} (notify_cancelled=0)\n";
+            return;
+        }
+
         if (empty($config['enabled_wsp']) && empty($config['enabled_email'])) {
             echo "  Cancellation: No channel enabled for facility_id={$facilityId}\n";
             return;
@@ -654,18 +661,14 @@ class NotificationService
         );
         $pcCatid = (int)($patient['pc_catid'] ?? 0);
 
-        // Resolve cancellation template once, reuse for both channels
+        // Resolve cancellation template (single row per scenario)
         $template = '';
         if (!empty($pcCatid)) {
-            $template = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'wsp', 'patient');
-            if (empty($template)) {
-                // Fallback: try email channel template
-                $template = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'email', 'patient');
-            }
+            $template = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'patient');
         }
         $patient['_message'] = WspSender::buildMessage($template, $patient);
-        // Resolve email subject from cancellation template
-        $config['email_subject'] = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'email', 'patient', 'email_subject');
+        // Resolve email subject from the same template row
+        $config['email_subject'] = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'patient', 'email_subject');
 
         $seq = 0; // cancellation uses seq=0 (not tied to schedule slots)
 
@@ -700,7 +703,7 @@ class NotificationService
             $email = $patient['email'] ?? '';
             if (!empty($email) && ($patient['hipaa_allowemail'] ?? '') === 'YES') {
                 try {
-                    $this->emailSender->send($config, $patient);
+                    $this->emailSender->send($config, $patient, false);
                     $this->insertLog('EMAIL', $patient, $config, null, 'sent', $seq, 'SENT', 10, null, null);
                     echo "  Cancellation Email sent to {$email}\n";
                 } catch (\Throwable $e) {

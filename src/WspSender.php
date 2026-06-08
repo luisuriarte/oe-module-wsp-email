@@ -78,7 +78,7 @@ class WspSender
                 (string)($patient['pc_apptstatus'] ?? '')
             );
             if (!empty($pcCatid)) {
-                $template = self::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'wsp', 'patient');
+                $template = self::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'patient');
                 if (!empty($template)) {
                     $message = self::buildMessage($template, $patient);
                 }
@@ -604,21 +604,31 @@ class WspSender
 
     public static function normalizeApptStatusForTemplate(string $trackerStatus, string $eventStatus): string
     {
+        // Map core appointment statuses to template suffixes
+        $coreStatusMap = [
+            'x' => '-cancelled',
+            '%' => '-noshow',
+        ];
+        // Check eventStatus first when tracker is empty (e.g. sendCancellation path)
+        if (empty($trackerStatus) || $trackerStatus === '-') {
+            if (isset($coreStatusMap[$eventStatus])) {
+                return $coreStatusMap[$eventStatus];
+            }
+            return '-scheduled';
+        }
+
         $blockedStatuses = [
             'x' => '', '%' => '', '?' => '', '*' => '', '@' => '',
             '~' => '', '!' => '', '#' => '', '<' => '', '>' => '', '$' => '',
             'AVM' => '', 'SMS' => '', 'EMAIL' => '',
             'wsp-sent' => '', 'wsp-deliv' => '', 'wsp-read' => '', 'wsp-err' => '',
         ];
-        if (!empty($trackerStatus) && $trackerStatus !== '-' && isset($blockedStatuses[$trackerStatus])) {
+        if ($trackerStatus !== '-' && isset($blockedStatuses[$trackerStatus])) {
             return $blockedStatuses[$trackerStatus];
         }
         $allowMap = ['^' => '-pending', 'CALL' => '-callback'];
-        if (!empty($trackerStatus) && isset($allowMap[$trackerStatus])) {
+        if (isset($allowMap[$trackerStatus])) {
             return $allowMap[$trackerStatus];
-        }
-        if ($trackerStatus === '-' || empty($trackerStatus)) {
-            return '-scheduled';
         }
         if (!empty($eventStatus) && str_starts_with($eventStatus, '-')) {
             if (in_array($eventStatus, ['-scheduled', '-pending'])) {
@@ -629,21 +639,21 @@ class WspSender
         return '-scheduled';
     }
 
-    public static function resolveTemplate(int $facilityId, int $pcCatid, string $pcApptstatus, string $channel, string $recipientType = 'patient', string $field = 'wsp_message'): string
+    public static function resolveTemplate(int $facilityId, int $pcCatid, string $pcApptstatus, string $recipientType = 'patient', string $field = 'wsp_message'): string
     {
-        // 1. Exact match: facility_id + pc_catid + pc_apptstatus + channel + recipient_type
+        // 1. Exact match: facility_id + pc_catid + pc_apptstatus + recipient_type
         $sql = "SELECT $field FROM wsp_email_notification_templates
                 WHERE facility_id = ? AND pc_catid = ? AND pc_apptstatus = ?
-                  AND channel = ? AND recipient_type = ? AND enabled = 1
+                  AND recipient_type = ? AND enabled = 1
                 LIMIT 1";
-        $row = sqlQuery($sql, [$facilityId, $pcCatid, $pcApptstatus, $channel, $recipientType]);
+        $row = sqlQuery($sql, [$facilityId, $pcCatid, $pcApptstatus, $recipientType]);
         if (!empty($row[$field])) {
             return $row[$field];
         }
         // 2. Fallback: facility_id + pc_catid, any status (prefer scheduled over cancelled)
         $sql = "SELECT $field FROM wsp_email_notification_templates
                 WHERE facility_id = ? AND pc_catid = ?
-                  AND channel = ? AND recipient_type = ? AND enabled = 1
+                  AND recipient_type = ? AND enabled = 1
                 ORDER BY CASE pc_apptstatus
                     WHEN '-scheduled' THEN 0 WHEN '-confirmed' THEN 1
                     WHEN '-' THEN 2
@@ -651,16 +661,16 @@ class WspSender
                     ELSE 5
                 END
                 LIMIT 1";
-        $row = sqlQuery($sql, [$facilityId, $pcCatid, $channel, $recipientType]);
+        $row = sqlQuery($sql, [$facilityId, $pcCatid, $recipientType]);
         if (!empty($row[$field])) {
             return $row[$field];
         }
         // 3. Fallback: facility_id only, wildcard category
         $sql = "SELECT $field FROM wsp_email_notification_templates
                 WHERE facility_id = ? AND pc_catid = 0
-                  AND channel = ? AND recipient_type = ? AND enabled = 1
+                  AND recipient_type = ? AND enabled = 1
                 LIMIT 1";
-        $row = sqlQuery($sql, [$facilityId, $channel, $recipientType]);
+        $row = sqlQuery($sql, [$facilityId, $recipientType]);
         return $row[$field] ?? '';
     }
 

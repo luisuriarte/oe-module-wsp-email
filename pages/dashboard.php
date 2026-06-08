@@ -578,6 +578,15 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
                                     <label class="form-label mb-0" for="cfgEnabledEmail"><?php echo xlt('Email enabled'); ?></label>
                                 </div>
                             </div>
+                            <div class="col-md-4">
+                                <div class="d-flex align-items-center gap-2">
+                                    <label class="custom-checkbox">
+                                        <input type="checkbox" name="notify_cancelled" id="cfgNotifyCancelled" value="1">
+                                        <span class="slider"></span>
+                                    </label>
+                                    <label class="form-label mb-0" for="cfgNotifyCancelled"><?php echo xlt('Notify on cancellation'); ?></label>
+                                </div>
+                            </div>
                         </div>
 
                          <hr>
@@ -1511,6 +1520,7 @@ function loadFacilityConfig(facilityId) {
             initFacilityMap(c.latitude || -34.6037, c.longitude || -58.3816);
             document.getElementById('cfgEnabledWsp').checked    = parseInt(c.enabled_wsp   ?? 1) === 1;
             document.getElementById('cfgEnabledEmail').checked  = parseInt(c.enabled_email ?? 1) === 1;
+            document.getElementById('cfgNotifyCancelled').checked = parseInt(c.notify_cancelled ?? 0) === 1;
 
             // Sending Window
             document.getElementById('cfgSendWeekdayStart').value = c.send_weekday_start ?? 7;
@@ -1790,6 +1800,7 @@ document.getElementById('facilityConfigForm')?.addEventListener('submit', functi
     const fd = new FormData(this);
     fd.set('enabled_wsp',   document.getElementById('cfgEnabledWsp').checked   ? 1 : 0);
     fd.set('enabled_email', document.getElementById('cfgEnabledEmail').checked ? 1 : 0);
+    fd.set('notify_cancelled', document.getElementById('cfgNotifyCancelled').checked ? 1 : 0);
     fd.set('send_saturday_enabled', document.getElementById('cfgSendSaturdayEnabled').checked ? 1 : 0);
     fd.set('send_sunday_enabled',   document.getElementById('cfgSendSundayEnabled').checked ? 1 : 0);
 
@@ -2460,10 +2471,22 @@ function openTemplateManager() {
     
     document.getElementById('tmFacilityId').value = facId;
     const tbody = document.getElementById('templateTableBody');
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
     
     const modal = new bootstrap.Modal(document.getElementById('modalTemplateManager'));
     modal.show();
+
+    // Load categories
+    fetch(`${moduleRoot}/pages/ajax/get_categories.php`)
+        .then(r => r.json())
+        .then(cats => {
+            const sel = document.getElementById('tmNewCat');
+            sel.innerHTML = '<option value="">-- Select --</option>';
+            (cats.rows || []).forEach(c => {
+                sel.innerHTML += `<option value="${c.pc_catid}">${escHtml(c.category)}</option>`;
+            });
+        })
+        .catch(() => {});
 
     fetch(`${moduleRoot}/pages/ajax/get_templates.php?facility_id=${facId}`)
         .then(r => r.json())
@@ -2472,8 +2495,42 @@ function openTemplateManager() {
             renderTemplateTable();
         })
         .catch(err => {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-danger">Error loading templates: ${err}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="text-danger">Error loading templates: ${err}</td></tr>`;
         });
+}
+
+function toggleAddForm() {
+    const f = document.getElementById('addTemplateForm');
+    f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function addTemplateRow() {
+    const catId  = document.getElementById('tmNewCat').value;
+    const status = document.getElementById('tmNewStatus').value;
+    const recip  = document.getElementById('tmNewRecipient').value;
+    if (!catId) { alert('Select a category'); return; }
+    const catName = document.querySelector('#tmNewCat option:checked').text;
+
+    allTemplatesData.push({
+        id: 0,
+        facility_id: parseInt(document.getElementById('tmFacilityId').value),
+        pc_catid: parseInt(catId),
+        category_name: catName,
+        pc_apptstatus: status,
+        recipient_type: recip,
+        wsp_message: '',
+        email_subject: '',
+        email_message: '',
+        enabled: 1
+    });
+    renderTemplateTable();
+    toggleAddForm();
+}
+
+function removeTemplateRow(index) {
+    if (!confirm('Remove this template?')) return;
+    allTemplatesData.splice(index, 1);
+    renderTemplateTable();
 }
 
 function renderTemplateTable() {
@@ -2482,19 +2539,30 @@ function renderTemplateTable() {
 
     allTemplatesData.forEach((tpl, index) => {
         const tr = document.createElement('tr');
-        const chanBadge = tpl.channel === 'wsp' ? 'bg-success' : 'bg-primary';
-        const recvBadge = tpl.recipient_type === 'patient' ? 'bg-info' : 'bg-warning text-dark';
-        
         tr.innerHTML = `
+            <td><strong>${escHtml(tpl.category_name || tpl.pc_catid)}</strong></td>
             <td>
-                <strong>${escHtml(tpl.category_name || tpl.pc_catid)}</strong><br>
-                <span class="badge bg-secondary">${escHtml(tpl.pc_apptstatus)}</span>
+                <select class="form-select form-select-sm status-select" data-idx="${index}"
+                    onchange="updateTpl(${index}, 'pc_apptstatus', this.value); renderTemplateTable();">
+                    <option value="-scheduled" ${tpl.pc_apptstatus === '-scheduled' ? 'selected' : ''}>-scheduled</option>
+                    <option value="-cancelled" ${tpl.pc_apptstatus === '-cancelled' ? 'selected' : ''}>-cancelled</option>
+                    <option value="-noshow" ${tpl.pc_apptstatus === '-noshow' ? 'selected' : ''}>-noshow</option>
+                    <option value="-pending" ${tpl.pc_apptstatus === '-pending' ? 'selected' : ''}>-pending</option>
+                    <option value="-" ${tpl.pc_apptstatus === '-' || (tpl.pc_apptstatus !== '-scheduled' && tpl.pc_apptstatus !== '-cancelled' && tpl.pc_apptstatus !== '-noshow' && tpl.pc_apptstatus !== '-pending') ? 'selected' : ''}>- (any)</option>
+                </select>
             </td>
-            <td><span class="badge ${chanBadge}">${tpl.channel}</span></td>
-            <td><span class="badge ${recvBadge}">${tpl.recipient_type}</span></td>
+            <td>
+                <select class="form-select form-select-sm" onchange="updateTpl(${index}, 'recipient_type', this.value)">
+                    <option value="patient" ${tpl.recipient_type === 'patient' ? 'selected' : ''}>Patient</option>
+                    <option value="provider" ${tpl.recipient_type === 'provider' ? 'selected' : ''}>Provider</option>
+                </select>
+            </td>
             <td><textarea class="form-control form-control-sm mono" rows="3" onchange="updateTpl(${index}, 'wsp_message', this.value)">${escHtml(tpl.wsp_message)}</textarea></td>
             <td><input type="text" class="form-control form-control-sm" value="${escHtml(tpl.email_subject)}" onchange="updateTpl(${index}, 'email_subject', this.value)"></td>
             <td><textarea class="form-control form-control-sm mono" rows="3" onchange="updateTpl(${index}, 'email_message', this.value)">${escHtml(tpl.email_message)}</textarea></td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-outline-danger" onclick="removeTemplateRow(${index})" title="Remove"><i class="fas fa-trash"></i></button>
+            </td>
         `;
         tbody.appendChild(tr);
     });
@@ -2618,6 +2686,10 @@ function saveTemplates() {
 .badge-sent.type-email { background-color: #BBDEFB !important; color: #1565C0 !important; }
 .badge-sms { background-color: #FFF3CD !important; color: #856404 !important; }
 .badge-voz { background-color: #F8D7DA !important; color: #721C24 !important; }
+
+/* Status dropdown colors */
+.status-select option[value="-scheduled"] { color: #155724; background: #d4edda; }
+.status-select option[value="-cancelled"] { color: #721c24; background: #f8d7da; }
 </style>
 
 <!-- Modal: Template Manager -->
@@ -2631,15 +2703,16 @@ function saveTemplates() {
             <div class="modal-body">
                 <p class="text-muted small">Edit messages for different scenarios. Tokens like <code>***NAME***</code>, <code>***DATE***</code> will be replaced automatically.</p>
                 <div class="table-responsive">
-                    <table class="table table-bordered table-sm align-middle">
+                    <table class="table table-bordered table-sm align-middle" id="templateManagerTable">
                         <thead class="table-light">
                             <tr>
-                                <th width="20%">Scenario</th>
-                                <th width="10%">Channel</th>
-                                <th width="15%">Recipient</th>
-                                <th>WhatsApp Message</th>
-                                <th>Email Subject</th>
-                                <th>HTML Email Body</th>
+                                <th width="14%">Scenario</th>
+                                <th width="10%">Status</th>
+                                <th width="10%">Recipient</th>
+                                <th class="col-wsp">WhatsApp Message</th>
+                                <th class="col-subj">Email Subject</th>
+                                <th class="col-body">HTML Email Body</th>
+                                <th width="5%"></th>
                             </tr>
                         </thead>
                         <tbody id="templateTableBody">
@@ -2648,10 +2721,44 @@ function saveTemplates() {
                     </table>
                 </div>
                 <input type="hidden" id="tmFacilityId">
+                <div class="mt-3 p-3 bg-light rounded" id="addTemplateForm" style="display:none">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label small mb-1"><?php echo xlt('Category'); ?></label>
+                            <select class="form-select form-select-sm" id="tmNewCat"></select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small mb-1"><?php echo xlt('Status'); ?></label>
+                            <select class="form-select form-select-sm" id="tmNewStatus">
+                                <option value="-scheduled">-scheduled</option>
+                                <option value="-cancelled">-cancelled</option>
+                                <option value="-noshow">-noshow</option>
+                                <option value="-pending">-pending</option>
+                                <option value="-">- (any)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small mb-1"><?php echo xlt('Recipient'); ?></label>
+                            <select class="form-select form-select-sm" id="tmNewRecipient">
+                                <option value="patient">Patient</option>
+                                <option value="provider">Provider</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex gap-1">
+                            <button type="button" class="btn btn-sm btn-success" onclick="addTemplateRow()"><i class="fas fa-plus"></i> <?php echo xlt('Add'); ?></button>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAddForm()"><?php echo xlt('Cancel'); ?></button>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal" data-bs-dismiss="modal" onclick="closeModalParent(this)">Close</button>
-                <button type="button" class="btn btn-primary" onclick="saveTemplates()"><i class="fas fa-save me-1"></i> Save Changes</button>
+            <div class="modal-footer d-flex justify-content-between">
+                <div>
+                    <button type="button" class="btn btn-outline-success btn-sm" onclick="toggleAddForm()"><i class="fas fa-plus me-1"></i> <?php echo xlt('Add Template'); ?></button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal" data-bs-dismiss="modal" onclick="closeModalParent(this)"><?php echo xlt('Close'); ?></button>
+                    <button type="button" class="btn btn-primary" onclick="saveTemplates()"><i class="fas fa-save me-1"></i> <?php echo xlt('Save Changes'); ?></button>
+                </div>
             </div>
         </div>
     </div>

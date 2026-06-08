@@ -41,6 +41,14 @@ class OnCancelHook
             return;
         }
 
+        // Verificar flag notify_cancelled antes de enviar
+        $facilityConfig = new FacilityConfig();
+        $config = $facilityConfig->getByFacilityId($facilityId);
+        if (empty($config['notify_cancelled'])) {
+            error_log("WspEmail CancelHook: Cancellation skipped (notify_cancelled=0) for eid={$pcEid}");
+            return;
+        }
+
         try {
             $notificationService = new NotificationService();
             $notificationService->sendCancellation($pcEid, $facilityId);

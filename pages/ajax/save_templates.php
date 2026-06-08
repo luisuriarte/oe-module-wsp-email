@@ -27,30 +27,70 @@ if (!$fid || empty($templates)) {
 }
 
 try {
+    // Collect incoming IDs and delete rows that were removed in the UI
+    $incomingIds = [];
     foreach ($templates as $tpl) {
-        $id = (int)$tpl['id'];
-        
-        // Ensure this template belongs to this facility
-        $check = sqlQuery("SELECT facility_id FROM wsp_email_notification_templates WHERE id = ?", [$id]);
-        if (!$check || (int)$check['facility_id'] !== $fid) {
-            continue; // Skip if not matching facility
-        }
+        $id = !empty($tpl['id']) ? (int)$tpl['id'] : 0;
+        if ($id > 0) $incomingIds[] = $id;
+    }
+    if (!empty($incomingIds)) {
+        $placeholders = implode(',', array_fill(0, count($incomingIds), '?'));
+        sqlStatement("DELETE FROM wsp_email_notification_templates WHERE facility_id = ? AND id NOT IN ($placeholders)", array_merge([$fid], $incomingIds));
+    } else {
+        sqlStatement("DELETE FROM wsp_email_notification_templates WHERE facility_id = ?", [$fid]);
+    }
 
-        sqlStatement(
-            "UPDATE wsp_email_notification_templates SET 
-                wsp_message = ?, 
-                email_subject = ?, 
-                email_message = ?,
-                enabled = ?
-            WHERE id = ?", 
-            [
-                $tpl['wsp_message'] ?? '',
-                $tpl['email_subject'] ?? '',
-                $tpl['email_message'] ?? '',
-                isset($tpl['enabled']) ? (int)$tpl['enabled'] : 1,
-                $id
-            ]
-        );
+    foreach ($templates as $tpl) {
+        $id = !empty($tpl['id']) ? (int)$tpl['id'] : 0;
+
+        if ($id > 0) {
+            // Update existing — ensure it belongs to this facility
+            $check = sqlQuery("SELECT facility_id FROM wsp_email_notification_templates WHERE id = ?", [$id]);
+            if (!$check || (int)$check['facility_id'] !== $fid) {
+                continue;
+            }
+            sqlStatement(
+                "UPDATE wsp_email_notification_templates SET 
+                    wsp_message = ?, email_subject = ?, email_message = ?, enabled = ?
+                WHERE id = ?",
+                [
+                    $tpl['wsp_message'] ?? '',
+                    $tpl['email_subject'] ?? '',
+                    $tpl['email_message'] ?? '',
+                    isset($tpl['enabled']) ? (int)$tpl['enabled'] : 1,
+                    $id
+                ]
+            );
+        } else {
+            // Insert new template
+            $catId = (int)($tpl['pc_catid'] ?? 0);
+            $status = $tpl['pc_apptstatus'] ?? '-scheduled';
+            $recipient = $tpl['recipient_type'] ?? 'patient';
+            // Avoid duplicate key violation (facility_id, pc_catid, pc_apptstatus, recipient_type)
+            $existing = sqlQuery(
+                "SELECT id FROM wsp_email_notification_templates
+                 WHERE facility_id = ? AND pc_catid = ? AND pc_apptstatus = ?
+                   AND recipient_type = ? LIMIT 1",
+                [$fid, $catId, $status, $recipient]
+            );
+            if ($existing) {
+                continue; // Already exists, skip
+            }
+            sqlStatement(
+                "INSERT INTO wsp_email_notification_templates
+                    (facility_id, pc_catid, pc_apptstatus, recipient_type,
+                     category_name, wsp_message, email_subject, email_message, enabled)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    $fid, $catId, $status, $recipient,
+                    $tpl['category_name'] ?? '',
+                    $tpl['wsp_message'] ?? '',
+                    $tpl['email_subject'] ?? '',
+                    $tpl['email_message'] ?? '',
+                    isset($tpl['enabled']) ? (int)$tpl['enabled'] : 1
+                ]
+            );
+        }
     }
     echo json_encode(['success' => true]);
 } catch (Exception $e) {

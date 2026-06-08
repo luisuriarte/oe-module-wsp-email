@@ -25,7 +25,7 @@ class EmailSender
      * @param array $patient  Patient + appointment data row
      * @return bool           True on success, false on failure
      */
-    public function send(array $config, array $patient): bool
+    public function send(array $config, array $patient, bool $includeCalendar = true): bool
     {
         $to             = trim($patient['email'] ?? '');
         $patientName    = trim(($patient['fname'] ?? '') . ' ' . ($patient['lname'] ?? ''));
@@ -52,22 +52,28 @@ class EmailSender
         $startDate = $patient['pc_eventDate'] . ' ' . $patient['pc_startTime'];
         $endDate   = $patient['pc_eventDate'] . ' ' . $patient['pc_endTime'];
 
-        // Build Google Calendar link
-        $gcalUrl = $this->buildGoogleCalendarUrl($subject, $messageBody, $startDate, $endDate, $facilityAddr);
+        // Build Google Calendar link (only for reminders, not cancellations)
+        $gcalUrl = '';
+        if ($includeCalendar) {
+            $gcalUrl = $this->buildGoogleCalendarUrl($subject, $messageBody, $startDate, $endDate, $facilityAddr);
+        }
 
         // Build map URL
         $mapLinkUrl = '';
-        if ($latitude && $longitude) {
+        if ($includeCalendar && $latitude && $longitude) {
             $mapLinkUrl = "https://www.google.com/maps/search/?api=1&query={$latitude},{$longitude}";
         }
 
-        // Build iCalendar content
-        $icsContent = $this->buildIcsContent($startDate, $endDate, $subject, $messageBody, $facilityName,
-                                              $facilityEmail, $facilityAddr, $facilityUrl, $patientName, $to, $zone);
+        // Build iCalendar content (only for reminders)
+        $icsContent = '';
+        if ($includeCalendar) {
+            $icsContent = $this->buildIcsContent($startDate, $endDate, $subject, $messageBody, $facilityName,
+                                                  $facilityEmail, $facilityAddr, $facilityUrl, $patientName, $to, $zone);
+        }
 
         // Build HTML email body
         $htmlBody = $this->buildHtmlBody($messageBody, $facilityName, $facilityAddr, $facilityPhone,
-                                          $facilityEmail, $facilityUrl, $gcalUrl, $mapLinkUrl);
+                                          $facilityEmail, $facilityUrl, $gcalUrl, $mapLinkUrl, $includeCalendar);
 
         // Configure and send via PHPMailer
         return $this->dispatch($to, $patientName, $facilityEmail, $facilityName, $subject,
@@ -152,7 +158,8 @@ class EmailSender
     private function buildHtmlBody(
         string $messageBody, string $facilityName, string $facilityAddr,
         string $facilityPhone, string $facilityEmail, string $facilityUrl,
-        string $gcalUrl, string $mapLinkUrl
+        string $gcalUrl, string $mapLinkUrl,
+        bool $includeCalendar = true
     ): string {
         $logoTag  = '<img src="cid:logo" alt="' . htmlspecialchars($facilityName) . '" style="width:100%;height:auto;">';
 
@@ -195,9 +202,10 @@ class EmailSender
         </p>
         ' . $gcalBlock . '
         ' . $mapBlock . '
+        ' . ($includeCalendar ? '
         <p style="margin-top:20px;font-size:13px;color:#888;">
             ' . htmlspecialchars(LocalizationHelper::translate('A calendar file (.ics) is attached — open it to save the appointment directly in your calendar application.')) . '
-        </p>
+        </p>' : '') . '
     </div>
 </body>
 </html>';

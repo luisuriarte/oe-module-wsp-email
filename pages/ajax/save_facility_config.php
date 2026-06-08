@@ -68,6 +68,7 @@ $data = [
     'notify_hours_before' => (int)($_POST['notify_hours_before'] ?? 48),
     'enabled_wsp'         => (int)($_POST['enabled_wsp']         ?? 0),
     'enabled_email'       => (int)($_POST['enabled_email']       ?? 0),
+    'notify_cancelled'    => (int)($_POST['notify_cancelled']    ?? 0),
     'send_weekday_start'    => isset($_POST['send_weekday_start'])    ? (int)$_POST['send_weekday_start']    : 7,
     'send_weekday_end'      => isset($_POST['send_weekday_end'])      ? (int)$_POST['send_weekday_end']      : 21,
     'send_saturday_enabled' => isset($_POST['send_saturday_enabled']) ? (int)$_POST['send_saturday_enabled'] : 0,

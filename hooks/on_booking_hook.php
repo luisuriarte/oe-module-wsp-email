@@ -45,12 +45,19 @@ class OnBookingHook
             $facilityId = (int)($appointment['pc_facility'] ?? 0);
             $pcEid      = (int)($appointment['pc_eid'] ?? 0);
             if ($pcEid > 0 && $facilityId > 0) {
-                try {
-                    $notificationService = new NotificationService();
-                    $notificationService->sendCancellation($pcEid, $facilityId);
-                    error_log("WspEmail Hook: Cancellation notification sent for eid={$pcEid}");
-                } catch (\Exception $e) {
-                    error_log("WspEmail Hook Cancel Error: " . $e->getMessage());
+                // Verificar flag notify_cancelled antes de enviar
+                $facilityConfig = new FacilityConfig();
+                $config = $facilityConfig->getByFacilityId($facilityId);
+                if (!empty($config['notify_cancelled'])) {
+                    try {
+                        $notificationService = new NotificationService();
+                        $notificationService->sendCancellation($pcEid, $facilityId);
+                        error_log("WspEmail Hook: Cancellation notification sent for eid={$pcEid}");
+                    } catch (\Exception $e) {
+                        error_log("WspEmail Hook Cancel Error: " . $e->getMessage());
+                    }
+                } else {
+                    error_log("WspEmail Hook: Cancellation skipped (notify_cancelled=0) for eid={$pcEid}");
                 }
             }
             return;

@@ -10,8 +10,11 @@
  * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
  */
 
+use OpenEMR\Events\Appointments\AppointmentSetEvent;
 use OpenEMR\Menu\MenuEvent;
 use OpenEMR\Modules\WspEmail\Bootstrap\BootstrapService;
+use OpenEMR\Modules\WspEmail\FacilityConfig;
+use OpenEMR\Modules\WspEmail\NotificationService;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -101,3 +104,54 @@ function oe_module_wspemail_add_menu_item(MenuEvent $event): MenuEvent
 }
 
 $eventDispatcher->addListener(MenuEvent::MENU_UPDATE, 'oe_module_wspemail_add_menu_item');
+
+// ---------------------------------------------------------------------------
+// Appointment Save Hook (on-booking + cancellation)
+// ---------------------------------------------------------------------------
+$eventDispatcher->addListener(AppointmentSetEvent::EVENT_HANDLE, function (AppointmentSetEvent $event): void {
+    $eid = $event->eid;
+    if (empty($eid)) {
+        return;
+    }
+
+    $postData = $event->givenAppointmentData();
+    $apptStatus = $postData['form_apptstatus'] ?? '';
+    $facilityId = (int)($postData['facility'] ?? 0);
+
+    if ($facilityId === 0) {
+        return;
+    }
+
+    // Check if cancellation notifications are enabled for this facility
+    $facilityConfig = new FacilityConfig();
+    $config = $facilityConfig->getByFacilityId($facilityId);
+
+    if (strtolower($apptStatus) === 'x') {
+        if (!empty($config['notify_cancelled'])) {
+            try {
+                $notificationService = new NotificationService();
+                $notificationService->sendCancellation($eid, $facilityId);
+                error_log("WspEmail Event: Cancellation sent for eid={$eid}");
+            } catch (\Throwable $e) {
+                error_log("WspEmail Event Cancel Error: " . $e->getMessage());
+            }
+        } else {
+            error_log("WspEmail Event: Cancellation skipped (notify_cancelled=0) for eid={$eid}");
+        }
+        return;
+    }
+
+    // On-booking notification for newly created appointments.
+    // `alreadySent()` in runOnBooking() prevents duplicates on edits.
+    $appointment = [
+        'pc_eid'      => $eid,
+        'pc_facility' => $facilityId,
+        'editMode'    => false,
+    ];
+    try {
+        require_once __DIR__ . '/hooks/on_booking_hook.php';
+        \OpenEMR\Modules\WspEmail\OnBookingHook::onAppointmentSave($appointment);
+    } catch (\Throwable $e) {
+        error_log("WspEmail Event OnBooking Error: " . $e->getMessage());
+    }
+});

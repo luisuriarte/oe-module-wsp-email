@@ -45,7 +45,8 @@ class FacilityConfig
                        wfc.logo_wsp, wfc.logo_email,
                        wfc.latitude, wfc.longitude, f.website AS website_url,
                        wfc.wsp_message, wfc.email_message, wfc.email_subject,
-                       wfc.enabled_wsp, wfc.enabled_email
+                        wfc.enabled_wsp, wfc.enabled_email,
+                        wfc.notify_cancelled
                 FROM facility f
                 LEFT JOIN wsp_email_facility_config wfc ON wfc.facility_id = f.id
                 ORDER BY f.name";
@@ -109,6 +110,7 @@ class FacilityConfig
             'email_subject'            => $data['email_subject']            ?? null,
             'enabled_wsp'              => isset($data['enabled_wsp'])       ? (int)$data['enabled_wsp']   : 1,
             'enabled_email'            => isset($data['enabled_email'])     ? (int)$data['enabled_email'] : 1,
+            'notify_cancelled'         => isset($data['notify_cancelled'])  ? (int)$data['notify_cancelled'] : 0,
         ];
 
         if ($exists) {

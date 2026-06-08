@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
   `notify_hours_before` int(5)        NOT NULL DEFAULT 48        COMMENT 'Deprecated: Hours before appointment',
   `enabled_wsp`         tinyint(1)    NOT NULL DEFAULT 1         COMMENT 'WhatsApp Enable Flag',
   `enabled_email`       tinyint(1)    NOT NULL DEFAULT 1         COMMENT 'Email Enable Flag',
+  `notify_cancelled`    tinyint(1)    NOT NULL DEFAULT 1         COMMENT 'Send cancellation notifications',
 
   -- Telehealth Settings (Jitsi/Meet)
   `th_jitsi_domain`             varchar(255)  DEFAULT NULL           COMMENT 'Jitsi Server Domain',
@@ -152,7 +153,6 @@ CREATE TABLE IF NOT EXISTS `wsp_email_notification_templates` (
   `category_name`   varchar(100)  DEFAULT NULL             COMMENT 'Display Label',
   `pc_apptstatus`   varchar(50)   NOT NULL DEFAULT '-scheduled' COMMENT 'Appt Status (-scheduled, -cancelled)',
   `recipient_type`  varchar(20)   NOT NULL DEFAULT 'patient' COMMENT 'Target Audience (patient | provider)',
-  `channel`         varchar(20)   NOT NULL DEFAULT 'wsp'   COMMENT 'Channel (wsp | email)',
   `wsp_message`     text          DEFAULT NULL             COMMENT 'WhatsApp Template (Plain Text)',
   `email_subject`   varchar(255)  DEFAULT NULL             COMMENT 'Email Subject',
   `email_message`   text          DEFAULT NULL             COMMENT 'Email Template (HTML)',
@@ -160,9 +160,9 @@ CREATE TABLE IF NOT EXISTS `wsp_email_notification_templates` (
   `created_at`      datetime      DEFAULT CURRENT_TIMESTAMP,
   `updated_at`      datetime      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_template` (`facility_id`, `pc_catid`, `pc_apptstatus`, `recipient_type`, `channel`)
+  UNIQUE KEY `uq_template` (`facility_id`, `pc_catid`, `pc_apptstatus`, `recipient_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-  COMMENT='Multi-channel notification templates by appt type and recipient';
+  COMMENT='Notification templates with both WSP and Email content';
 
 -- ---------------------------------------------------------------------------
 -- 5. Status History Table
