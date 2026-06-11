@@ -16,23 +16,24 @@
  */
 
 declare(strict_types=1);
-
 // Webhook must be accessible without browser session
 $ignoreAuth = true;
-require_once __DIR__ . '/../../../../../globals.php';
 
-// Load module classes manually (no autoloader in this context)
-require_once __DIR__ . '/../../src/NotificationLog.php';
-require_once __DIR__ . '/../../src/FacilityConfig.php';
-require_once __DIR__ . '/../../src/StatusNormalizer.php';
+$openemrRoot = realpath(__DIR__ . '/../../');  // sube a /var/www/html/origen.ar/demo
+$moduleRoot  = $openemrRoot . '/interface/modules/custom_modules/oe-module-wsp-email';
+
+require_once $openemrRoot . '/interface/globals.php';
+
+require_once $moduleRoot . '/src/NotificationLog.php';
+require_once $moduleRoot . '/src/FacilityConfig.php';
+require_once $moduleRoot . '/src/StatusNormalizer.php';
 
 use OpenEMR\Modules\WspEmail\NotificationLog;
 use OpenEMR\Modules\WspEmail\FacilityConfig;
 use OpenEMR\Modules\WspEmail\StatusNormalizer;
 
 // Define a dedicated log file
-define('OPENWA_WEBHOOK_LOG', __DIR__ . '/../../logs/openwa_webhook.log');
-
+define('OPENWA_WEBHOOK_LOG', $moduleRoot . '/logs/openwa_webhook.log');
 function openwaLog(string $message): void
 {
     @file_put_contents(OPENWA_WEBHOOK_LOG, date('Y-m-d H:i:s') . ' — ' . $message . "\n", FILE_APPEND | LOCK_EX);
@@ -74,58 +75,48 @@ $event = $webhookData['event'] ?? '';
 $sessionId = $webhookData['sessionId'] ?? '';
 openwaLog("Event: $event, SessionId: $sessionId");
 
-// Extract signature header
-$receivedSignature = $headers['X-OpenWA-Signature'] ?? $headers['x-openwa-signature'] ?? '';
+// --- Validate token from URL ---
+$receivedToken = $_GET['token'] ?? '';
 
-// --- Find the corresponding facility configuration & secret ---
-$facilityConfig = new FacilityConfig();
-$allFacilities  = $facilityConfig->getAllFacilitiesWithConfig();
-$expectedSecret = '';
+if (empty($receivedToken)) {
+    openwaLog('Rejected: missing token in URL.');
+    http_response_code(401);
+    exit;
+}
+
+// Find matching facility by sessionId
+$facilityConfig  = new FacilityConfig();
+$allFacilities   = $facilityConfig->getAllFacilitiesWithConfig();
+$expectedSecret  = '';
 $matchedFacility = null;
 
-// Try to match by sessionId/openwa_instance first
 foreach ($allFacilities as $facility) {
     if (!empty($facility['openwa_instance']) && $facility['openwa_instance'] === $sessionId) {
-        $expectedSecret = $facility['openwa_webhook_secret'] ?? '';
+        $expectedSecret  = $facility['openwa_webhook_secret'] ?? '';
         $matchedFacility = $facility;
         break;
     }
 }
 
-// Fallback: pick the first facility with an OpenWA secret if no session match
+// Fallback: first facility with a secret
 if (empty($expectedSecret)) {
     foreach ($allFacilities as $facility) {
         if (!empty($facility['openwa_webhook_secret'])) {
-            $expectedSecret = $facility['openwa_webhook_secret'];
+            $expectedSecret  = $facility['openwa_webhook_secret'];
             $matchedFacility = $facility;
             break;
         }
     }
 }
 
-// --- Validate signature if a secret is configured ---
-if (!empty($expectedSecret)) {
-    if (empty($receivedSignature)) {
-        openwaLog('Rejected: missing X-OpenWA-Signature header.');
-        http_response_code(401);
-        exit;
-    }
-
-    // Strip "sha256=" prefix if present
-    $cleanSignature = $receivedSignature;
-    if (strpos($cleanSignature, 'sha256=') === 0) {
-        $cleanSignature = substr($cleanSignature, 7);
-    }
-
-    $computedSignature = hash_hmac('sha256', $rawInput, $expectedSecret);
-    if (!hash_equals($computedSignature, $cleanSignature)) {
-        openwaLog("Rejected: signature mismatch. Received: '$receivedSignature'");
-        http_response_code(401);
-        exit;
-    }
-    openwaLog('Signature verified successfully.');
+if (empty($expectedSecret)) {
+    openwaLog('Warning: no openwa_webhook_secret configured. Skipping token validation.');
+} elseif (!hash_equals($expectedSecret, $receivedToken)) {
+    openwaLog("Rejected: invalid token. Received: '$receivedToken'");
+    http_response_code(401);
+    exit;
 } else {
-    openwaLog('Warning: no openwa_webhook_secret configured. Skipping signature validation.');
+    openwaLog('Token validated successfully.');
 }
 
 // --- Handle events ---

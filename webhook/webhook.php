@@ -17,13 +17,18 @@
 
 declare(strict_types=1);
 
-// The webhook must be accessible without a browser session
+// Webhook must be accessible without browser session
 $ignoreAuth = true;
-require_once __DIR__ . '/../../../../globals.php';
+
+$openemrRoot = realpath(__DIR__ . '/../');
+// The webhook must be accessible without a browser session
 
 // Load module classes (manual include — no autoloader in this context)
-require_once __DIR__ . '/../src/NotificationLog.php';
-require_once __DIR__ . '/../src/FacilityConfig.php';
+require_once $openemrRoot . '/globals.php';
+
+require_once $moduleRoot . '/src/NotificationLog.php';
+require_once $moduleRoot . '/src/FacilityConfig.php';
+require_once $moduleRoot . '/src/StatusNormalizer.php';
 
 use OpenEMR\Modules\WspEmail\NotificationLog;
 use OpenEMR\Modules\WspEmail\FacilityConfig;
