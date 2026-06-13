@@ -3440,6 +3440,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (document.getElementById('tab-recalls') &&
         !document.getElementById('tab-recalls').classList.contains('d-none')) {
         loadRecalls();
+        loadPendingRecalls();
     }
 });
 
@@ -3563,6 +3564,110 @@ function recallsChangePage(delta) {
 // Recall tab event listeners
 document.getElementById('btnLoadRecalls')?.addEventListener('click', () => loadRecalls(true));
 document.getElementById('recallFilterPatient')?.addEventListener('keydown', e => { if (e.key === 'Enter') loadRecalls(true); });
+document.getElementById('btnRefreshPendingRecalls')?.addEventListener('click', () => loadPendingRecalls());
+document.getElementById('pendingRecallHorizon')?.addEventListener('change', () => loadPendingRecalls());
+document.getElementById('pendingRecallFacility')?.addEventListener('change', () => loadPendingRecalls());
+
+/* =========================================================================
+   Active Recalls -- Pending Notifications panel
+   ========================================================================= */
+function loadPendingRecalls() {
+    const wrap      = document.getElementById('pendingRecallsWrap');
+    const horizon   = document.getElementById('pendingRecallHorizon')?.value  || 30;
+    const facility  = document.getElementById('pendingRecallFacility')?.value || 0;
+
+    if (!wrap) return;
+    wrap.innerHTML = '<div class="text-center py-3 text-muted"><i class="fas fa-spinner fa-spin fa-lg"></i></div>';
+
+    const params = new URLSearchParams({ facility_id: facility, horizon });
+
+    fetch(`${moduleRoot}/pages/ajax/get_pending_recall_notifications.php?${params.toString()}`)
+        .then(r => r.json())
+        .then(data => {
+            const rows = data.rows || [];
+
+            if (!rows.length) {
+                wrap.innerHTML = `<div class="alert alert-success py-2 mb-0">
+                    <i class="fas fa-check-circle me-1"></i>
+                    <?php echo js_escape(xlt('No pending recall notifications in the next')); ?> ${horizon} <?php echo js_escape(xlt('days.')); ?>
+                </div>`;
+                return;
+            }
+
+            // Group by scheduled_for date
+            const byDate = {};
+            rows.forEach(r => {
+                const d = r.scheduled_for;
+                if (!byDate[d]) byDate[d] = [];
+                byDate[d].push(r);
+            });
+
+            // Build a table or cards for grouped notifications
+            let html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">';
+            html += `<thead class="table-light">
+                <tr>
+                    <th><?php echo js_escape(xlt('Scheduled For')); ?></th>
+                    <th><?php echo js_escape(xlt('Patient')); ?></th>
+                    <th><?php echo js_escape(xlt('Contact')); ?></th>
+                    <th><?php echo js_escape(xlt('Recall Reason')); ?></th>
+                    <th><?php echo js_escape(xlt('Facility')); ?></th>
+                    <th class="text-center"><?php echo js_escape(xlt('Sequence')); ?></th>
+                    <th class="text-center"><?php echo js_escape(xlt('Urgency')); ?></th>
+                </tr>
+            </thead><tbody>`;
+
+            // Sort dates ascending
+            const sortedDates = Object.keys(byDate).sort();
+            sortedDates.forEach(dateStr => {
+                const group = byDate[dateStr];
+                group.forEach(r => {
+                    const patientName = escHtml((r.fname || '') + ' ' + (r.lname || '')).trim();
+                    const contact = [r.phone_cell ? escHtml(r.phone_cell) : '', r.email ? escHtml(r.email) : '']
+                        .filter(Boolean).join(' / ') || '-';
+                    const daysUntil = parseInt(r.days_until_send);
+                    
+                    let urgencyClass = 'bg-info text-white';
+                    let urgencyText = '<?php echo js_escape(xlt("Upcoming")); ?>';
+                    
+                    if (daysUntil <= 0) {
+                        urgencyClass = 'bg-danger text-white';
+                        urgencyText = '<?php echo js_escape(xlt("Today/Overdue")); ?>';
+                    } else if (daysUntil === 1) {
+                        urgencyClass = 'bg-warning text-dark';
+                        urgencyText = '<?php echo js_escape(xlt("Tomorrow")); ?>';
+                    } else if (daysUntil <= 7) {
+                        urgencyClass = 'bg-warning text-dark';
+                        urgencyText = `${daysUntil} <?php echo js_escape(xlt("days")); ?>`;
+                    } else {
+                        urgencyText = `${daysUntil} <?php echo js_escape(xlt("days")); ?>`;
+                    }
+
+                    const formattedDate = r.scheduled_for
+                        ? new Date(r.scheduled_for + 'T00:00:00').toLocaleDateString()
+                        : '-';
+
+                    html += `<tr>
+                        <td><strong>${formattedDate}</strong></td>
+                        <td>
+                            <div class="fw-bold">${patientName}</div>
+                            <div class="small text-muted">PID: ${escHtml(String(r.pid || ''))}</div>
+                        </td>
+                        <td><small>${contact}</small></td>
+                        <td>${escHtml(r.r_reason || '-')}</td>
+                        <td><small>${escHtml(r.facility_name || '-')}</small></td>
+                        <td class="text-center"><span class="badge bg-secondary">Seq ${escHtml(r.seq)}</span></td>
+                        <td class="text-center"><span class="badge ${urgencyClass}">${urgencyText}</span></td>
+                    </tr>`;
+                });
+            });
+
+            html += '</tbody></table></div>';
+            wrap.innerHTML = html;
+        })
+        .catch(err => {
+            wrap.innerHTML = `<div class="alert alert-danger py-2 mb-0">Error: ${err.message}</div>`;
+        });
+}
 
 // Run Recalls Now
 document.getElementById('btnRunRecallsNow')?.addEventListener('click', function() {
