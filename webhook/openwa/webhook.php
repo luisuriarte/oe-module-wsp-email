@@ -7,8 +7,8 @@
  * It validates the request using X-OpenWA-Signature HMAC SHA256 and updates notification_log.
  *
  * Public URL:
- *   https://hcd.origen.ar/interface/modules/custom_modules/oe-module-wsp-email/webhook/openwa/webhook.php
- *
+ *   https://tudominio.openemr.com/webhook/openwa/webhook.php
+ 
  * @package   OpenEMR\Modules\WspEmail
  * @author    Luis A. Uriarte <luis.uriarte@gmail.com>
  * @copyright Copyright (c) 2024-2026 Luis A. Uriarte

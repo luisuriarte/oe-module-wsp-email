@@ -230,4 +230,223 @@ class FacilityConfig
         }
         return $rows;
     }
+
+    // =========================================================================
+    // Recall Schedule
+    // =========================================================================
+
+    /**
+     * Creates wsp_email_recall_schedule if it doesn't exist yet (auto-migration).
+     * Safe to call multiple times — uses a static flag to run only once per request.
+     */
+    private static bool $recallScheduleTableEnsured = false;
+
+    private function ensureRecallScheduleTable(): void
+    {
+        if (self::$recallScheduleTableEnsured) {
+            return;
+        }
+        self::$recallScheduleTableEnsured = true;
+
+        sqlStatement(
+            "CREATE TABLE IF NOT EXISTS `wsp_email_recall_schedule` (
+                `id`            int(11)      NOT NULL AUTO_INCREMENT,
+                `facility_id`   int(11)      NOT NULL                   COMMENT 'FK -> facility.id',
+                `seq`           tinyint(3)   NOT NULL                   COMMENT 'Orden de envio (1, 2, 3...)',
+                `days_before`   int(5)       NOT NULL DEFAULT 7         COMMENT 'Dias antes de r_eventDate',
+                `enabled_wsp`   tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'WhatsApp habilitado',
+                `enabled_email` tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Email habilitado',
+                `enabled`       tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Secuencia activa',
+                `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
+                `updated_at`    datetime     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`),
+                UNIQUE KEY `uq_facility_seq` (`facility_id`, `seq`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+        );
+    }
+
+    /**
+     * Ensures notification_type column exists in wsp_email_notification_templates.
+     * Adds it and fixes the unique index if missing (auto-migration for existing installs).
+     */
+    private static bool $notifTypeColumnEnsured = false;
+
+    private function ensureNotificationTypeColumn(): void
+    {
+        if (self::$notifTypeColumnEnsured) {
+            return;
+        }
+        self::$notifTypeColumnEnsured = true;
+
+        $col = sqlQuery(
+            "SELECT COLUMN_NAME
+             FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME   = 'wsp_email_notification_templates'
+               AND COLUMN_NAME  = 'notification_type'"
+        );
+
+        if (!empty($col)) {
+            return; // column already exists
+        }
+
+        // Add the column
+        sqlStatement(
+            "ALTER TABLE `wsp_email_notification_templates`
+             ADD COLUMN `notification_type` varchar(20) NOT NULL DEFAULT 'appointment'
+             COMMENT 'Tipo: appointment | recall'
+             AFTER `facility_id`"
+        );
+
+        // Update existing rows to appointment
+        sqlStatement(
+            "UPDATE `wsp_email_notification_templates`
+             SET `notification_type` = 'appointment'
+             WHERE `notification_type` IS NULL OR `notification_type` = ''"
+        );
+
+        // Drop old unique key (may fail if name differs — ignore)
+        try {
+            sqlStatement(
+                "ALTER TABLE `wsp_email_notification_templates` DROP INDEX `uq_template`"
+            );
+        } catch (\Throwable $e) {
+            // Ignore — index might not exist or already have the right definition
+        }
+
+        // Add updated unique key including notification_type
+        sqlStatement(
+            "ALTER TABLE `wsp_email_notification_templates`
+             ADD UNIQUE KEY `uq_template`
+             (`facility_id`, `notification_type`, `pc_catid`, `pc_apptstatus`, `recipient_type`)"
+        );
+    }
+
+    /**
+     * Returns all recall notification schedule rows for a facility, ordered by seq.
+     */
+    public function getRecallSchedule(int $facilityId): array
+    {
+        $this->ensureRecallScheduleTable();
+
+        $res  = sqlStatement(
+            "SELECT * FROM wsp_email_recall_schedule
+             WHERE facility_id = ?
+             ORDER BY seq ASC",
+            [$facilityId]
+        );
+        $rows = [];
+        while ($row = sqlFetchArray($res)) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    /**
+     * Replaces the full recall schedule for a facility.
+     *
+     * @param int   $facilityId
+     * @param array $slots  Each slot: ['seq', 'days_before', 'enabled_wsp', 'enabled_email', 'enabled']
+     */
+    public function saveRecallSchedule(int $facilityId, array $slots): bool
+    {
+        if ($facilityId === 0) {
+            return false;
+        }
+
+        $this->ensureRecallScheduleTable();
+
+        sqlStatement(
+            "DELETE FROM wsp_email_recall_schedule WHERE facility_id = ?",
+            [$facilityId]
+        );
+
+        foreach ($slots as $i => $slot) {
+            $seq          = (int)($slot['seq']          ?? ($i + 1));
+            $daysBefore   = (int)($slot['days_before']  ?? 7);
+            $enabledWsp   = (int)($slot['enabled_wsp']  ?? 1);
+            $enabledEmail = (int)($slot['enabled_email'] ?? 1);
+            $enabled      = (int)($slot['enabled']       ?? 1);
+
+            sqlStatement(
+                "INSERT INTO wsp_email_recall_schedule
+                     (facility_id, seq, days_before, enabled_wsp, enabled_email, enabled)
+                 VALUES (?, ?, ?, ?, ?, ?)",
+                [$facilityId, $seq, $daysBefore, $enabledWsp, $enabledEmail, $enabled]
+            );
+        }
+
+        return true;
+    }
+
+    // =========================================================================
+    // Recall Templates
+    // =========================================================================
+
+    /**
+     * Returns the recall notification template for a facility.
+     * Template signature: notification_type='recall', pc_catid=0, pc_apptstatus='recall', recipient_type='patient'
+     */
+    public function getRecallTemplate(int $facilityId): array
+    {
+        $this->ensureNotificationTypeColumn();
+
+        $row = sqlQuery(
+            "SELECT * FROM wsp_email_notification_templates
+             WHERE facility_id = ?
+               AND notification_type = 'recall'
+               AND pc_catid = 0
+               AND pc_apptstatus = 'recall'
+               AND recipient_type = 'patient'
+             LIMIT 1",
+            [$facilityId]
+        );
+        return $row ?: [];
+    }
+
+    /**
+     * Inserts or updates the recall template for a facility.
+     *
+     * @param int   $facilityId
+     * @param array $data  Keys: wsp_message, email_subject, email_message, enabled
+     */
+    public function saveRecallTemplate(int $facilityId, array $data): bool
+    {
+        if ($facilityId === 0) {
+            return false;
+        }
+
+        $this->ensureNotificationTypeColumn();
+
+        $existing = $this->getRecallTemplate($facilityId);
+
+        $wspMessage   = $data['wsp_message']   ?? '';
+        $emailSubject = $data['email_subject'] ?? '';
+        $emailMessage = $data['email_message'] ?? '';
+        $enabled      = (int)($data['enabled'] ?? 1);
+
+        if ($existing) {
+            sqlStatement(
+                "UPDATE wsp_email_notification_templates
+                 SET wsp_message = ?, email_subject = ?, email_message = ?, enabled = ?,
+                     updated_at = NOW()
+                 WHERE facility_id = ?
+                   AND notification_type = 'recall'
+                   AND pc_catid = 0
+                   AND pc_apptstatus = 'recall'
+                   AND recipient_type = 'patient'",
+                [$wspMessage, $emailSubject, $emailMessage, $enabled, $facilityId]
+            );
+        } else {
+            sqlStatement(
+                "INSERT INTO wsp_email_notification_templates
+                     (facility_id, notification_type, pc_catid, category_name,
+                      pc_apptstatus, recipient_type, wsp_message, email_subject, email_message, enabled)
+                 VALUES (?, 'recall', 0, 'Recall', 'recall', 'patient', ?, ?, ?, ?)",
+                [$facilityId, $wspMessage, $emailSubject, $emailMessage, $enabled]
+            );
+        }
+
+        return true;
+    }
 }
