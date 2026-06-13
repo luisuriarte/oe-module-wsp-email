@@ -149,6 +149,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_notification_schedule` (
 CREATE TABLE IF NOT EXISTS `wsp_email_notification_templates` (
   `id`              int(11)       NOT NULL AUTO_INCREMENT,
   `facility_id`     int(11)       NOT NULL                 COMMENT 'FK -> facility.id',
+  `notification_type` varchar(20) NOT NULL DEFAULT 'appointment'  COMMENT 'Tipo: appointment | recall',
   `pc_catid`        int(11)       NOT NULL                 COMMENT 'Appt Category ID (5=Amb, 70=HBC, 80=Tele)',
   `category_name`   varchar(100)  DEFAULT NULL             COMMENT 'Display Label',
   `pc_apptstatus`   varchar(50)   NOT NULL DEFAULT '-scheduled' COMMENT 'Appt Status (-scheduled, -cancelled)',
@@ -160,7 +161,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_notification_templates` (
   `created_at`      datetime      DEFAULT CURRENT_TIMESTAMP,
   `updated_at`      datetime      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_template` (`facility_id`, `pc_catid`, `pc_apptstatus`, `recipient_type`)
+  UNIQUE KEY `uq_template` (`facility_id`, `notification_type`, `pc_catid`, `pc_apptstatus`, `recipient_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   COMMENT='Notification templates with both WSP and Email content';
 
@@ -224,3 +225,45 @@ CREATE TABLE IF NOT EXISTS `wsp_email_blacklist` (
   KEY `idx_blacklist_active` (`is_active`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   COMMENT='Blacklist of WhatsApp numbers with permanent or manual delivery failures';
+
+-- ---------------------------------------------------------------------------
+-- Recall Schedule: secuencias escalonadas de notificación por facility
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `wsp_email_recall_schedule` (
+  `id`            int(11)      NOT NULL AUTO_INCREMENT,
+  `facility_id`   int(11)      NOT NULL                   COMMENT 'FK -> facility.id',
+  `seq`           tinyint(3)   NOT NULL                   COMMENT 'Orden de envío (1, 2, 3...)',
+  `days_before`   int(5)       NOT NULL DEFAULT 7         COMMENT 'Días antes de r_eventDate para enviar',
+  `enabled_wsp`   tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'WhatsApp habilitado',
+  `enabled_email` tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Email habilitado',
+  `enabled`       tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Secuencia activa',
+  `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`    datetime     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_facility_seq` (`facility_id`, `seq`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='Secuencias escalonadas de notificación de recalls por facility';
+
+-- ---------------------------------------------------------------------------
+-- Recall Notifications: registro de envíos por recall + secuencia
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `wsp_email_recall` (
+  `id`            int(11)      NOT NULL AUTO_INCREMENT,
+  `recall_id`     int(11)      NOT NULL                   COMMENT 'FK -> medex_recalls.r_ID',
+  `facility_id`   int(11)      NOT NULL                   COMMENT 'FK -> facility.id',
+  `pid`           int(11)      NOT NULL                   COMMENT 'FK -> patient_data.pid',
+  `seq`           tinyint(3)   NOT NULL                   COMMENT 'FK -> wsp_email_recall_schedule.seq',
+  `channel`       enum('WSP','Email','Both') NOT NULL DEFAULT 'WSP' COMMENT 'Canal usado',
+  `log_id`        int(11)      DEFAULT NULL               COMMENT 'FK -> notification_log.iLogId',
+  `status`        enum('PENDING','SENT','FAILED','SKIPPED') NOT NULL DEFAULT 'PENDING' COMMENT 'Estado del intento',
+  `skip_reason`   varchar(100) DEFAULT NULL               COMMENT 'Motivo si SKIPPED (blacklist, ventana, etc.)',
+  `scheduled_for` date         NOT NULL                   COMMENT 'Fecha calculada del envío',
+  `sent_at`       datetime     DEFAULT NULL               COMMENT 'Timestamp efectivo de envío',
+  `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_recall_seq` (`recall_id`, `seq`),
+  KEY `idx_facility_status_scheduled` (`facility_id`, `status`, `scheduled_for`),
+  KEY `idx_pid` (`pid`),
+  KEY `idx_log_id` (`log_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='Registro de notificaciones de recalls por secuencia';
