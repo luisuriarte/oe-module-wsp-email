@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
 
 -- Add WhatsApp alert flag to appointments
 ALTER TABLE `openemr_postcalendar_events`
-  ADD COLUMN IF NOT EXISTS `pc_sendalertwsp` varchar(3) NOT NULL DEFAULT 'NO'
+  ADD COLUMN `pc_sendalertwsp` varchar(3) NOT NULL DEFAULT 'NO'
   COMMENT 'Flag: YES if WhatsApp alert sent';
 
 -- Ensure WSP is available in notification types
@@ -107,25 +107,25 @@ ALTER TABLE `notification_log`
 
 -- Add core tracking columns to notification log
 ALTER TABLE `notification_log`
-  ADD COLUMN IF NOT EXISTS `msg_id`           varchar(100) DEFAULT NULL COMMENT 'Vendor Message ID',
-  ADD COLUMN IF NOT EXISTS `status`           varchar(50)  DEFAULT NULL COMMENT 'Current Delivery Status',
-  ADD COLUMN IF NOT EXISTS `notification_seq` tinyint(3)   NOT NULL DEFAULT 1 COMMENT 'Sequence Number';
+  ADD COLUMN `msg_id`           varchar(100) DEFAULT NULL COMMENT 'Vendor Message ID',
+  ADD COLUMN `status`           varchar(50)  DEFAULT NULL COMMENT 'Current Delivery Status',
+  ADD COLUMN `notification_seq` tinyint(3)   NOT NULL DEFAULT 1 COMMENT 'Sequence Number';
 
 -- Add Status Normalization Columns (Canonical Statuses)
 ALTER TABLE `notification_log`
-  ADD COLUMN IF NOT EXISTS `status_current` varchar(50) DEFAULT NULL
+  ADD COLUMN `status_current` varchar(50) DEFAULT NULL
   COMMENT 'Canonical Status (QUEUED, SENT, DELIVERED, READ, FAILED)',
-  ADD COLUMN IF NOT EXISTS `provider_raw_status` varchar(100) DEFAULT NULL
+  ADD COLUMN `provider_raw_status` varchar(100) DEFAULT NULL
   COMMENT 'Raw Vendor Status',
-  ADD COLUMN IF NOT EXISTS `status_priority` tinyint(3) DEFAULT 0
+  ADD COLUMN `status_priority` tinyint(3) DEFAULT 0
   COMMENT 'Status Priority Level',
-  ADD COLUMN IF NOT EXISTS `provider_payload` text DEFAULT NULL
+  ADD COLUMN `provider_payload` text DEFAULT NULL
   COMMENT 'Full Webhook JSON Payload';
 
 -- Indexes for Performance
 ALTER TABLE `notification_log`
-  ADD INDEX IF NOT EXISTS `idx_status_current` (`status_current`),
-  ADD INDEX IF NOT EXISTS `idx_type_status` (`type`, `status_current`);
+  ADD INDEX `idx_status_current` (`status_current`),
+  ADD INDEX `idx_type_status` (`type`, `status_current`);
 
 -- ---------------------------------------------------------------------------
 -- 3. Notification Schedule Table
