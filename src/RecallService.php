@@ -45,33 +45,33 @@ class RecallService
     /**
      * Process all pending recall WhatsApp notifications (called by cron).
      */
-    public function runWsp(bool $dryRun = false): void
+    public function runWsp(bool $dryRun = false, bool $forceSend = false): void
     {
-        $this->runByType('WSP', $dryRun);
+        $this->runByType('WSP', $dryRun, $forceSend);
     }
 
     /**
      * Process all pending recall Email notifications (called by cron).
      */
-    public function runEmail(bool $dryRun = false): void
+    public function runEmail(bool $dryRun = false, bool $forceSend = false): void
     {
-        $this->runByType('EMAIL', $dryRun);
+        $this->runByType('EMAIL', $dryRun, $forceSend);
     }
 
     /**
      * Process both WSP and Email recall notifications.
      */
-    public function runAll(bool $dryRun = false): void
+    public function runAll(bool $dryRun = false, bool $forceSend = false): void
     {
-        $this->runByType('WSP',   $dryRun);
-        $this->runByType('EMAIL', $dryRun);
+        $this->runByType('WSP',   $dryRun, $forceSend);
+        $this->runByType('EMAIL', $dryRun, $forceSend);
     }
 
     // =========================================================================
     // Internal run engine
     // =========================================================================
 
-    private function runByType(string $type, bool $dryRun): void
+    private function runByType(string $type, bool $dryRun, bool $forceSend = false): void
     {
         $facilities = $this->facilityConfig->getAllFacilitiesWithConfig();
 
@@ -85,36 +85,40 @@ class RecallService
             if ($type === 'WSP'   && empty($config['enabled_wsp']))   continue;
             if ($type === 'EMAIL' && empty($config['enabled_email'])) continue;
 
-            // Check allowed sending window (same logic as NotificationService)
-            $currentHour = (int)date('G');
-            $currentDow  = (int)date('w');
-
-            if ($currentDow === 6) {
-                $allowed = !empty($config['send_saturday_enabled']);
-                $start   = (int)($config['send_saturday_start'] ?? 8);
-                $end     = (int)($config['send_saturday_end']   ?? 13);
-                $dayName = 'Saturday';
-            } elseif ($currentDow === 0) {
-                $allowed = !empty($config['send_sunday_enabled']);
-                $start   = (int)($config['send_sunday_start'] ?? 9);
-                $end     = (int)($config['send_sunday_end']   ?? 12);
-                $dayName = 'Sunday';
+            if ($forceSend) {
+                echo "  Recalls Facility #{$facilityId} | Force-send mode: bypassing time/day window.\n";
             } else {
-                $allowed = true;
-                $start   = (int)($config['send_weekday_start'] ?? 7);
-                $end     = (int)($config['send_weekday_end']   ?? 21);
-                $dayName = 'Weekday';
-            }
+                // Check allowed sending window (same logic as NotificationService)
+                $currentHour = (int)date('G');
+                $currentDow  = (int)date('w');
 
-            if (!$allowed) {
-                echo "  Recalls Facility #{$facilityId} | {$dayName} sending disabled. Skipping.\n";
-                continue;
-            }
+                if ($currentDow === 6) {
+                    $allowed = !empty($config['send_saturday_enabled']);
+                    $start   = (int)($config['send_saturday_start'] ?? 8);
+                    $end     = (int)($config['send_saturday_end']   ?? 13);
+                    $dayName = 'Saturday';
+                } elseif ($currentDow === 0) {
+                    $allowed = !empty($config['send_sunday_enabled']);
+                    $start   = (int)($config['send_sunday_start'] ?? 9);
+                    $end     = (int)($config['send_sunday_end']   ?? 12);
+                    $dayName = 'Sunday';
+                } else {
+                    $allowed = true;
+                    $start   = (int)($config['send_weekday_start'] ?? 7);
+                    $end     = (int)($config['send_weekday_end']   ?? 21);
+                    $dayName = 'Weekday';
+                }
 
-            if ($currentHour < $start || $currentHour >= $end) {
-                echo "  Recalls Facility #{$facilityId} | Outside allowed hours "
-                   . "({$currentHour}:00, allowed {$start}:00-{$end}:00 on {$dayName}). Skipping.\n";
-                continue;
+                if (!$allowed) {
+                    echo "  Recalls Facility #{$facilityId} | {$dayName} sending disabled. Skipping.\n";
+                    continue;
+                }
+
+                if ($currentHour < $start || $currentHour >= $end) {
+                    echo "  Recalls Facility #{$facilityId} | Outside allowed hours "
+                       . "({$currentHour}:00, allowed {$start}:00-{$end}:00 on {$dayName}). Skipping.\n";
+                    continue;
+                }
             }
 
             // Get recall schedule sequences for this facility
@@ -135,7 +139,7 @@ class RecallService
                 if ($type === 'WSP'   && empty($seq['enabled_wsp']))   continue;
                 if ($type === 'EMAIL' && empty($seq['enabled_email'])) continue;
 
-                $recalls = $this->getPendingRecalls($facilityId, $type, $seqNum, $daysBefore);
+                $recalls = $this->getPendingRecalls($facilityId, $type, $seqNum, $daysBefore, $forceSend);
                 echo "  Recalls Facility #{$facilityId} | seq={$seqNum} ({$daysBefore} days before) "
                    . "| {$type} | " . count($recalls) . " recall(s)\n";
 
@@ -278,18 +282,29 @@ class RecallService
     /**
      * Returns recalls pending notification for a given facility, type, sequence, and days_before.
      *
-     * A recall is "pending" when:
+     * For normal (cron) execution:
      *   - DATE_SUB(r_eventDate, INTERVAL daysBefore DAY) = CURDATE()
+     *
+     * For force-send (manual "Send Recalls Now"):
+     *   - No date restriction — sends any unsent recall regardless of scheduled_for
+     *
+     * In both modes:
      *   - No wsp_email_recall entry for this recall_id + seq with status SENT or SKIPPED
      *   - Patient has the appropriate HIPAA consent
      */
-    public function getPendingRecalls(int $facilityId, string $type, int $seq, int $daysBefore): array
+    public function getPendingRecalls(int $facilityId, string $type, int $seq, int $daysBefore, bool $forceSend = false): array
     {
         if ($type === 'WSP') {
             $hipaaFilter = "AND pd.hipaa_allowsms = 'YES' AND pd.phone_cell <> ''";
+            $channelFilter = 'WSP';
         } else {
             $hipaaFilter = "AND pd.hipaa_allowemail = 'YES' AND pd.email <> ''";
+            $channelFilter = 'Email';
         }
+
+        $dateCondition = $forceSend
+            ? ''  // force-send: no date restriction
+            : "AND DATE_SUB(mr.r_eventDate, INTERVAL ? DAY) = CURDATE()";
 
         $sql = "SELECT mr.r_ID AS recall_id, mr.r_pid AS pid,
                        mr.r_eventDate, mr.r_facility, mr.r_provider,
@@ -303,17 +318,25 @@ class RecallService
                 INNER JOIN patient_data pd ON pd.pid = mr.r_pid
                 LEFT JOIN users u ON u.id = mr.r_provider
                 WHERE mr.r_facility = ?
-                  AND DATE_SUB(mr.r_eventDate, INTERVAL ? DAY) = CURDATE()
+                  {$dateCondition}
                   {$hipaaFilter}
                   AND NOT EXISTS (
                       SELECT 1 FROM wsp_email_recall wr
                       WHERE wr.recall_id = mr.r_ID
                         AND wr.seq = ?
+                        AND wr.channel = ?
                         AND wr.status IN ('SENT','SKIPPED')
                   )
                 ORDER BY mr.r_eventDate ASC";
 
-        $res     = sqlStatement($sql, [$facilityId, $daysBefore, $seq]);
+        $params = [$facilityId];
+        if (!$forceSend) {
+            $params[] = $daysBefore;
+        }
+        $params[] = $seq;
+        $params[] = $channelFilter;
+
+        $res     = sqlStatement($sql, $params);
         $recalls = [];
         while ($row = sqlFetchArray($res)) {
             $recalls[] = $row;
@@ -513,31 +536,22 @@ class RecallService
         $channelEnum = ($channel === 'WSP') ? 'WSP' : 'Email';
         $sentAt      = ($status === 'SENT') ? date('Y-m-d H:i:s') : null;
 
-        $existing = sqlQuery(
-            "SELECT id FROM wsp_email_recall WHERE recall_id = ? AND seq = ?",
-            [$recallId, $seq]
+        sqlStatement(
+            "INSERT INTO wsp_email_recall
+                 (recall_id, facility_id, pid, seq, channel, log_id,
+                  status, skip_reason, scheduled_for, sent_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+                 status     = VALUES(status),
+                 skip_reason = VALUES(skip_reason),
+                 sent_at    = VALUES(sent_at),
+                 log_id     = VALUES(log_id)",
+            [
+                $recallId, $facilityId, $pid, $seq, $channelEnum,
+                $logId > 0 ? $logId : null,
+                $status, $skipReason, $scheduledFor, $sentAt
+            ]
         );
-
-        if ($existing) {
-            sqlStatement(
-                "UPDATE wsp_email_recall SET
-                    status = ?, skip_reason = ?, sent_at = ?, log_id = ?
-                 WHERE recall_id = ? AND seq = ?",
-                [$status, $skipReason, $sentAt, $logId > 0 ? $logId : null, $recallId, $seq]
-            );
-        } else {
-            sqlStatement(
-                "INSERT INTO wsp_email_recall
-                     (recall_id, facility_id, pid, seq, channel, log_id,
-                      status, skip_reason, scheduled_for, sent_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [
-                    $recallId, $facilityId, $pid, $seq, $channelEnum,
-                    $logId > 0 ? $logId : null,
-                    $status, $skipReason, $scheduledFor, $sentAt
-                ]
-            );
-        }
 
         // Add status history entry
         if ($logId > 0) {

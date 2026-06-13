@@ -261,7 +261,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_recall` (
   `sent_at`       datetime     DEFAULT NULL               COMMENT 'Timestamp efectivo de envío',
   `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_recall_seq` (`recall_id`, `seq`),
+  UNIQUE KEY `uq_recall_seq_channel` (`recall_id`, `seq`, `channel`),
   KEY `idx_facility_status_scheduled` (`facility_id`, `status`, `scheduled_for`),
   KEY `idx_pid` (`pid`),
   KEY `idx_log_id` (`log_id`)

@@ -69,7 +69,7 @@ try {
         `sent_at`       datetime     DEFAULT NULL,
         `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (`id`),
-        UNIQUE KEY `uq_recall_seq` (`recall_id`, `seq`)
+        UNIQUE KEY `uq_recall_seq_channel` (`recall_id`, `seq`, `channel`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 
     // Build facility filter

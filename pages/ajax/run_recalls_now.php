@@ -52,12 +52,14 @@ try {
     echo "=== Manual Recall Run — " . date('Y-m-d H:i:s') . " ===\n";
     echo "Channel: {$channel} | Dry-run: " . ($dryRun ? 'YES' : 'NO') . "\n\n";
 
+    $forceSend = true; // manual run ignores scheduled date
+
     if ($channel === 'wsp') {
-        $service->runWsp($dryRun);
+        $service->runWsp($dryRun, $forceSend);
     } elseif ($channel === 'email') {
-        $service->runEmail($dryRun);
+        $service->runEmail($dryRun, $forceSend);
     } else {
-        $service->runAll($dryRun);
+        $service->runAll($dryRun, $forceSend);
     }
 
     echo "\nCompleted successfully.\n";
