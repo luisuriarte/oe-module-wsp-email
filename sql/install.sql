@@ -237,8 +237,8 @@ CREATE TABLE IF NOT EXISTS `wsp_email_recall_schedule` (
   `enabled_wsp`   tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'WhatsApp habilitado',
   `enabled_email` tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Email habilitado',
   `enabled`       tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Secuencia activa',
-  `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
-  `updated_at`    datetime     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_at`    timestamp    DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`    timestamp    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_facility_seq` (`facility_id`, `seq`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
@@ -248,24 +248,24 @@ CREATE TABLE IF NOT EXISTS `wsp_email_recall_schedule` (
 -- Recall Notifications: registro de envíos por recall + secuencia
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_recall` (
-  `id`            int(11)      NOT NULL AUTO_INCREMENT,
-  `recall_id`     int(11)      NOT NULL                   COMMENT 'FK -> medex_recalls.r_ID',
-  `facility_id`   int(11)      NOT NULL                   COMMENT 'FK -> facility.id',
-  `pid`           int(11)      NOT NULL                   COMMENT 'FK -> patient_data.pid',
-  `seq`           tinyint(3)   NOT NULL                   COMMENT 'FK -> wsp_email_recall_schedule.seq',
-  `channel`       enum('WSP','Email','Both') NOT NULL DEFAULT 'WSP' COMMENT 'Canal usado',
-  `log_id`        int(11)      DEFAULT NULL               COMMENT 'FK -> notification_log.iLogId',
-  `status`        enum('PENDING','SENT','FAILED','SKIPPED') NOT NULL DEFAULT 'PENDING' COMMENT 'Estado del intento',
-  `skip_reason`   varchar(100) DEFAULT NULL               COMMENT 'Motivo si SKIPPED (blacklist, ventana, etc.)',
-  `scheduled_for` date         NOT NULL                   COMMENT 'Fecha calculada del envío',
-  `sent_at`       datetime     DEFAULT NULL               COMMENT 'Timestamp efectivo de envío',
-  `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `recall_id` int(11) NOT NULL,
+  `facility_id` int(11) NOT NULL,
+  `pid` int(11) NOT NULL,
+  `seq` tinyint(3) NOT NULL,
+  `channel` enum('WSP','Email','Both') NOT NULL DEFAULT 'WSP',
+  `log_id` int(11) DEFAULT NULL,
+  `status` enum('PENDING','SENT','FAILED','SKIPPED') NOT NULL DEFAULT 'PENDING',
+  `skip_reason` varchar(100) DEFAULT NULL,
+  `scheduled_for` date NOT NULL,
+  `sent_at` datetime DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_recall_seq_channel` (`recall_id`, `seq`, `channel`),
-  KEY `idx_facility_status_scheduled` (`facility_id`, `status`, `scheduled_for`),
+  UNIQUE KEY `uq_recall_seq_channel` (`recall_id`,`seq`,`channel`),
+  KEY `idx_facility_status_scheduled` (`facility_id`,`status`,`scheduled_for`),
   KEY `idx_pid` (`pid`),
   KEY `idx_log_id` (`log_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   COMMENT='Registro de notificaciones de recalls por secuencia';
 
 -- ---------------------------------------------------------------------------
@@ -278,8 +278,8 @@ CREATE TABLE IF NOT EXISTS `wsp_email_recall_entries` (
   `facility_id` int(11)      NOT NULL                   COMMENT 'FK -> facility.id',
   `provider_id` int(11)      DEFAULT NULL               COMMENT 'FK -> users.id',
   `reason`      varchar(255) DEFAULT NULL,
-  `created_at`  datetime     DEFAULT CURRENT_TIMESTAMP,
-  `updated_at`  datetime     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_at`  timestamp    DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`  timestamp    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_pid` (`pid`),
   KEY `idx_facility` (`facility_id`),

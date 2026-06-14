@@ -41,7 +41,7 @@ try {
     $horizon    = max(1, min((int)($_GET['horizon'] ?? 30), 365));
 
     // Ensure tables exist
-    sqlStatement("CREATE TABLE IF NOT EXISTS `wsp_email_recall_schedule` (
+    sqlStatementThrowException("CREATE TABLE IF NOT EXISTS `wsp_email_recall_schedule` (
         `id`            int(11)      NOT NULL AUTO_INCREMENT,
         `facility_id`   int(11)      NOT NULL,
         `seq`           tinyint(3)   NOT NULL,
@@ -49,13 +49,13 @@ try {
         `enabled_wsp`   tinyint(1)   NOT NULL DEFAULT 1,
         `enabled_email` tinyint(1)   NOT NULL DEFAULT 1,
         `enabled`       tinyint(1)   NOT NULL DEFAULT 1,
-        `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
-        `updated_at`    datetime     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        `created_at`    timestamp    DEFAULT CURRENT_TIMESTAMP,
+        `updated_at`    timestamp    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (`id`),
         UNIQUE KEY `uq_facility_seq` (`facility_id`, `seq`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 
-    sqlStatement("CREATE TABLE IF NOT EXISTS `wsp_email_recall` (
+    sqlStatementThrowException("CREATE TABLE IF NOT EXISTS `wsp_email_recall` (
         `id`            int(11)      NOT NULL AUTO_INCREMENT,
         `recall_id`     int(11)      NOT NULL,
         `facility_id`   int(11)      NOT NULL,
@@ -67,7 +67,7 @@ try {
         `skip_reason`   varchar(100) DEFAULT NULL,
         `scheduled_for` date         NOT NULL,
         `sent_at`       datetime     DEFAULT NULL,
-        `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
+        `created_at`    timestamp    DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (`id`),
         UNIQUE KEY `uq_recall_seq_channel` (`recall_id`, `seq`, `channel`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
@@ -118,7 +118,7 @@ try {
         LIMIT 200";
 
     $mParams = array_merge([$horizon], $facParams);
-    $mRes    = sqlStatement($mSql, $mParams);
+    $mRes    = sqlStatementThrowException($mSql, $mParams);
     $rows    = [];
     while ($row = sqlFetchArray($mRes)) {
         $rows[] = $row;
@@ -165,7 +165,7 @@ try {
         LIMIT 200";
 
     $eParams = array_merge([$horizon], $facParams);
-    $eRes    = sqlStatement($eSql, $eParams);
+    $eRes    = sqlStatementThrowException($eSql, $eParams);
     while ($row = sqlFetchArray($eRes)) {
         $rows[] = $row;
     }

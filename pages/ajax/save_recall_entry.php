@@ -34,8 +34,12 @@ $facilityId = (int)($_POST['facility_id'] ?? 0);
 $providerId = (int)($_POST['provider_id'] ?? 0);
 $reason     = trim($_POST['reason'] ?? '');
 
-if (!$pid || !$eventDate || !$facilityId) {
-    echo json_encode(['success' => false, 'error' => 'pid, event_date and facility_id are required']);
+$missing = [];
+if (!$pid) $missing[] = 'pid';
+if (!$eventDate) $missing[] = 'event_date';
+if (!$facilityId) $missing[] = 'facility_id';
+if ($missing) {
+    echo json_encode(['success' => false, 'error' => 'Missing required fields: ' . implode(', ', $missing)]);
     exit;
 }
 

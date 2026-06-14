@@ -29,15 +29,15 @@ try {
     }
 
     // Auto-create table
-    sqlStatement("CREATE TABLE IF NOT EXISTS `wsp_email_recall_entries` (
+    sqlStatementThrowException("CREATE TABLE IF NOT EXISTS `wsp_email_recall_entries` (
       `id`          int(11)      NOT NULL AUTO_INCREMENT,
       `pid`         int(11)      NOT NULL,
       `event_date`  date         NOT NULL,
       `facility_id` int(11)      NOT NULL,
       `provider_id` int(11)      DEFAULT NULL,
       `reason`      varchar(255) DEFAULT NULL,
-      `created_at`  datetime     DEFAULT CURRENT_TIMESTAMP,
-      `updated_at`  datetime     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      `created_at`  timestamp    DEFAULT CURRENT_TIMESTAMP,
+      `updated_at`  timestamp    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (`id`),
       KEY `idx_pid` (`pid`),
       KEY `idx_facility` (`facility_id`),
@@ -71,7 +71,7 @@ try {
             {$whereClause}
             ORDER BY we.event_date ASC";
 
-    $res  = sqlStatement($sql, $params);
+    $res  = sqlStatementThrowException($sql, $params);
     $rows = [];
     while ($row = sqlFetchArray($res)) {
         $rows[] = $row;

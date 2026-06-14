@@ -34,7 +34,7 @@ try {
     }
 
     // Auto-create wsp_email_recall table if not migrated yet
-    sqlStatement("CREATE TABLE IF NOT EXISTS `wsp_email_recall` (
+    sqlStatementThrowException("CREATE TABLE IF NOT EXISTS `wsp_email_recall` (
         `id`            int(11)      NOT NULL AUTO_INCREMENT,
         `recall_id`     int(11)      NOT NULL,
         `facility_id`   int(11)      NOT NULL,
@@ -46,7 +46,7 @@ try {
         `skip_reason`   varchar(100) DEFAULT NULL,
         `scheduled_for` date         NOT NULL,
         `sent_at`       datetime     DEFAULT NULL,
-        `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
+        `created_at`    timestamp    DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (`id`),
         UNIQUE KEY `uq_recall_seq_channel` (`recall_id`, `seq`, `channel`),
         KEY `idx_facility_status_scheduled` (`facility_id`, `status`, `scheduled_for`),
@@ -128,7 +128,8 @@ try {
         WHERE {$eConditions}
     ) cnt";
     $countParams = array_merge($mParams, $eParams);
-    $countRow = sqlQuery($countSql, $countParams);
+    $countRes = sqlStatementThrowException($countSql, $countParams);
+    $countRow = sqlFetchArray($countRes);
     $total    = (int)($countRow['total'] ?? 0);
 
     // ── Data: UNION ALL medex + entries ────────────────────────────────
@@ -182,7 +183,7 @@ try {
                 LIMIT ? OFFSET ?";
 
     $dataParams = array_merge($mParams, $eParams, [$limit, $offset]);
-    $res        = sqlStatement($dataSql, $dataParams);
+    $res        = sqlStatementThrowException($dataSql, $dataParams);
     $recalls    = [];
     while ($row = sqlFetchArray($res)) {
         $recalls[] = $row;

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * dashboard.php — Main UI for the WSP/Email Notification Module.
  *
@@ -861,7 +861,7 @@ while ($pRow = sqlFetchArray($provRes)) {
     ==================================================================== -->
     <div id="tab-recalls" class="<?php echo $activeTab === 'recalls' ? '' : 'd-none'; ?>">
 
-        <!-- ── PANEL: Active Recalls ──────────────────────────────────────── -->
+        <!--  PANEL: Active Recalls  -->
         <div class="chart-card mb-3">
             <div class="d-flex align-items-center justify-content-between mb-3">
                 <h5 class="mb-0">
@@ -898,7 +898,7 @@ while ($pRow = sqlFetchArray($provRes)) {
             </div>
         </div>
 
-        <!-- ── PANEL: My Recalls (entries) ──────────────────────────────── -->
+        <!--  PANEL: My Recalls (entries)  -->
         <div class="chart-card mb-3">
             <div class="d-flex align-items-center justify-content-between mb-3">
                 <h5 class="mb-0">
@@ -915,7 +915,13 @@ while ($pRow = sqlFetchArray($provRes)) {
             </div>
         </div>
 
-        <!-- ── PANEL: Search All Recalls ─────────────────────────────────--><｜｜DSML｜｜parameter name="parallel" string="false">true
+        <!--  PANEL: Search All Recalls  -->
+        <div class="chart-card mb-3">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h5 class="mb-0">
+                    <i class="fas fa-search me-2 text-info"></i><?php echo xlt('Search All Recalls'); ?>
+                </h5>
+            </div>
 
             <!-- Filters -->
             <div class="row g-2 mb-3">
@@ -3462,6 +3468,7 @@ document.addEventListener('DOMContentLoaded', function() {
         !document.getElementById('tab-recalls').classList.contains('d-none')) {
         loadRecalls();
         loadPendingRecalls();
+        loadMyRecalls();
     }
 });
 
@@ -3769,16 +3776,16 @@ function loadMyRecalls() {
         .then(data => {
             const rows = data.data || [];
             if (!rows.length) {
-                wrap.innerHTML = '<div class="text-muted py-2"><?php echo js_escape(xlt("No custom recall entries yet. Click New Recall to create one.")); ?></div>';
+                wrap.innerHTML = '<div class="text-muted py-2"><?php echo xlt("No custom recall entries yet. Click New Recall to create one."); ?></div>';
                 return;
             }
             let html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead class="table-light"><tr>' +
-                '<th><?php echo js_escape(xlt("Patient")); ?></th>' +
-                '<th><?php echo js_escape(xlt("Event Date")); ?></th>' +
-                '<th><?php echo js_escape(xlt("Reason")); ?></th>' +
-                '<th><?php echo js_escape(xlt("Facility")); ?></th>' +
-                '<th><?php echo js_escape(xlt("Provider")); ?></th>' +
-                '<th class="text-center"><?php echo js_escape(xlt("Actions")); ?></th></tr></thead><tbody>';
+                '<th><?php echo xlt("Patient"); ?></th>' +
+                '<th><?php echo xlt("Event Date"); ?></th>' +
+                '<th><?php echo xlt("Reason"); ?></th>' +
+                '<th><?php echo xlt("Facility"); ?></th>' +
+                '<th><?php echo xlt("Provider"); ?></th>' +
+                '<th class="text-center"><?php echo xlt("Actions"); ?></th></tr></thead><tbody>';
             rows.forEach(r => {
                 const name = escHtml((r.fname || '') + ' ' + (r.lname || '')).trim();
                 html += `<tr>
@@ -3788,8 +3795,8 @@ function loadMyRecalls() {
                     <td>${escHtml(r.facility_name || '-')}</td>
                     <td>${escHtml(r.provider_name || '-')}</td>
                     <td class="text-center">
-                        <button class="btn btn-xs btn-outline-primary me-1" onclick="openRecallEntryModal(${r.id})" title="<?php echo js_escape(xlt("Edit")); ?>"><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-xs btn-outline-danger" onclick="deleteRecallEntry(${r.id})" title="<?php echo js_escape(xlt("Delete")); ?>"><i class="fas fa-trash"></i></button>
+                        <button class="btn btn-xs btn-outline-primary me-1" onclick="openRecallEntryModal(${r.id})" title="<?php echo attr(xlt("Edit")); ?>"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-xs btn-outline-danger" onclick="deleteRecallEntry(${r.id})" title="<?php echo attr(xlt("Delete")); ?>"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>`;
             });
@@ -3821,8 +3828,8 @@ function openRecallEntryModal(id) {
     form.reset();
     document.getElementById('recallEntryId').value = id || 0;
     document.getElementById('recallEntryModalTitle').textContent = id
-        ? '<?php echo js_escape(xlt("Edit Recall")); ?>'
-        : '<?php echo js_escape(xlt("New Recall")); ?>';
+        ? '<?php echo xlt('Edit Recall'); ?>'
+        : '<?php echo xlt('New Recall'); ?>';
 
     if (id) {
         // Load existing data
@@ -3839,6 +3846,12 @@ function openRecallEntryModal(id) {
                     document.getElementById('recallEntryReason').value = r.reason || '';
                 }
             });
+    } else {
+        // Default to first facility for new recalls
+        const facSelect = document.getElementById('recallEntryFacility');
+        if (facSelect && facSelect.options.length > 1) {
+            facSelect.selectedIndex = 1;
+        }
     }
 
     if (modal) {
@@ -3849,19 +3862,31 @@ function openRecallEntryModal(id) {
 
 function saveRecallEntry() {
     const pid = document.getElementById('recallEntryPid').value;
+    const dateVal = document.getElementById('recallEntryDate').value;
+    const facVal = document.getElementById('recallEntryFacility').value;
     if (!pid) {
         alert(<?php echo json_encode(xlt('Please select a patient first')); ?>);
+        return;
+    }
+    if (!dateVal) {
+        alert(<?php echo json_encode(xlt('Please select an event date')); ?>);
+        return;
+    }
+    if (!facVal) {
+        alert(<?php echo json_encode(xlt('Please select a facility')); ?>);
         return;
     }
     const form = document.getElementById('recallEntryForm');
     const data = new FormData(form);
 
+    console.log('saveRecallEntry data:', Object.fromEntries(data.entries()));
+
     fetch(`${moduleRoot}/pages/ajax/save_recall_entry.php`, { method: 'POST', body: data })
         .then(r => r.json())
         .then(res => {
             if (res.success) {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('recallEntryModal'));
-                if (modal) modal.hide();
+                const modalEl = document.getElementById('recallEntryModal');
+                $(modalEl).modal('hide');
                 loadMyRecalls();
                 loadRecalls(true);
             } else {
@@ -3890,6 +3915,15 @@ function deleteRecallEntry(id) {
 }
 
 // Load My Recalls on tab show + wire modal form
+function setRecallDateOffset(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    document.getElementById('recallEntryDate').value = yyyy + '-' + mm + '-' + dd;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const recallsTab = document.querySelector('[data-bs-target="#tab-recalls"]');
     if (recallsTab) {
@@ -3907,7 +3941,9 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="recallEntryModalTitle"><?php echo xlt('New Recall'); ?></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="close" data-dismiss="modal" data-bs-dismiss="modal" aria-label="<?php echo xla('Close'); ?>">
+                    <span aria-hidden="true">&times;</span>
+                </button>
             </div>
             <form id="recallEntryForm">
                 <div class="modal-body">
@@ -3916,7 +3952,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="mb-3">
                         <label class="form-label small"><?php echo xlt('Patient'); ?></label>
                         <div class="input-group input-group-sm">
-                            <input type="text" id="recallEntryPatientName" class="form-control" readonly placeholder="<?php echo xla('Select a patient'); ?>">
+                            <input type="text" id="recallEntryPatientName" class="form-control" readonly placeholder="<?php echo xla('Click to select a patient'); ?>" onclick="sel_recall_patient()">
                             <button class="btn btn-outline-primary" type="button" onclick="sel_recall_patient()" title="<?php echo xla('Search Patient'); ?>">
                                 <i class="fas fa-search"></i>
                             </button>
@@ -3925,6 +3961,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="mb-3">
                         <label class="form-label small"><?php echo xlt('Event Date'); ?></label>
                         <input type="date" name="event_date" id="recallEntryDate" class="form-control form-control-sm" required>
+                        <div class="mt-1 d-flex gap-1 flex-wrap">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setRecallDateOffset(7)">7d</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setRecallDateOffset(15)">15d</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setRecallDateOffset(30)">30d</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setRecallDateOffset(90)">90d</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setRecallDateOffset(180)">6m</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setRecallDateOffset(365)">1y</button>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label small"><?php echo xlt('Facility'); ?></label>
@@ -3940,7 +3984,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <select name="provider_id" id="recallEntryProvider" class="form-select form-select-sm">
                             <option value=""><?php echo xlt('None'); ?></option>
                             <?php foreach ($providers as $prov): ?>
-                            <option value="<?php echo attr($prov['id']); ?>"><?php echo text($prov['lname'] . ', ' . $prov['fname'] . ($prov['suffix'] ? ' ' . $prov['suffix'] : '')); ?></option>
+                            <?php $selected = ((int)($prov['id']) === (int)($_SESSION['authUserID'] ?? 0)) ? 'selected' : ''; ?>
+                            <option value="<?php echo attr($prov['id']); ?>" <?php echo $selected; ?>><?php echo text($prov['lname'] . ', ' . $prov['fname'] . ($prov['suffix'] ? ' ' . $prov['suffix'] : '')); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -3950,7 +3995,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal"><?php echo xlt('Cancel'); ?></button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal" data-bs-dismiss="modal"><?php echo xlt('Cancel'); ?></button>
                     <button type="button" class="btn btn-sm btn-success" id="btnSaveRecallEntry"><?php echo xlt('Save'); ?></button>
                 </div>
             </form>

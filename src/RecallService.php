@@ -150,6 +150,14 @@ class RecallService
                        . trim(($recall['fname'] ?? '') . ' ' . ($recall['lname'] ?? ''))
                        . " | eventDate={$recall['r_eventDate']}\n";
 
+                    // For seq > 1, skip if patient already has a future appointment
+                    if ($seqNum > 1 && $this->hasFutureAppointment((int)$recall['pid'])) {
+                        echo "    [APPOINTMENT_BOOKED] Patient already has a future appointment. Skipping.\n";
+                        $logChannel = ($type === 'WSP') ? 'WSP' : 'Email';
+                        $this->insertRecallLog($recall, $config, $seqNum, $logChannel, 'SKIPPED', null, null, 'SKIPPED', 0, 'APPOINTMENT_BOOKED');
+                        continue;
+                    }
+
                     if ($dryRun) {
                         echo "    [DRY-RUN] Skipping actual send.\n";
                         continue;
@@ -366,6 +374,21 @@ class RecallService
     }
 
     /**
+     * Returns true if the given patient has any appointment in the future (today or later).
+     */
+    private function hasFutureAppointment(int $pid): bool
+    {
+        $row = sqlQuery(
+            "SELECT COUNT(*) AS cnt FROM openemr_postcalendar_events
+             WHERE pc_pid = ?
+               AND pc_eventDate >= CURDATE()
+               AND pc_apptstatus NOT IN ('x', 'c', '^')",
+            [$pid]
+        );
+        return ($row['cnt'] ?? 0) > 0;
+    }
+
+    /**
      * Resolves the WSP message template for recalls for a given facility.
      */
     private function resolveRecallTemplate(int $facilityId): string
@@ -552,6 +575,13 @@ class RecallService
 
             $patientName = trim(($row['fname'] ?? '') . ' ' . ($row['lname'] ?? ''));
             echo "  recall_id={$recallId} pid={$pid} ({$patientName}) seq={$seq}\n";
+
+            if ($seq > 1 && $this->hasFutureAppointment($pid)) {
+                echo "    [APPOINTMENT_BOOKED] Patient already has a future appointment. Skipping.\n";
+                $logChannel = ($channel === 'all') ? 'WSP' : ($channel === 'wsp' ? 'WSP' : 'Email');
+                $this->insertRecallLog($row, $config, $seq, $logChannel, 'SKIPPED', null, null, 'SKIPPED', 0, 'APPOINTMENT_BOOKED');
+                continue;
+            }
 
             if ($dryRun) {
                 echo "    [DRY-RUN] Would send WSP and/or Email.\n";
