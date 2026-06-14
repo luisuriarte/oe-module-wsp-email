@@ -3822,6 +3822,8 @@ function sel_recall_patient() {
     );
 }
 
+let recallEntryModalInstance = null;
+
 function openRecallEntryModal(id) {
     const modal = document.getElementById('recallEntryModal');
     const form  = document.getElementById('recallEntryForm');
@@ -3855,8 +3857,8 @@ function openRecallEntryModal(id) {
     }
 
     if (modal) {
-        const bsModal = new bootstrap.Modal(modal);
-        bsModal.show();
+        recallEntryModalInstance = new bootstrap.Modal(modal);
+        recallEntryModalInstance.show();
     }
 }
 
@@ -3885,8 +3887,9 @@ function saveRecallEntry() {
         .then(r => r.json())
         .then(res => {
             if (res.success) {
-                const modalEl = document.getElementById('recallEntryModal');
-                $(modalEl).modal('hide');
+                if (recallEntryModalInstance) {
+                    recallEntryModalInstance.hide();
+                }
                 loadMyRecalls();
                 loadRecalls(true);
             } else {
