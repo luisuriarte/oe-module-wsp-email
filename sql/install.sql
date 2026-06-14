@@ -267,3 +267,29 @@ CREATE TABLE IF NOT EXISTS `wsp_email_recall` (
   KEY `idx_log_id` (`log_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   COMMENT='Registro de notificaciones de recalls por secuencia';
+
+-- ---------------------------------------------------------------------------
+-- Recall Entries: recalls creados desde el módulo (sin restricción por paciente)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `wsp_email_recall_entries` (
+  `id`          int(11)      NOT NULL AUTO_INCREMENT,
+  `pid`         int(11)      NOT NULL                   COMMENT 'FK -> patient_data.pid',
+  `event_date`  date         NOT NULL                   COMMENT 'Fecha del recall',
+  `facility_id` int(11)      NOT NULL                   COMMENT 'FK -> facility.id',
+  `provider_id` int(11)      DEFAULT NULL               COMMENT 'FK -> users.id',
+  `reason`      varchar(255) DEFAULT NULL,
+  `created_at`  datetime     DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`  datetime     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_pid` (`pid`),
+  KEY `idx_facility` (`facility_id`),
+  KEY `idx_event_date` (`event_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='Recalls creados desde el módulo (sin restricción único por paciente)';
+
+-- Elimina la UNIQUE KEY (r_PRACTID, r_pid) que impide
+-- tener múltiples recalls para un mismo paciente.
+-- La PRIMARY KEY (r_ID) ya garantiza unicidad de cada fila.
+
+ALTER TABLE `medex_recalls`
+  DROP INDEX `r_PRACTID`;

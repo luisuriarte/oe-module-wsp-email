@@ -42,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $channel = strtolower(trim($_POST['channel'] ?? 'all'));
 $dryRun  = (bool)(int)($_POST['dry_run'] ?? 0);
+$selectedJson = trim($_POST['selected'] ?? '');
 
 // Capture output
 ob_start();
@@ -52,14 +53,25 @@ try {
     echo "=== Manual Recall Run — " . date('Y-m-d H:i:s') . " ===\n";
     echo "Channel: {$channel} | Dry-run: " . ($dryRun ? 'YES' : 'NO') . "\n\n";
 
-    $forceSend = true; // manual run ignores scheduled date
-
-    if ($channel === 'wsp') {
-        $service->runWsp($dryRun, $forceSend);
-    } elseif ($channel === 'email') {
-        $service->runEmail($dryRun, $forceSend);
+    if (!empty($selectedJson)) {
+        // Send only selected rows
+        $selected = json_decode($selectedJson, true);
+        if (!is_array($selected) || empty($selected)) {
+            echo "ERROR: Invalid 'selected' JSON.\n";
+        } else {
+            echo "Sending " . count($selected) . " selected recall(s)...\n\n";
+            $service->sendSelected($selected, $dryRun, $channel);
+        }
     } else {
-        $service->runAll($dryRun, $forceSend);
+        $forceSend = true; // manual run ignores scheduled date
+
+        if ($channel === 'wsp') {
+            $service->runWsp($dryRun, $forceSend);
+        } elseif ($channel === 'email') {
+            $service->runEmail($dryRun, $forceSend);
+        } else {
+            $service->runAll($dryRun, $forceSend);
+        }
     }
 
     echo "\nCompleted successfully.\n";

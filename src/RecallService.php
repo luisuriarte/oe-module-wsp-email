@@ -295,41 +295,62 @@ class RecallService
     public function getPendingRecalls(int $facilityId, string $type, int $seq, int $daysBefore, bool $forceSend = false): array
     {
         if ($type === 'WSP') {
-            $hipaaFilter = "AND pd.hipaa_allowsms = 'YES' AND pd.phone_cell <> ''";
+            $hipaaFilter = "AND hipaa_allowsms = 'YES' AND phone_cell <> ''";
             $channelFilter = 'WSP';
         } else {
-            $hipaaFilter = "AND pd.hipaa_allowemail = 'YES' AND pd.email <> ''";
+            $hipaaFilter = "AND hipaa_allowemail = 'YES' AND email <> ''";
             $channelFilter = 'Email';
         }
 
         $dateCondition = $forceSend
-            ? ''  // force-send: no date restriction
-            : "AND DATE_SUB(mr.r_eventDate, INTERVAL ? DAY) = CURDATE()";
+            ? '1'  // force-send: no date restriction
+            : "DATE_SUB(r_eventDate, INTERVAL ? DAY) = CURDATE()";
 
-        $sql = "SELECT mr.r_ID AS recall_id, mr.r_pid AS pid,
-                       mr.r_eventDate, mr.r_facility, mr.r_provider,
-                       mr.r_reason,
-                       pd.fname, pd.lname, pd.mname, pd.title,
-                       pd.phone_cell, pd.email,
-                       pd.hipaa_allowsms, pd.hipaa_allowemail,
-                       CONCAT(u.fname,' ',IFNULL(u.mname,''),' ',u.lname) AS provider_name,
-                       u.suffix AS provider_suffix
-                FROM medex_recalls mr
-                INNER JOIN patient_data pd ON pd.pid = mr.r_pid
-                LEFT JOIN users u ON u.id = mr.r_provider
-                WHERE mr.r_facility = ?
-                  {$dateCondition}
+        // NOTE: r_eventDate is aliased in the UNION to 'r_eventDate' for both tables
+        $sql = "SELECT recall_id, pid, r_eventDate, r_facility, r_provider,
+                       r_reason, fname, lname, mname, title,
+                       phone_cell, email,
+                       hipaa_allowsms, hipaa_allowemail,
+                       provider_name, provider_suffix
+                FROM (
+                    SELECT mr.r_ID AS recall_id, mr.r_pid AS pid,
+                           mr.r_eventDate, mr.r_facility, mr.r_provider,
+                           mr.r_reason,
+                           pd.fname, pd.lname, pd.mname, pd.title,
+                           pd.phone_cell, pd.email,
+                           pd.hipaa_allowsms, pd.hipaa_allowemail,
+                           CONCAT(u.fname,' ',IFNULL(u.mname,''),' ',u.lname) AS provider_name,
+                           u.suffix AS provider_suffix
+                    FROM medex_recalls mr
+                    INNER JOIN patient_data pd ON pd.pid = mr.r_pid
+                    LEFT JOIN users u ON u.id = mr.r_provider
+                    WHERE mr.r_facility = ?
+                    UNION ALL
+                    SELECT (-we.id) AS recall_id, we.pid,
+                           we.event_date, we.facility_id, we.provider_id,
+                           we.reason,
+                           pd.fname, pd.lname, pd.mname, pd.title,
+                           pd.phone_cell, pd.email,
+                           pd.hipaa_allowsms, pd.hipaa_allowemail,
+                           CONCAT(u.fname,' ',IFNULL(u.mname,''),' ',u.lname) AS provider_name,
+                           u.suffix AS provider_suffix
+                    FROM wsp_email_recall_entries we
+                    INNER JOIN patient_data pd ON pd.pid = we.pid
+                    LEFT JOIN users u ON u.id = we.provider_id
+                    WHERE we.facility_id = ?
+                ) combined
+                WHERE {$dateCondition}
                   {$hipaaFilter}
                   AND NOT EXISTS (
                       SELECT 1 FROM wsp_email_recall wr
-                      WHERE wr.recall_id = mr.r_ID
+                      WHERE wr.recall_id = combined.recall_id
                         AND wr.seq = ?
                         AND wr.channel = ?
                         AND wr.status IN ('SENT','SKIPPED')
                   )
-                ORDER BY mr.r_eventDate ASC";
+                ORDER BY r_eventDate ASC";
 
-        $params = [$facilityId];
+        $params = [$facilityId, $facilityId];
         if (!$forceSend) {
             $params[] = $daysBefore;
         }
@@ -457,6 +478,118 @@ class RecallService
             'r_eventDate'      => $recall['r_eventDate']     ?? '',
             'r_reason'         => $recall['r_reason']        ?? '',
         ];
+    }
+
+    /**
+     * Send specific recall entries selected by the user in the UI.
+     *
+     * @param array  $selected  Array of [recall_id, pid, seq, facility_id, days_before]
+     * @param bool   $dryRun
+     * @param string $channel   'all', 'wsp', or 'email'
+     */
+    public function sendSelected(array $selected, bool $dryRun, string $channel): void
+    {
+        foreach ($selected as $item) {
+            $recallId   = (int)($item['recall_id'] ?? 0);
+            $pid        = (int)($item['pid'] ?? 0);
+            $seq        = (int)($item['seq'] ?? 0);
+            $facilityId = (int)($item['facility_id'] ?? 0);
+
+            if (!$recallId || !$pid) {
+                echo "    SKIP: invalid recall entry\n";
+                continue;
+            }
+
+            // Fetch recall + patient data (supports both medex_recalls and entries)
+            if ($recallId > 0) {
+                $row = sqlQuery(
+                    "SELECT mr.r_ID AS recall_id, mr.r_pid AS pid,
+                            mr.r_eventDate, mr.r_facility, mr.r_provider,
+                            mr.r_reason,
+                            pd.fname, pd.lname, pd.mname, pd.title,
+                            pd.phone_cell, pd.email,
+                            pd.hipaa_allowsms, pd.hipaa_allowemail,
+                            CONCAT(u.fname,' ',IFNULL(u.mname,''),' ',u.lname) AS provider_name,
+                            u.suffix AS provider_suffix
+                     FROM medex_recalls mr
+                     INNER JOIN patient_data pd ON pd.pid = mr.r_pid
+                     LEFT JOIN users u ON u.id = mr.r_provider
+                     WHERE mr.r_ID = ? AND mr.r_pid = ?",
+                    [$recallId, $pid]
+                );
+            } else {
+                $row = sqlQuery(
+                    "SELECT (-we.id) AS recall_id, we.pid,
+                            we.event_date AS r_eventDate,
+                            we.facility_id AS r_facility,
+                            we.provider_id AS r_provider,
+                            we.reason AS r_reason,
+                            pd.fname, pd.lname, pd.mname, pd.title,
+                            pd.phone_cell, pd.email,
+                            pd.hipaa_allowsms, pd.hipaa_allowemail,
+                            CONCAT(u.fname,' ',IFNULL(u.mname,''),' ',u.lname) AS provider_name,
+                            u.suffix AS provider_suffix
+                     FROM wsp_email_recall_entries we
+                     INNER JOIN patient_data pd ON pd.pid = we.pid
+                     LEFT JOIN users u ON u.id = we.provider_id
+                     WHERE we.id = ? AND we.pid = ?",
+                    [(-$recallId), $pid]
+                );
+            }
+
+            if (empty($row)) {
+                echo "    SKIP recall_id={$recallId} pid={$pid}: not found\n";
+                continue;
+            }
+
+            $config = $this->facilityConfig->getByFacilityId($facilityId);
+            if (empty($config)) {
+                echo "    SKIP recall_id={$recallId}: no config for facility #{$facilityId}\n";
+                continue;
+            }
+
+            $this->mergeConfig($row, $config);
+
+            $patientName = trim(($row['fname'] ?? '') . ' ' . ($row['lname'] ?? ''));
+            echo "  recall_id={$recallId} pid={$pid} ({$patientName}) seq={$seq}\n";
+
+            if ($dryRun) {
+                echo "    [DRY-RUN] Would send WSP and/or Email.\n";
+                continue;
+            }
+
+            $template = $this->getRecallTemplateRow($facilityId);
+
+            if ($channel === 'all' || $channel === 'wsp') {
+                if (!empty($config['enabled_wsp'])) {
+                    $wspTemplate = $template['wsp_message'] ?? '';
+                    if (!empty($wspTemplate)) {
+                        $row['_message'] = $this->buildRecallMessage($wspTemplate, $row, $config);
+                        $this->deliverRecallWsp($row, $config, $seq);
+                    } else {
+                        echo "    SKIP WSP recall_id={$recallId}: no WSP template\n";
+                    }
+                } else {
+                    echo "    SKIP WSP recall_id={$recallId}: WSP disabled for facility\n";
+                }
+            }
+
+            if ($channel === 'all' || $channel === 'email') {
+                if (!empty($config['enabled_email'])) {
+                    $emailSubject = $template['email_subject'] ?? '';
+                    $emailMessage = $template['email_message'] ?? '';
+                    if (!empty($emailMessage)) {
+                        $config['email_subject'] = $emailSubject;
+                        $row['_message'] = $this->buildRecallMessage($emailMessage, $row, $config);
+                        $this->deliverRecallEmail($row, $config, $seq);
+                    } else {
+                        echo "    SKIP Email recall_id={$recallId}: no Email template\n";
+                    }
+                } else {
+                    echo "    SKIP Email recall_id={$recallId}: Email disabled for facility\n";
+                }
+            }
+        }
     }
 
     /**

@@ -48,7 +48,7 @@ try {
         `sent_at`       datetime     DEFAULT NULL,
         `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (`id`),
-        UNIQUE KEY `uq_recall_seq` (`recall_id`, `seq`),
+        UNIQUE KEY `uq_recall_seq_channel` (`recall_id`, `seq`, `channel`),
         KEY `idx_facility_status_scheduled` (`facility_id`, `status`, `scheduled_for`),
         KEY `idx_pid` (`pid`),
         KEY `idx_log_id` (`log_id`)
@@ -62,75 +62,126 @@ try {
     $limit      = min((int)($_GET['limit']  ?? 100), 500);
     $offset     = max((int)($_GET['offset'] ?? 0), 0);
 
-    // Build WHERE clauses
-    $where  = [];
-    $params = [];
+    // Build WHERE clauses for medex_recalls + patient filter
+    $mWhere  = [];
+    $mParams = [];
+    // Build WHERE clauses for wsp_email_recall_entries + patient filter
+    $eWhere  = [];
+    $eParams = [];
 
     if ($facilityId > 0) {
-        $where[]  = 'mr.r_facility = ?';
-        $params[] = $facilityId;
+        $mWhere[]  = 'mr.r_facility = ?';
+        $mParams[] = $facilityId;
+        $eWhere[]  = 'we.facility_id = ?';
+        $eParams[] = $facilityId;
     }
 
     if (!empty($dateFrom)) {
-        $where[]  = 'mr.r_eventDate >= ?';
-        $params[] = $dateFrom;
+        $mWhere[]  = 'mr.r_eventDate >= ?';
+        $mParams[] = $dateFrom;
+        $eWhere[]  = 'we.event_date >= ?';
+        $eParams[] = $dateFrom;
     }
     if (!empty($dateTo)) {
-        $where[]  = 'mr.r_eventDate <= ?';
-        $params[] = $dateTo;
+        $mWhere[]  = 'mr.r_eventDate <= ?';
+        $mParams[] = $dateTo;
+        $eWhere[]  = 'we.event_date <= ?';
+        $eParams[] = $dateTo;
     }
 
+    $likePatient = '';
+    $patientLikeParams = [];
     if (!empty($patient)) {
         $like     = '%' . $patient . '%';
-        $where[]  = "(pd.fname LIKE ? OR pd.lname LIKE ? OR CONCAT(pd.fname,' ',pd.lname) LIKE ?)";
-        $params[] = $like;
-        $params[] = $like;
-        $params[] = $like;
+        $likeCondition = "(pd.fname LIKE ? OR pd.lname LIKE ? OR CONCAT(pd.fname,' ',pd.lname) LIKE ?)";
+        $mWhere[]  = $likeCondition;
+        $mParams[] = $like;
+        $mParams[] = $like;
+        $mParams[] = $like;
+        $eWhere[]  = $likeCondition;
+        $eParams[] = $like;
+        $eParams[] = $like;
+        $eParams[] = $like;
     }
 
     if ($status === 'UNSENT') {
-        $where[] = 'NOT EXISTS (SELECT 1 FROM wsp_email_recall wr WHERE wr.recall_id = mr.r_ID)';
+        $mWhere[] = 'NOT EXISTS (SELECT 1 FROM wsp_email_recall wr WHERE wr.recall_id = mr.r_ID)';
+        $eWhere[] = 'NOT EXISTS (SELECT 1 FROM wsp_email_recall wr WHERE wr.recall_id = (-we.id))';
     } elseif (!empty($status)) {
-        $where[]  = "EXISTS (SELECT 1 FROM wsp_email_recall wr WHERE wr.recall_id = mr.r_ID AND wr.status = ?)";
-        $params[] = $status;
+        $mWhere[]  = "EXISTS (SELECT 1 FROM wsp_email_recall wr WHERE wr.recall_id = mr.r_ID AND wr.status = ?)";
+        $mParams[] = $status;
+        $eWhere[]  = "EXISTS (SELECT 1 FROM wsp_email_recall wr WHERE wr.recall_id = (-we.id) AND wr.status = ?)";
+        $eParams[] = $status;
     }
 
-    $whereClause = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+    $mConditions = $mWhere ? implode(' AND ', $mWhere) : '1';
+    $eConditions = $eWhere ? implode(' AND ', $eWhere) : '1';
 
-    // Count
-    $countSql = "SELECT COUNT(DISTINCT mr.r_ID) AS total
-                 FROM medex_recalls mr
-                 INNER JOIN patient_data pd ON pd.pid = mr.r_pid
-                 {$whereClause}";
-    $countRow = sqlQuery($countSql, $params);
+    // ── Count (medex + entries via UNION) ──────────────────────────────
+    $countSql = "SELECT COUNT(*) AS total FROM (
+        SELECT mr.r_ID FROM medex_recalls mr
+        INNER JOIN patient_data pd ON pd.pid = mr.r_pid
+        WHERE {$mConditions}
+        UNION ALL
+        SELECT we.id FROM wsp_email_recall_entries we
+        INNER JOIN patient_data pd ON pd.pid = we.pid
+        WHERE {$eConditions}
+    ) cnt";
+    $countParams = array_merge($mParams, $eParams);
+    $countRow = sqlQuery($countSql, $countParams);
     $total    = (int)($countRow['total'] ?? 0);
 
-    // Data
+    // ── Data: UNION ALL medex + entries ────────────────────────────────
     $dataSql = "SELECT mr.r_ID AS recall_id, mr.r_pid AS pid,
                        mr.r_eventDate, mr.r_facility, mr.r_provider,
                        mr.r_reason, mr.r_created,
+                       'medex' AS source,
                        pd.fname, pd.lname, pd.phone_cell, pd.email,
                        f.name AS facility_name,
                        CONCAT(u.fname,' ',IFNULL(u.mname,''),' ',u.lname) AS provider_name,
                        (SELECT wr.status
                         FROM wsp_email_recall wr
                         WHERE wr.recall_id = mr.r_ID
-                        ORDER BY FIELD(wr.status,'SENT','PENDING','FAILED','SKIPPED') ASC
+                        ORDER BY FIELD(wr.status,'FAILED','SKIPPED','PENDING','SENT') ASC
                         LIMIT 1
                        ) AS notif_status,
                        (SELECT COUNT(*) FROM wsp_email_recall wr WHERE wr.recall_id = mr.r_ID) AS seq_count,
-                       (SELECT GROUP_CONCAT(CONCAT(wr.seq,':',wr.status) ORDER BY wr.seq SEPARATOR ', ')
+                       (SELECT GROUP_CONCAT(wr.status ORDER BY wr.id SEPARATOR ' | ')
                         FROM wsp_email_recall wr WHERE wr.recall_id = mr.r_ID
                        ) AS seq_detail
                 FROM medex_recalls mr
                 INNER JOIN patient_data pd ON pd.pid = mr.r_pid
                 LEFT JOIN facility f ON f.id = mr.r_facility
                 LEFT JOIN users u ON u.id = mr.r_provider
-                {$whereClause}
-                ORDER BY mr.r_eventDate ASC
+                WHERE {$mConditions}
+                UNION ALL
+                SELECT (-we.id) AS recall_id, we.pid,
+                       we.event_date AS r_eventDate, we.facility_id AS r_facility,
+                       we.provider_id AS r_provider,
+                       we.reason AS r_reason, we.created_at AS r_created,
+                       'entry' AS source,
+                       pd.fname, pd.lname, pd.phone_cell, pd.email,
+                       f.name AS facility_name,
+                       CONCAT(u.fname,' ',IFNULL(u.mname,''),' ',u.lname) AS provider_name,
+                       (SELECT wr.status
+                        FROM wsp_email_recall wr
+                        WHERE wr.recall_id = (-we.id)
+                        ORDER BY FIELD(wr.status,'FAILED','SKIPPED','PENDING','SENT') ASC
+                        LIMIT 1
+                       ) AS notif_status,
+                       (SELECT COUNT(*) FROM wsp_email_recall wr WHERE wr.recall_id = (-we.id)) AS seq_count,
+                       (SELECT GROUP_CONCAT(wr.status ORDER BY wr.id SEPARATOR ' | ')
+                        FROM wsp_email_recall wr WHERE wr.recall_id = (-we.id)
+                       ) AS seq_detail
+                FROM wsp_email_recall_entries we
+                INNER JOIN patient_data pd ON pd.pid = we.pid
+                LEFT JOIN facility f ON f.id = we.facility_id
+                LEFT JOIN users u ON u.id = we.provider_id
+                WHERE {$eConditions}
+                ORDER BY r_eventDate ASC
                 LIMIT ? OFFSET ?";
 
-    $dataParams = array_merge($params, [$limit, $offset]);
+    $dataParams = array_merge($mParams, $eParams, [$limit, $offset]);
     $res        = sqlStatement($dataSql, $dataParams);
     $recalls    = [];
     while ($row = sqlFetchArray($res)) {

@@ -42,6 +42,13 @@ $weekAgo   = date('Y-m-d', strtotime('-7 days'));
 $totals    = $notifLog->getSummaryTotals($weekAgo, $today);
 
 $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module-wsp-email';
+
+// Fetch providers for the recall entry modal
+$providers = [];
+$provRes = sqlStatement("SELECT id, lname, fname, suffix FROM users WHERE authorized = 1 AND active = 1 ORDER BY lname, fname");
+while ($pRow = sqlFetchArray($provRes)) {
+    $providers[] = $pRow;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -891,13 +898,24 @@ $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module
             </div>
         </div>
 
-        <!-- ── PANEL: Search All Recalls ─────────────────────────────────── -->
-        <div class="chart-card">
-            <div class="d-flex align-items-center mb-3">
+        <!-- ── PANEL: My Recalls (entries) ──────────────────────────────── -->
+        <div class="chart-card mb-3">
+            <div class="d-flex align-items-center justify-content-between mb-3">
                 <h5 class="mb-0">
-                    <i class="fas fa-search me-2 text-secondary"></i><?php echo xlt('Search Recalls'); ?>
+                    <i class="fas fa-plus-circle me-2 text-success"></i><?php echo xlt('My Recalls'); ?>
                 </h5>
+                <button class="btn btn-sm btn-success" onclick="openRecallEntryModal(0)">
+                    <i class="fas fa-plus me-1"></i><?php echo xlt('New Recall'); ?>
+                </button>
             </div>
+            <div id="myRecallEntriesWrap">
+                <div class="text-center py-3 text-muted">
+                    <i class="fas fa-spinner fa-spin fa-lg"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── PANEL: Search All Recalls ─────────────────────────────────--><｜｜DSML｜｜parameter name="parallel" string="false">true
 
             <!-- Filters -->
             <div class="row g-2 mb-3">
@@ -1485,7 +1503,10 @@ function searchPatients() {
                 const typeKey = (r.type || '').toUpperCase();
                 const typeIcon = typeIcons[typeKey] || '<i class="fas fa-question-circle text-secondary fa-lg" title="' + escHtml(r.type) + '"></i>';
                 
-                const apptInfo = `<strong>${escHtml(r.pc_title || 'Appt')}</strong><br><small class="text-muted">${escHtml(r.pc_eventDate)} ${r.pc_startTime}</small>`;
+                const isRecall = !r.pc_eid && !r.pc_title;
+                const apptInfo = isRecall
+                    ? `<strong><?php echo xlt('Recall'); ?></strong><br><small class="text-muted">${escHtml(r.pc_eventDate)}</small>`
+                    : `<strong>${escHtml(r.pc_title || 'Appt')}</strong><br><small class="text-muted">${escHtml(r.pc_eventDate)} ${r.pc_startTime}</small>`;
                 
                 return `
                 <tr>
@@ -3495,8 +3516,15 @@ function loadRecalls(resetPage = true) {
                     : '-';
 
                 const seqDetail = r.seq_detail
-                    ? `<small class="text-muted">${escHtml(r.seq_detail)}</small>`
-                    : `<small class="text-muted"><?php echo js_escape(xlt("Not sent")); ?></small>`;
+                    ? r.seq_detail.split(' | ').map(part => {
+                        const parts = part.split(':');
+                        const st = parts.length > 1 ? parts[1] : parts[0];
+                        const label = parts.length > 1 ? parts[0] : st;
+                        const colorMap = { 'SENT':'success', 'FAILED':'danger', 'PENDING':'warning text-dark', 'SKIPPED':'secondary' };
+                        const cls = colorMap[st] || 'secondary';
+                        return `<span class="badge bg-${cls} me-1" style="font-size:85%">${escHtml(label)}</span>`;
+                      }).join('')
+                    : `<span class="badge bg-secondary" style="font-size:85%"><?php echo js_escape(xlt("Not sent")); ?></span>`;
 
                 return `<tr>
                     <td>
@@ -3606,12 +3634,13 @@ function loadPendingRecalls() {
             let html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">';
             html += `<thead class="table-light">
                 <tr>
+                    <th style="width:40px"><input type="checkbox" id="selectAllPending" checked></th>
                     <th><?php echo js_escape(xlt('Scheduled For')); ?></th>
                     <th><?php echo js_escape(xlt('Patient')); ?></th>
                     <th><?php echo js_escape(xlt('Contact')); ?></th>
                     <th><?php echo js_escape(xlt('Recall Reason')); ?></th>
                     <th><?php echo js_escape(xlt('Facility')); ?></th>
-                    <th class="text-center"><?php echo js_escape(xlt('Sequence')); ?></th>
+                    <th class="text-center"><?php echo js_escape(xlt('Seq')); ?></th>
                     <th class="text-center"><?php echo js_escape(xlt('Urgency')); ?></th>
                 </tr>
             </thead><tbody>`;
@@ -3625,6 +3654,7 @@ function loadPendingRecalls() {
                     const contact = [r.phone_cell ? escHtml(r.phone_cell) : '', r.email ? escHtml(r.email) : '']
                         .filter(Boolean).join(' / ') || '-';
                     const daysUntil = parseInt(r.days_until_send);
+                    const rowId = `recall_${r.recall_id}_${r.seq}`;
                     
                     let urgencyClass = 'bg-info text-white';
                     let urgencyText = '<?php echo js_escape(xlt("Upcoming")); ?>';
@@ -3647,6 +3677,7 @@ function loadPendingRecalls() {
                         : '-';
 
                     html += `<tr>
+                        <td><input type="checkbox" class="pending-recall-cb" data-recall-id="${escHtml(r.recall_id)}" data-pid="${escHtml(r.pid)}" data-seq="${escHtml(r.seq)}" data-facility-id="${escHtml(r.r_facility)}" data-days-before="${escHtml(r.days_before)}" checked></td>
                         <td><strong>${formattedDate}</strong></td>
                         <td>
                             <div class="fw-bold">${patientName}</div>
@@ -3663,6 +3694,14 @@ function loadPendingRecalls() {
 
             html += '</tbody></table></div>';
             wrap.innerHTML = html;
+
+            // Wire Select All
+            const selAll = document.getElementById('selectAllPending');
+            if (selAll) {
+                selAll.addEventListener('change', function() {
+                    document.querySelectorAll('.pending-recall-cb').forEach(cb => cb.checked = this.checked);
+                });
+            }
         })
         .catch(err => {
             wrap.innerHTML = `<div class="alert alert-danger py-2 mb-0">Error: ${err.message}</div>`;
@@ -3675,21 +3714,39 @@ document.getElementById('btnRunRecallsNow')?.addEventListener('click', function(
     const logDiv  = document.getElementById('recallRunLog');
     const logPre  = document.getElementById('recallRunLogContent');
 
+    const checked = document.querySelectorAll('.pending-recall-cb:checked');
+    if (!checked.length) {
+        alert('<?php echo js_escape(xlt("No recalls selected. Check at least one row.")); ?>');
+        return;
+    }
+
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i><?php echo js_escape(xlt("Running...")); ?>';
     logDiv.style.display = 'block';
     logPre.textContent   = '<?php echo js_escape(xlt("Running...")); ?>';
 
-    const body = new FormData();
+    const selected = Array.from(checked).map(cb => ({
+        recall_id:    parseInt(cb.dataset.recallId),
+        pid:          parseInt(cb.dataset.pid),
+        seq:          parseInt(cb.dataset.seq),
+        facility_id:  parseInt(cb.dataset.facilityId),
+        days_before:  parseInt(cb.dataset.daysBefore),
+    }));
+
+    const body = new URLSearchParams();
     body.append('channel', 'all');
     body.append('dry_run', '0');
+    body.append('selected', JSON.stringify(selected));
 
     fetch(`${moduleRoot}/pages/ajax/run_recalls_now.php`, { method: 'POST', body })
         .then(r => r.json())
         .then(data => {
             logPre.textContent = data.output || '<?php echo js_escape(xlt("No output.")); ?>';
             logPre.scrollTop   = logPre.scrollHeight;
-            if (data.success) loadRecalls(true); // refresh list
+            if (data.success) {
+                loadPendingRecalls();
+                loadRecalls(true);
+            }
         })
         .catch(err => {
             logPre.textContent = '<?php echo js_escape(xlt("Error")); ?>: ' + err.message;
@@ -3699,7 +3756,207 @@ document.getElementById('btnRunRecallsNow')?.addEventListener('click', function(
             btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i><?php echo js_escape(xlt("Send Recalls Now")); ?>';
         });
 });
+/* =========================================================================
+   My Recalls panel
+   ========================================================================= */
+function loadMyRecalls() {
+    const wrap = document.getElementById('myRecallEntriesWrap');
+    if (!wrap) return;
+    wrap.innerHTML = '<div class="text-center py-3 text-muted"><i class="fas fa-spinner fa-spin fa-lg"></i></div>';
+
+    fetch(`${moduleRoot}/pages/ajax/get_recall_entries.php`)
+        .then(r => r.json())
+        .then(data => {
+            const rows = data.data || [];
+            if (!rows.length) {
+                wrap.innerHTML = '<div class="text-muted py-2"><?php echo js_escape(xlt("No custom recall entries yet. Click New Recall to create one.")); ?></div>';
+                return;
+            }
+            let html = '<div class="table-responsive"><table class="table table-sm table-hover mb-0"><thead class="table-light"><tr>' +
+                '<th><?php echo js_escape(xlt("Patient")); ?></th>' +
+                '<th><?php echo js_escape(xlt("Event Date")); ?></th>' +
+                '<th><?php echo js_escape(xlt("Reason")); ?></th>' +
+                '<th><?php echo js_escape(xlt("Facility")); ?></th>' +
+                '<th><?php echo js_escape(xlt("Provider")); ?></th>' +
+                '<th class="text-center"><?php echo js_escape(xlt("Actions")); ?></th></tr></thead><tbody>';
+            rows.forEach(r => {
+                const name = escHtml((r.fname || '') + ' ' + (r.lname || '')).trim();
+                html += `<tr>
+                    <td><div class="fw-bold">${name}</div><div class="small text-muted">PID: ${escHtml(r.pid)}</div></td>
+                    <td>${escHtml(r.event_date)}</td>
+                    <td>${escHtml(r.reason || '-')}</td>
+                    <td>${escHtml(r.facility_name || '-')}</td>
+                    <td>${escHtml(r.provider_name || '-')}</td>
+                    <td class="text-center">
+                        <button class="btn btn-xs btn-outline-primary me-1" onclick="openRecallEntryModal(${r.id})" title="<?php echo js_escape(xlt("Edit")); ?>"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-xs btn-outline-danger" onclick="deleteRecallEntry(${r.id})" title="<?php echo js_escape(xlt("Delete")); ?>"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+            html += '</tbody></table></div>';
+            wrap.innerHTML = html;
+        })
+        .catch(err => {
+            wrap.innerHTML = `<div class="alert alert-danger py-2 mb-0">Error: ${err.message}</div>`;
+        });
+}
+
+// Callback for find_patient_popup.php
+function setpatient(pid, lname, fname, dob) {
+    document.getElementById('recallEntryPid').value = pid;
+    document.getElementById('recallEntryPatientName').value = lname + ', ' + fname;
+}
+
+function sel_recall_patient() {
+    let title = <?php echo json_encode(xlt('Patient Search')); ?>;
+    dlgopen(
+        <?php echo json_encode($GLOBALS['webroot'] . '/interface/main/calendar/find_patient_popup.php'); ?>,
+        'findPatient', 650, 300, '', title
+    );
+}
+
+function openRecallEntryModal(id) {
+    const modal = document.getElementById('recallEntryModal');
+    const form  = document.getElementById('recallEntryForm');
+    form.reset();
+    document.getElementById('recallEntryId').value = id || 0;
+    document.getElementById('recallEntryModalTitle').textContent = id
+        ? '<?php echo js_escape(xlt("Edit Recall")); ?>'
+        : '<?php echo js_escape(xlt("New Recall")); ?>';
+
+    if (id) {
+        // Load existing data
+        fetch(`${moduleRoot}/pages/ajax/get_recall_entries.php?id=${id}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.data && data.data.length) {
+                    const r = data.data[0];
+                    document.getElementById('recallEntryPid').value = r.pid;
+                    document.getElementById('recallEntryPatientName').value = escHtml((r.fname || '') + ' ' + (r.lname || ''));
+                    document.getElementById('recallEntryDate').value = r.event_date;
+                    document.getElementById('recallEntryFacility').value = r.facility_id;
+                    document.getElementById('recallEntryProvider').value = r.provider_id || '';
+                    document.getElementById('recallEntryReason').value = r.reason || '';
+                }
+            });
+    }
+
+    if (modal) {
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+    }
+}
+
+function saveRecallEntry() {
+    const pid = document.getElementById('recallEntryPid').value;
+    if (!pid) {
+        alert(<?php echo json_encode(xlt('Please select a patient first')); ?>);
+        return;
+    }
+    const form = document.getElementById('recallEntryForm');
+    const data = new FormData(form);
+
+    fetch(`${moduleRoot}/pages/ajax/save_recall_entry.php`, { method: 'POST', body: data })
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('recallEntryModal'));
+                if (modal) modal.hide();
+                loadMyRecalls();
+                loadRecalls(true);
+            } else {
+                alert('Error: ' + (res.error || 'Unknown'));
+            }
+        })
+        .catch(err => alert('Error: ' + err.message));
+}
+
+function deleteRecallEntry(id) {
+    if (!confirm('<?php echo js_escape(xlt("Delete this recall entry?")); ?>')) return;
+    const body = new URLSearchParams();
+    body.append('id', id);
+
+    fetch(`${moduleRoot}/pages/ajax/delete_recall_entry.php`, { method: 'POST', body })
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                loadMyRecalls();
+                loadRecalls(true);
+            } else {
+                alert('Error: ' + (res.error || 'Unknown'));
+            }
+        })
+        .catch(err => alert('Error: ' + err.message));
+}
+
+// Load My Recalls on tab show + wire modal form
+document.addEventListener('DOMContentLoaded', function() {
+    const recallsTab = document.querySelector('[data-bs-target="#tab-recalls"]');
+    if (recallsTab) {
+        recallsTab.addEventListener('shown.bs.tab', function() {
+            loadMyRecalls();
+        });
+    }
+    document.getElementById('btnSaveRecallEntry')?.addEventListener('click', saveRecallEntry);
+});
 </script>
+
+<!-- Modal: Recall Entry Form -->
+<div class="modal fade" id="recallEntryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="recallEntryModalTitle"><?php echo xlt('New Recall'); ?></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="recallEntryForm">
+                <div class="modal-body">
+                    <input type="hidden" name="id" id="recallEntryId" value="0">
+                    <input type="hidden" name="pid" id="recallEntryPid" value="">
+                    <div class="mb-3">
+                        <label class="form-label small"><?php echo xlt('Patient'); ?></label>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="recallEntryPatientName" class="form-control" readonly placeholder="<?php echo xla('Select a patient'); ?>">
+                            <button class="btn btn-outline-primary" type="button" onclick="sel_recall_patient()" title="<?php echo xla('Search Patient'); ?>">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small"><?php echo xlt('Event Date'); ?></label>
+                        <input type="date" name="event_date" id="recallEntryDate" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small"><?php echo xlt('Facility'); ?></label>
+                        <select name="facility_id" id="recallEntryFacility" class="form-select form-select-sm" required>
+                            <option value=""><?php echo xlt('Select'); ?></option>
+                            <?php foreach ($facilities as $sf): ?>
+                            <option value="<?php echo attr((string)$sf['facility_id']); ?>"><?php echo text($sf['facility_name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small"><?php echo xlt('Provider'); ?></label>
+                        <select name="provider_id" id="recallEntryProvider" class="form-select form-select-sm">
+                            <option value=""><?php echo xlt('None'); ?></option>
+                            <?php foreach ($providers as $prov): ?>
+                            <option value="<?php echo attr($prov['id']); ?>"><?php echo text($prov['lname'] . ', ' . $prov['fname'] . ($prov['suffix'] ? ' ' . $prov['suffix'] : '')); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small"><?php echo xlt('Reason'); ?></label>
+                        <textarea name="reason" id="recallEntryReason" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal"><?php echo xlt('Cancel'); ?></button>
+                    <button type="button" class="btn btn-sm btn-success" id="btnSaveRecallEntry"><?php echo xlt('Save'); ?></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>
