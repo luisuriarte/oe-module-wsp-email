@@ -33,7 +33,7 @@ use OpenEMR\Modules\WspEmail\FacilityConfig;
 use OpenEMR\Modules\WspEmail\StatusNormalizer;
 
 // Define a dedicated log file
-define('OPENWA_WEBHOOK_LOG', $moduleRoot . '/logs/openwa_webhook.log');
+define('OPENWA_WEBHOOK_LOG', $openemrRoot . '/logs/openwa_webhook.log');
 function openwaLog(string $message): void
 {
     @file_put_contents(OPENWA_WEBHOOK_LOG, date('Y-m-d H:i:s') . ' — ' . $message . "\n", FILE_APPEND | LOCK_EX);
