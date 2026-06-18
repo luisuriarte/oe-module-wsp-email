@@ -719,15 +719,22 @@ class NotificationService
      */
     public function syncLogStatus(int $logId): array
     {
-        $sql = "SELECT nl.*, fc.* 
+        $sql = "SELECT nl.*, pe.pc_facility
                 FROM notification_log nl
                 LEFT JOIN openemr_postcalendar_events pe ON pe.pc_eid = nl.pc_eid
-                LEFT JOIN wsp_email_facility_config fc ON fc.facility_id = pe.pc_facility
                 WHERE nl.iLogId = ?";
         $data = sqlQuery($sql, [$logId]);
 
         if (!$data || empty($data['msg_id'])) {
             return ['success' => false, 'message' => 'Notification not found or has no message ID.'];
+        }
+
+        // Merge gateway credentials from the new table via FacilityConfig
+        $facilityId = (int)($data['pc_facility'] ?? 0);
+        if ($facilityId > 0) {
+            $fc = new FacilityConfig();
+            $facilityConfig = $fc->getByFacilityId($facilityId);
+            $data = array_merge($data, $facilityConfig);
         }
 
         $sync = $this->wspSender->syncStatus($data, $data['msg_id']);

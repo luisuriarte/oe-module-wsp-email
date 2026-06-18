@@ -178,7 +178,7 @@ For delivery status tracking, point your vendor's webhook URL to the module.
 ### Generic webhook (UltraMsg, WaSenderAPI)
 
 ```
-https://your-domain.com/interface/modules/custom_modules/oe-module-wsp-email/webhook/webhook.php
+https://your-domain.com/webhook/ultramsg/webhook.php
 ```
 
 - Validates `X-Webhook-Signature` header against `webhook_secret` in facility config.
@@ -186,7 +186,7 @@ https://your-domain.com/interface/modules/custom_modules/oe-module-wsp-email/web
 ### OpenWA webhook (HMAC SHA256)
 
 ```
-https://your-domain.com/interface/modules/custom_modules/oe-module-wsp-email/webhook/openwa/webhook.php
+https://your-domain.com/webhook/openwa/webhook.php
 ```
 
 - Validates `X-OpenWA-Signature` header (HMAC SHA256) against `openwa_webhook_secret`.

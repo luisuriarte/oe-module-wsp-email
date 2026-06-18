@@ -33,7 +33,7 @@ use OpenEMR\Modules\WspEmail\FacilityConfig;
 use OpenEMR\Modules\WspEmail\StatusNormalizer;
 
 // Define a dedicated log file
-define('OPENWA_WEBHOOK_LOG', $openemrRoot . '/logs/openwa_webhook.log');
+define('OPENWA_WEBHOOK_LOG', $openemrRoot . '/webhook/logs/openwa_webhook.log');
 function openwaLog(string $message): void
 {
     @file_put_contents(OPENWA_WEBHOOK_LOG, date('Y-m-d H:i:s') . ' — ' . $message . "\n", FILE_APPEND | LOCK_EX);
@@ -75,6 +75,14 @@ $event = $webhookData['event'] ?? '';
 $sessionId = $webhookData['sessionId'] ?? '';
 openwaLog("Event: $event, SessionId: $sessionId");
 
+// Test event — OpenWA dashboard ping, always respond 200
+if ($event === 'test') {
+    openwaLog('Test event acknowledged.');
+    http_response_code(200);
+    echo json_encode(['status' => 'ok', 'message' => 'Webhook is reachable']);
+    exit;
+}
+
 // --- Validate token from URL ---
 $receivedToken = $_GET['token'] ?? '';
 
@@ -91,8 +99,10 @@ $expectedSecret  = '';
 $matchedFacility = null;
 
 foreach ($allFacilities as $facility) {
-    if (!empty($facility['openwa_instance']) && $facility['openwa_instance'] === $sessionId) {
-        $expectedSecret  = $facility['openwa_webhook_secret'] ?? '';
+    $instance = $facility['openwa_instance'] ?? $facility['instance'] ?? '';
+    $secret   = $facility['openwa_webhook_secret'] ?? '';
+    if (!empty($instance) && $instance === $sessionId) {
+        $expectedSecret  = $secret;
         $matchedFacility = $facility;
         break;
     }
@@ -101,8 +111,9 @@ foreach ($allFacilities as $facility) {
 // Fallback: first facility with a secret
 if (empty($expectedSecret)) {
     foreach ($allFacilities as $facility) {
-        if (!empty($facility['openwa_webhook_secret'])) {
-            $expectedSecret  = $facility['openwa_webhook_secret'];
+        $secret = $facility['openwa_webhook_secret'] ?? '';
+        if (!empty($secret)) {
+            $expectedSecret  = $secret;
             $matchedFacility = $facility;
             break;
         }

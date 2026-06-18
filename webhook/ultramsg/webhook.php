@@ -6,8 +6,8 @@
  * delivery status of a sent message changes (e.g. DELIVERED, READ, FAILED).
  * It validates the request via X-Webhook-Signature and updates notification_log.
  *
- * Public URL example:
- *   https://your-site/openemr/interface/modules/custom_modules/oe-module-wsp-email/webhook/webhook.php
+ * Public URL:
+ *   https://your-site/webhook/ultramsg/webhook.php
  *
  * @package   OpenEMR\Modules\WspEmail
  * @author    Luis A. Uriarte <luis.uriarte@gmail.com>
@@ -17,14 +17,13 @@
 
 declare(strict_types=1);
 
-// Webhook must be accessible without browser session
+// Webhook must be accessible without a browser session
 $ignoreAuth = true;
 
-$openemrRoot = realpath(__DIR__ . '/../');
-// The webhook must be accessible without a browser session
+$openemrRoot = realpath(__DIR__ . '/../..');  // sube a la raíz de OpenEMR
+$moduleRoot  = $openemrRoot . '/interface/modules/custom_modules/oe-module-wsp-email';
 
-// Load module classes (manual include — no autoloader in this context)
-require_once $openemrRoot . '/globals.php';
+require_once $openemrRoot . '/interface/globals.php';
 
 require_once $moduleRoot . '/src/NotificationLog.php';
 require_once $moduleRoot . '/src/FacilityConfig.php';
@@ -35,7 +34,7 @@ use OpenEMR\Modules\WspEmail\FacilityConfig;
 use OpenEMR\Modules\WspEmail\StatusNormalizer;
 
 // Define a dedicated log file for this webhook
-define('WSP_WEBHOOK_LOG', __DIR__ . '/../logs/webhook.log');
+define('WSP_WEBHOOK_LOG', $openemrRoot . '/webhook/logs/ultramsg_webhook.log');
 
 function webhookLog(string $message): void
 {
@@ -106,11 +105,12 @@ if ($event === 'messages.update') {
     $detectedProvider = 'wasenderapi'; // Default
 
     foreach ($allFacilities as $facility) {
-        if (!empty($facility['webhook_secret'])) {
-            // Simple match: pick any configured facility to validate the secret
-            // (in production you'd match by instance/account, but secrets are usually global per vendor)
-            $expectedSecret = $facility['webhook_secret'];
-            $detectedProvider = $facility['vendor'] ?? 'wasenderapi';
+        // Try new merged key first, then fall back to old column
+        $secret = $facility['ultramsg_webhook_secret'] ?? $facility['webhook_secret'] ?? '';
+        $vendor = $facility['current_vendor'] ?? $facility['vendor'] ?? 'wasenderapi';
+        if (!empty($secret)) {
+            $expectedSecret = $secret;
+            $detectedProvider = $vendor;
             break;
         }
     }

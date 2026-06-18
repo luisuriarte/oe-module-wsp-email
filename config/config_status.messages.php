@@ -152,6 +152,25 @@ return [
         ],
 
         /**
+         * Evolution-Go
+         * https://github.com/Evolution-Go/evolution-api
+         * Statuses: PENDING, SENT, DELIVERED, READ, FAILED, ERROR
+         */
+        'evolution-go' => [
+            'pending'   => 'QUEUED',
+            'queued'    => 'QUEUED',     // Some Evolution builds use 'queued'
+            'sending'   => 'SENT',       // Occasionally used during transitions
+            'sent'      => 'SENT',
+            'success'   => 'SENT',
+            'delivered' => 'DELIVERED',
+            'read'      => 'READ',
+            'played'    => 'READ',       // Audio/video playback
+            'failed'    => 'FAILED',
+            'error'     => 'ERROR',
+            'invalid'   => 'INVALID',    // Invalid number response
+        ],
+
+        /**
          * Estado por defecto si no se reconoce
          */
         'default' => [

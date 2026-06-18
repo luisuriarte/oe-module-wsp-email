@@ -25,11 +25,15 @@ class FacilityConfig
                 LEFT JOIN wsp_email_facility_config wfc ON wfc.facility_id = f.id
                 WHERE f.id = ?";
         $result = sqlQuery($sql, [$facilityId]);
-        return $result ?: [];
+        if (empty($result)) {
+            return [];
+        }
+        return $this->mergeGatewayCredentials($result);
     }
 
     /**
      * Returns all OpenEMR facilities joined with their extended config (LEFT JOIN).
+     * Gateway credentials are merged from wsp_email_gateways_config.
      */
     public function getAllFacilitiesWithConfig(): array
     {
@@ -37,29 +41,21 @@ class FacilityConfig
                        f.street, f.city, f.state, f.inactive,
                        f.phone AS facility_phone, f.email AS facility_email,
                        CONCAT(f.street, ', ', f.city, ', ', f.state) AS facility_address,
-                       wfc.id, wfc.current_vendor, wfc.vendor, wfc.vendor_instance,
-                       wfc.vendor_api_key, wfc.webhook_secret,
-                       wfc.ultramsg_instance, wfc.ultramsg_api_key,
-                       wfc.wasenderapi_api_key, wfc.wasenderapi_webhook_secret,
-                       wfc.openwa_instance, wfc.openwa_api_key, wfc.openwa_webhook_secret,
-                       wfc.logo_wsp, wfc.logo_email,
-                       wfc.latitude, wfc.longitude, f.website AS website_url,
-                       wfc.wsp_message, wfc.email_message, wfc.email_subject,
-                        wfc.enabled_wsp, wfc.enabled_email,
-                        wfc.notify_cancelled
+                       wfc.*, f.website AS website_url
                 FROM facility f
                 LEFT JOIN wsp_email_facility_config wfc ON wfc.facility_id = f.id
                 ORDER BY f.name";
         $res  = sqlStatement($sql);
         $rows = [];
         while ($row = sqlFetchArray($res)) {
-            $rows[] = $row;
+            $rows[] = $this->mergeGatewayCredentials($row);
         }
         return $rows;
     }
 
     /**
-     * Saves facility configuration with multi-vendor support.
+     * Saves facility configuration (non-credential fields only).
+     * Gateway credentials are saved separately via saveGatewayConfig().
      */
     public function save(array $data): bool
     {
@@ -76,21 +72,7 @@ class FacilityConfig
         $fields = [
             'facility_id'              => $facilityId,
             'current_vendor'           => $data['current_vendor']           ?? 'wasenderapi',
-            // Legacy fields (keep for backward compatibility)
             'vendor'                   => $data['current_vendor']           ?? 'wasenderapi',
-            'vendor_instance'          => $data['vendor_instance']          ?? null,
-            'vendor_api_key'           => $data['vendor_api_key']           ?? null,
-            'webhook_secret'           => $data['webhook_secret']           ?? null,
-            // UltraMsg specific
-            'ultramsg_instance'        => $data['ultramsg_instance']        ?? null,
-            'ultramsg_api_key'         => $data['ultramsg_api_key']         ?? null,
-            // WaSenderAPI specific
-            'wasenderapi_api_key'      => $data['wasenderapi_api_key']      ?? null,
-            'wasenderapi_webhook_secret' => $data['wasenderapi_webhook_secret'] ?? null,
-            // OpenWA specific
-            'openwa_instance'          => $data['openwa_instance']          ?? null,
-            'openwa_api_key'           => $data['openwa_api_key']           ?? null,
-            'openwa_webhook_secret'    => $data['openwa_webhook_secret']    ?? null,
             // Sending Window Configuration
             'send_weekday_start'       => isset($data['send_weekday_start'])    ? (int)$data['send_weekday_start']    : 7,
             'send_weekday_end'         => isset($data['send_weekday_end'])      ? (int)$data['send_weekday_end']      : 21,
@@ -128,7 +110,137 @@ class FacilityConfig
             );
         }
 
+        // Save gateway credentials if present
+        $knownGateways = ['ultramsg', 'wasenderapi', 'openwa', 'evolution-go'];
+        foreach ($knownGateways as $gw) {
+            $gwKey = "gateway_config_{$gw}";
+            if (isset($data[$gwKey]) && is_array($data[$gwKey])) {
+                $this->saveGatewayConfig($facilityId, $gw, $data[$gwKey]);
+            }
+        }
+
         return true;
+    }
+
+    // =========================================================================
+    // Gateway Credentials (wsp_email_gateways_config)
+    // =========================================================================
+
+    /**
+     * Returns credentials for a single gateway as a flat array.
+     */
+    public function getGatewayConfig(int $facilityId, string $gatewayName): ?array
+    {
+        $row = sqlQuery(
+            "SELECT * FROM wsp_email_gateways_config
+             WHERE facility_id = ? AND gateway_name = ?",
+            [$facilityId, $gatewayName]
+        );
+        if (empty($row)) {
+            return null;
+        }
+        $decoded = json_decode($row['config_json'] ?? '{}', true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Returns all gateway config rows for a facility.
+     */
+    public function getAllGatewayConfigs(int $facilityId): array
+    {
+        $res = sqlStatement(
+            "SELECT * FROM wsp_email_gateways_config
+             WHERE facility_id = ?
+             ORDER BY gateway_name",
+            [$facilityId]
+        );
+        $rows = [];
+        while ($row = sqlFetchArray($res)) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    /**
+     * Saves (inserts or updates) credentials for a gateway.
+     *
+     * @param int    $facilityId
+     * @param string $gatewayName  e.g. 'ultramsg', 'wasenderapi', 'openwa', 'evolution-go'
+     * @param array  $data         Flat key-value pairs (e.g. ['api_key' => '...', 'instance' => '...'])
+     */
+    public function saveGatewayConfig(int $facilityId, string $gatewayName, array $data): bool
+    {
+        $existing = sqlQuery(
+            "SELECT id FROM wsp_email_gateways_config
+             WHERE facility_id = ? AND gateway_name = ?",
+            [$facilityId, $gatewayName]
+        );
+
+        $configJson = json_encode($data, JSON_UNESCAPED_SLASHES);
+
+        if ($existing) {
+            sqlStatement(
+                "UPDATE wsp_email_gateways_config
+                 SET config_json = ?
+                 WHERE facility_id = ? AND gateway_name = ?",
+                [$configJson, $facilityId, $gatewayName]
+            );
+        } else {
+            sqlStatement(
+                "INSERT INTO wsp_email_gateways_config
+                     (facility_id, gateway_name, config_json)
+                 VALUES (?, ?, ?)",
+                [$facilityId, $gatewayName, $configJson]
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * Deletes a gateway config row.
+     */
+    public function deleteGatewayConfig(int $facilityId, string $gatewayName): bool
+    {
+        sqlStatement(
+            "DELETE FROM wsp_email_gateways_config
+             WHERE facility_id = ? AND gateway_name = ?",
+            [$facilityId, $gatewayName]
+        );
+        return true;
+    }
+
+    /**
+     * Merges gateway credentials from wsp_email_gateways_config into the
+     * facility config array using prefixed keys for backward compatibility.
+     *
+     * e.g. ultramsg: {instance, api_key} → $config['ultramsg_instance'], $config['ultramsg_api_key']
+     */
+    private function mergeGatewayCredentials(array $config): array
+    {
+        $facilityId = (int)($config['facility_id'] ?? $config['id'] ?? 0);
+        if ($facilityId === 0) {
+            return $config;
+        }
+
+        $gateways = $this->getAllGatewayConfigs($facilityId);
+        foreach ($gateways as $gw) {
+            $gwName = $gw['gateway_name'];
+            // Normalize to underscores for safe PHP key access (e.g. evolution-go → evolution_go)
+            $prefix  = str_replace('-', '_', $gwName) . '_';
+            $gwData = json_decode($gw['config_json'] ?? '{}', true);
+            if (!is_array($gwData)) {
+                continue;
+            }
+            foreach ($gwData as $key => $value) {
+                $prefixedKey = $prefix . $key;
+                if (!isset($config[$prefixedKey])) {
+                    $config[$prefixedKey] = $value;
+                }
+            }
+        }
+
+        return $config;
     }
 
     // =========================================================================

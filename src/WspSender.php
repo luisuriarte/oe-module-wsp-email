@@ -62,10 +62,12 @@ class WspSender
         } elseif ($vendor === 'openwa') {
             $instance = $config['openwa_instance'] ?? '';
             $apiKey   = $config['openwa_api_key'] ?? '';
+        } elseif ($vendor === 'evolution-go') {
+            $instance = $config['evolution_go_instance_name'] ?? '';
+            $apiKey   = $config['evolution_go_api_key'] ?? '';
         } else {
-            // Fallback to legacy fields
-            $instance = $config['vendor_instance'] ?? '';
-            $apiKey   = $config['vendor_api_key'] ?? '';
+            $instance = '';
+            $apiKey   = '';
         }
 
         $message  = $patient['_message'] ?? '';
@@ -116,6 +118,11 @@ class WspSender
 
                 case 'openwa':
                     $result = $this->sendViaOpenWA($instance, $apiKey, $phone, $message, $logoUrl, $icsUrl, $config, $log);
+                    break;
+
+                case 'evolution-go':
+                    $baseUrl = $config['evolution_go_base_url'] ?? '';
+                    $result = $this->sendViaEvolutionGo($baseUrl, $apiKey, $instance, $phone, $message, $logoUrl, $icsUrl, $config, $log);
                     break;
 
                 default:
@@ -542,11 +549,166 @@ class WspSender
         return ['status' => $msgId ? 'success' : 'error', 'msgId' => $msgId, 'log' => implode("\n", $log)];
     }
 
+    // -------------------------------------------------------------------------
+    // Evolution-Go  (https://github.com/Evolution-Go/evolution-api)
+    // REST API with instance-based messaging
+    // Auth: apiKey in X-API-Key header or query param
+    // Send text: POST {baseUrl}/message/sendText/{instance}
+    // Send media: POST {baseUrl}/message/sendMedia/{instance}
+    // Docs: https://github.com/Evolution-Go/evolution-api
+    // -------------------------------------------------------------------------
+    private function sendViaEvolutionGo(
+        string $baseUrl,    string $apiKey,  string $instanceName,
+        string $phone,      string $message, string $logoUrl, string $icsUrl,
+        array  $config,     array  &$log
+    ): array {
+        $result = ['status' => 'error', 'msgId' => null, 'log' => ''];
+
+        if (empty($baseUrl) || empty($apiKey) || empty($instanceName)) {
+            $log[] = 'Evolution-Go: Missing credentials (base_url, api_key or instance_name)';
+            $result['log'] = implode("\n", $log);
+            return $result;
+        }
+
+        // Clean phone to international format (e.g. 5493404540440)
+        $cleanPhone = preg_replace('/\D/', '', $phone);
+        $number     = $cleanPhone . '@s.whatsapp.net';
+
+        $headers = [
+            'Content-Type' => 'application/json',
+            'Accept'       => 'application/json',
+            'apikey'       => $apiKey,
+        ];
+
+        $baseUrl = rtrim($baseUrl, '/');
+        $textUrl = "{$baseUrl}/message/sendText/{$instanceName}";
+        $mediaUrl = "{$baseUrl}/message/sendMedia/{$instanceName}";
+        $msgId = null;
+
+        try {
+            // Helper: POST with safe error handling
+            $safePost = function (string $url, array $payload, string $label) use ($headers, &$log): ?array {
+                try {
+                    $resp = $this->http->post($url, ['headers' => $headers, 'json' => $payload, 'timeout' => 30]);
+                    $body = json_decode((string)$resp->getBody(), true);
+                    $log[] = "Evolution-Go ($label): " . $resp->getBody();
+                    return $body;
+                } catch (RequestException $e) {
+                    $log[] = "Evolution-Go ($label) error: " . $e->getMessage();
+                    if ($e->hasResponse()) {
+                        $response = $e->getResponse();
+                        $statusCode = $response->getStatusCode();
+                        $body = (string)$response->getBody();
+                        $log[] = "Response: $statusCode - " . $body;
+
+                        if ($statusCode === 401 || $statusCode === 403) {
+                            throw new \Exception('UNAUTHORIZED: ' . $body);
+                        }
+                        if ($statusCode === 404) {
+                            throw new \Exception('NOT_FOUND: Instance not found');
+                        }
+                    }
+                    return null;
+                } catch (\Throwable $e) {
+                    $log[] = "Evolution-Go ($label) unexpected error: " . $e->getMessage();
+                    if (strpos($e->getMessage(), 'UNAUTHORIZED') === 0 || strpos($e->getMessage(), 'NOT_FOUND') === 0) {
+                        throw $e;
+                    }
+                    return null;
+                }
+            };
+
+            // Helper: extract message ID from Evolution-Go response
+            $extractMsgId = function (array $body): ?string {
+                return $body['key']['id']
+                    ?? $body['messageId']
+                    ?? $body['data']['messageId']
+                    ?? $body['data']['key']['id']
+                    ?? null;
+            };
+
+            // Build text with optional map link
+            $textWithMap = $message;
+            if (!empty($config['latitude']) && !empty($config['longitude'])) {
+                $lat = (float)$config['latitude'];
+                $lon = (float)$config['longitude'];
+                $mapLink = "https://www.google.com/maps/search/?api=1&query={$lat},{$lon}";
+                $textWithMap .= "\n\n📍 " . $mapLink;
+            }
+
+            // 1. Send image with caption — fallback to plain text if image fails
+            if (!empty($logoUrl)) {
+                $mediaPayload = [
+                    'number'  => $number,
+                    'mediatype' => 'image',
+                    'media'   => $logoUrl,
+                    'caption' => mb_substr($textWithMap, 0, 1024),
+                ];
+                $mediaBody = $safePost($mediaUrl, $mediaPayload, 'image');
+                if ($mediaBody) {
+                    $msgId = $extractMsgId($mediaBody) ?? $msgId;
+                } else {
+                    $log[] = 'Evolution-Go: image failed, falling back to send-text';
+                    $textBody = $safePost($textUrl, [
+                        'number' => $number,
+                        'text'   => mb_substr($textWithMap, 0, 4096),
+                    ], 'text (fallback)');
+                    if ($textBody) {
+                        $msgId = $extractMsgId($textBody) ?? $msgId;
+                    }
+                }
+            } else {
+                // No logo — send plain text
+                $textBody = $safePost($textUrl, [
+                    'number' => $number,
+                    'text'   => mb_substr($textWithMap, 0, 4096),
+                ], 'text');
+                if ($textBody) {
+                    $msgId = $extractMsgId($textBody) ?? $msgId;
+                }
+            }
+
+            // 2. Try sending .ics document (optional)
+            if (!empty($icsUrl)) {
+                $docPayload = [
+                    'number'    => $number,
+                    'mediatype' => 'document',
+                    'media'     => $icsUrl,
+                    'fileName'  => 'appointment.ics',
+                    'caption'   => mb_substr(LocalizationHelper::appointmentAttachmentCaption(
+                        (string)($config['facility_name'] ?? '')
+                    ), 0, 1024),
+                ];
+                $docBody = $safePost($mediaUrl, $docPayload, '.ics');
+                if ($docBody) {
+                    $msgId = $extractMsgId($docBody) ?? $msgId;
+                }
+            }
+        } catch (RequestException $e) {
+            $log[] = 'Evolution-Go REQUEST ERROR: ' . $e->getMessage();
+            $result['log'] = implode("\n", $log);
+            return $result;
+        } catch (\Throwable $e) {
+            $log[] = 'Evolution-Go EXCEPTION: ' . $e->getMessage();
+            $status = 'error';
+            if (strpos($e->getMessage(), 'UNAUTHORIZED') === 0) {
+                $status = 'UNAUTHORIZED';
+            } elseif (strpos($e->getMessage(), 'NOT_FOUND') === 0) {
+                $status = 'NOT_FOUND';
+            }
+            $result['status'] = $status;
+            $result['log'] = implode("\n", $log);
+            return $result;
+        }
+
+        return ['status' => $msgId ? 'success' : 'error', 'msgId' => $msgId, 'log' => implode("\n", $log)];
+    }
+
     public function syncStatus(array $config, string $msgId): array
     {
-        $vendor = strtolower($config['vendor'] ?? '');
-        $apiKey = $config['vendor_api_key'] ?? '';
-        $instance = $config['vendor_instance'] ?? '';
+        $vendor   = strtolower($config['vendor'] ?? $config['current_vendor'] ?? '');
+        $apiKey   = $config['vendor_api_key'] ?? $config['ultramsg_api_key'] ?? '';
+        $instance = $config['vendor_instance'] ?? $config['ultramsg_instance'] ?? '';
 
         if ($vendor === 'ultramsg') {
             try {

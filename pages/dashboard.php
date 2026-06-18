@@ -394,8 +394,16 @@ while ($pRow = sqlFetchArray($provRes)) {
                         </span>
                     <?php endif; ?>
 
-                    <?php if (!empty($f['vendor'])): ?>
-                    <span class="badge bg-success mt-1"><?php echo text($f['vendor']); ?></span>
+                    <?php
+                    $vendorBadgeColor = 'bg-success';
+                    $vendor = $f['current_vendor'] ?? $f['vendor'] ?? '';
+                    if ($vendor === 'evolution-go') $vendorBadgeColor = 'bg-secondary';
+                    elseif ($vendor === 'openwa') $vendorBadgeColor = 'bg-warning';
+                    elseif ($vendor === 'wasenderapi') $vendorBadgeColor = 'bg-info';
+                    elseif ($vendor === 'ultramsg') $vendorBadgeColor = 'bg-primary';
+                    ?>
+                    <?php if (!empty($vendor)): ?>
+                    <span class="badge <?php echo $vendorBadgeColor; ?> mt-1"><?php echo text($vendor); ?></span>
                     <?php else: ?>
                     <span class="badge bg-secondary mt-1"><?php echo xlt('Not configured'); ?></span>
                     <?php endif; ?>
@@ -427,6 +435,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                                 <option value="ultramsg">UltraMsg</option>
                                 <option value="wasenderapi">WaSenderAPI</option>
                                 <option value="openwa">OpenWA</option>
+                                <option value="evolution-go">Evolution-Go</option>
                             </select>
                             <small class="text-muted"><?php echo xlt('Active vendor for sending WhatsApp messages'); ?></small>
                         </div>
@@ -512,6 +521,54 @@ while ($pRow = sqlFetchArray($provRes)) {
                                         </button>
                                     </div>
                                     <small class="text-muted" id="owaWebhookHint" style="display:none;">Current webhook secret is set</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Evolution-Go Configuration -->
+                        <div id="evolutionGoConfig" style="display:none;">
+                            <h6 class="text-secondary"><?php echo xlt('Evolution-Go Credentials'); ?></h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Base URL'); ?></label>
+                                    <input type="text" name="evolution_go_base_url" id="cfgEvoBaseUrl" class="form-control form-control-sm" autocomplete="off" placeholder="e.g., https://api.evolution-go.com">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Instance Name'); ?></label>
+                                    <input type="text" name="evolution_go_instance_name" id="cfgEvoInstanceName" class="form-control form-control-sm" autocomplete="off" placeholder="e.g., my-instance">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('API Key'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="evolution_go_api_key" id="cfgEvoApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleEvoApiKey()" title="Show/Hide API Key">
+                                            <i class="fas fa-eye" id="evoApiKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="evoApiKeyHint" style="display:none;">Current API key is set</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Webhook Secret'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="evolution_go_webhook_secret" id="cfgEvoWebhook" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleEvoWebhook()" title="Show/Hide Webhook Secret">
+                                            <i class="fas fa-eye" id="evoWebhookIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="evoWebhookHint" style="display:none;">Current webhook secret is set</small>
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label"><?php echo xlt('Webhook URL (configure in Evolution-Go dashboard)'); ?></label>
+                                    <input type="text" class="form-control form-control-sm bg-light" readonly
+                                           value="<?php echo attr($GLOBALS['webroot']); ?>/webhook/evolution-go/webhook.php"
+                                           onclick="this.select()">
+                                    <small class="text-muted"><?php echo xlt('Copy this URL to your Evolution-Go instance webhook settings.'); ?></small>
                                 </div>
                             </div>
                         </div>
@@ -1049,6 +1106,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                         <option value="ultramsg">UltraMsg</option>
                         <option value="wasenderapi">WaSenderAPI</option>
                         <option value="openwa">OpenWA</option>
+                        <option value="evolution-go">Evolution-Go</option>
                         <option value="all"><?php echo xlt('All (global)'); ?></option>
                     </select>
                 </div>
@@ -1147,6 +1205,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                             <option value="ultramsg">UltraMsg</option>
                             <option value="wasenderapi">WaSenderAPI</option>
                             <option value="openwa">OpenWA</option>
+                            <option value="evolution-go">Evolution-Go</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -1651,6 +1710,8 @@ function loadFacilityConfig(facilityId) {
                 vendorBadge = '<span class="badge bg-info ms-2 small">WaSenderAPI Active</span>';
             } else if (activeVendor === 'openwa') {
                 vendorBadge = '<span class="badge bg-warning ms-2 small">OpenWA Active</span>';
+            } else if (activeVendor === 'evolution-go') {
+                vendorBadge = '<span class="badge bg-secondary ms-2 small">Evolution-Go Active</span>';
             }
             title.innerHTML += vendorBadge;
 
@@ -1750,6 +1811,38 @@ function loadFacilityConfig(facilityId) {
                 owaWebhookInput.value = '';
                 owaWebhookHint.style.display = 'none';
                 owaWebhookInput.required = false;
+            }
+
+            // Evolution-Go credentials
+            document.getElementById('cfgEvoBaseUrl').value = c['evolution_go_base_url'] || '';
+            document.getElementById('cfgEvoInstanceName').value = c['evolution_go_instance_name'] || '';
+
+            const evoApiKeyInput = document.getElementById('cfgEvoApiKey');
+            const evoApiKeyHint = document.getElementById('evoApiKeyHint');
+            if (c['evolution_go_api_key'] && c['evolution_go_api_key'].length > 0) {
+                evoApiKeyInput.dataset.fullKey = c['evolution_go_api_key'];
+                evoApiKeyInput.value = '••••••••' + c['evolution_go_api_key'].slice(-8);
+                evoApiKeyHint.style.display = 'block';
+                evoApiKeyInput.required = false;
+            } else {
+                delete evoApiKeyInput.dataset.fullKey;
+                evoApiKeyInput.value = '';
+                evoApiKeyHint.style.display = 'none';
+                evoApiKeyInput.required = false;
+            }
+
+            const evoWebhookInput = document.getElementById('cfgEvoWebhook');
+            const evoWebhookHint = document.getElementById('evoWebhookHint');
+            if (c['evolution_go_webhook_secret'] && c['evolution_go_webhook_secret'].length > 0) {
+                evoWebhookInput.dataset.fullKey = c['evolution_go_webhook_secret'];
+                evoWebhookInput.value = '••••••••' + c['evolution_go_webhook_secret'].slice(-8);
+                evoWebhookHint.style.display = 'block';
+                evoWebhookInput.required = false;
+            } else {
+                delete evoWebhookInput.dataset.fullKey;
+                evoWebhookInput.value = '';
+                evoWebhookHint.style.display = 'none';
+                evoWebhookInput.required = false;
             }
 
             // Show/hide sections based on active vendor
@@ -2224,6 +2317,42 @@ function toggleOwaWebhook() {
     }
 }
 
+function toggleEvoApiKey() {
+    const input = document.getElementById('cfgEvoApiKey');
+    const icon = document.getElementById('evoApiKeyIcon');
+    if (input && icon) {
+        if (input.type === 'password') {
+            input.type = 'text';
+            input.value = input.dataset.fullKey || input.value;
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            if (input.dataset.fullKey) {
+                input.value = '••••••••' + input.dataset.fullKey.slice(-8);
+            }
+            icon.className = 'fas fa-eye';
+        }
+    }
+}
+
+function toggleEvoWebhook() {
+    const input = document.getElementById('cfgEvoWebhook');
+    const icon = document.getElementById('evoWebhookIcon');
+    if (input && icon) {
+        if (input.type === 'password') {
+            input.type = 'text';
+            input.value = input.dataset.fullKey || input.value;
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            if (input.dataset.fullKey) {
+                input.value = '••••••••' + input.dataset.fullKey.slice(-8);
+            }
+            icon.className = 'fas fa-eye';
+        }
+    }
+}
+
 /**
  * Show/hide sections based on selected active vendor
  * - UltraMsg: shows UltraMsg credentials section
@@ -2235,19 +2364,19 @@ function handleVendorChange() {
     const ultramsgConfig = document.getElementById('ultramsgConfig');
     const wasenderConfig = document.getElementById('wasenderConfig');
     const openwaConfig = document.getElementById('openwaConfig');
+    const evoConfig = document.getElementById('evolutionGoConfig');
+
+    const sections = [ultramsgConfig, wasenderConfig, openwaConfig, evoConfig];
+    sections.forEach(s => { if (s) s.style.display = 'none'; });
 
     if (vendor === 'ultramsg') {
         if (ultramsgConfig) ultramsgConfig.style.display = 'block';
-        if (wasenderConfig) wasenderConfig.style.display = 'none';
-        if (openwaConfig) openwaConfig.style.display = 'none';
     } else if (vendor === 'wasenderapi') {
-        if (ultramsgConfig) ultramsgConfig.style.display = 'none';
         if (wasenderConfig) wasenderConfig.style.display = 'block';
-        if (openwaConfig) openwaConfig.style.display = 'none';
     } else if (vendor === 'openwa') {
-        if (ultramsgConfig) ultramsgConfig.style.display = 'none';
-        if (wasenderConfig) wasenderConfig.style.display = 'none';
         if (openwaConfig) openwaConfig.style.display = 'block';
+    } else if (vendor === 'evolution-go') {
+        if (evoConfig) evoConfig.style.display = 'block';
     }
 }
 

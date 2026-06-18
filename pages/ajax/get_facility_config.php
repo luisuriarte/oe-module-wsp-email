@@ -3,7 +3,7 @@
  * get_facility_config.php — Returns the extended config for a single facility.
  *
  * GET params: facility_id (int)
- * Returns: JSON { config: {...}, facility_name: string }
+ * Returns: JSON { config: {...}, facility_name: string, gateway_configs: {...} }
  *
  * @package   OpenEMR\Modules\WspEmail
  */
@@ -33,9 +33,18 @@ $fc       = new FacilityConfig();
 $config   = $fc->getByFacilityId($facilityId);
 $schedule = $fc->getSchedule($facilityId);
 
+// Fetch separate gateway configs for the UI
+$gatewayConfigs = [];
+$allGw = $fc->getAllGatewayConfigs($facilityId);
+foreach ($allGw as $gw) {
+    $decoded = json_decode($gw['config_json'] ?? '{}', true);
+    $gatewayConfigs[$gw['gateway_name']] = is_array($decoded) ? $decoded : [];
+}
+
 echo json_encode([
-    'config'        => $config,
-    'facility_name' => $config['facility_name'] ?? '',
-    'inactive'      => (int)($config['inactive'] ?? 0),
-    'schedule'      => $schedule,
+    'config'          => $config,
+    'facility_name'   => $config['facility_name'] ?? '',
+    'inactive'        => (int)($config['inactive'] ?? 0),
+    'schedule'        => $schedule,
+    'gateway_configs' => $gatewayConfigs,
 ]);
