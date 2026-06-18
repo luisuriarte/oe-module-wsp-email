@@ -6,7 +6,8 @@
 
 -- ---------------------------------------------------------------------------
 -- 1. Facility Configuration Table
--- Supports multi-vendor credentials (UltraMsg, WaSenderAPI, OpenWA) and Telehealth
+-- Core facility settings (vendor selection, sending windows, telehealth).
+-- Gateway credentials moved to wsp_email_gateways_config.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
   `id`                  int(11)       NOT NULL AUTO_INCREMENT,
@@ -14,25 +15,8 @@ CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
   
   -- Active Vendor Selection
   `current_vendor`      varchar(50)   NOT NULL DEFAULT 'wasenderapi' COMMENT 'Active vendor identifier',
-  
-  -- Legacy Fields (Backwards Compatibility)
-  `vendor`              varchar(50)   NOT NULL DEFAULT 'wasenderapi' COMMENT 'Deprecated: use current_vendor',
-  `vendor_instance`     varchar(100)  DEFAULT NULL               COMMENT 'Deprecated: vendor instance ID',
-  `vendor_api_key`      varchar(255)  DEFAULT NULL               COMMENT 'Deprecated: vendor API key',
-  `webhook_secret`      varchar(255)  DEFAULT NULL               COMMENT 'Deprecated: webhook validation secret',
-  
-  -- UltraMsg Credentials
-  `ultramsg_instance`   varchar(100)  DEFAULT NULL               COMMENT 'UltraMsg Instance ID',
-  `ultramsg_api_key`    varchar(255)  DEFAULT NULL               COMMENT 'UltraMsg API Token',
-  
-  -- WaSenderAPI Credentials
-  `wasenderapi_api_key`      varchar(255)  DEFAULT NULL         COMMENT 'WaSenderAPI Bearer Token',
-  `wasenderapi_webhook_secret` varchar(255) DEFAULT NULL        COMMENT 'WaSenderAPI Webhook Secret',
-
-  -- OpenWA Credentials (https://wa.origen.ar)
-  `openwa_instance`          varchar(100)  DEFAULT NULL         COMMENT 'OpenWA Session ID',
-  `openwa_api_key`           varchar(255)  DEFAULT NULL         COMMENT 'OpenWA API Key (owa_xxx...)',
-  `openwa_webhook_secret`    varchar(255)  DEFAULT NULL         COMMENT 'OpenWA Webhook HMAC Secret',
+  `vendor`              varchar(50)   NOT NULL DEFAULT 'wasenderapi' COMMENT 'Deprecated: kept for backward compat, use current_vendor',
+  `webhook_secret`      varchar(255)  DEFAULT NULL               COMMENT 'Deprecated: kept for backward compat webhook validation',
   
   -- General Configuration
   `logo_wsp`            varchar(255)  DEFAULT NULL              COMMENT 'Logo URL for WhatsApp',
@@ -92,12 +76,15 @@ CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   COMMENT='Facility-specific WhatsApp, Email, and Telehealth configuration';
 
+-- ---------------------------------------------------------------------------
+-- 2. Gateway Configuration Table
+-- ---------------------------------------------------------------------------
 CREATE TABLE `wsp_email_gateways_config` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `facility_id` int(11) NOT NULL,
   `gateway_name` varchar(50) NOT NULL COMMENT 'ultramsg|wasenderapi|openwa|evolution-go',
   `enabled` tinyint(1) NOT NULL DEFAULT 0,
-  `config_json` text NOT NULL COMMENT 'JSON con api_key, instance, base_url, etc',
+  `config_json` text NOT NULL COMMENT 'JSON with credentials per gateway',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -105,7 +92,7 @@ CREATE TABLE `wsp_email_gateways_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ---------------------------------------------------------------------------
--- 2. OpenEMR Core Table Modifications
+-- 3. OpenEMR Core Table Modifications
 -- ---------------------------------------------------------------------------
 
 -- Add WhatsApp alert flag to appointments
@@ -140,7 +127,7 @@ ALTER TABLE `notification_log`
   ADD INDEX `idx_type_status` (`type`, `status_current`);
 
 -- ---------------------------------------------------------------------------
--- 3. Notification Schedule Table
+-- 4. Notification Schedule Table
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_notification_schedule` (
   `id`              int(11)    NOT NULL AUTO_INCREMENT,
@@ -156,12 +143,12 @@ CREATE TABLE IF NOT EXISTS `wsp_email_notification_schedule` (
   COMMENT='Automated notification schedule triggers per facility';
 
 -- ---------------------------------------------------------------------------
--- 4. Centralized Notification Templates
+-- 5. Centralized Notification Templates
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_notification_templates` (
   `id`              int(11)       NOT NULL AUTO_INCREMENT,
   `facility_id`     int(11)       NOT NULL                 COMMENT 'FK -> facility.id',
-  `notification_type` varchar(20) NOT NULL DEFAULT 'appointment'  COMMENT 'Tipo: appointment | recall',
+  `notification_type` varchar(20) NOT NULL DEFAULT 'appointment'  COMMENT 'Type: appointment | recall',
   `pc_catid`        int(11)       NOT NULL                 COMMENT 'Appt Category ID (5=Amb, 70=HBC, 80=Tele)',
   `category_name`   varchar(100)  DEFAULT NULL             COMMENT 'Display Label',
   `pc_apptstatus`   varchar(50)   NOT NULL DEFAULT '-scheduled' COMMENT 'Appt Status (-scheduled, -cancelled)',
@@ -178,7 +165,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_notification_templates` (
   COMMENT='Notification templates with both WSP and Email content';
 
 -- ---------------------------------------------------------------------------
--- 5. Status History Table
+-- 6. Status History Table
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_status_history` (
   `id`                  int(11)     NOT NULL AUTO_INCREMENT,
@@ -194,7 +181,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_status_history` (
   COMMENT='Audit trail for notification status transitions';
 
 -- ---------------------------------------------------------------------------
--- 6. OpenEMR Tracker Status Options (Patient Tracker Integration)
+-- 7. OpenEMR Tracker Status Options (Patient Tracker Integration)
 -- ---------------------------------------------------------------------------
 -- Adds WhatsApp status options to the appointment status list
 INSERT IGNORE INTO `list_options` (`list_id`, `option_id`, `title`, `seq`, `is_default`, `option_value`, `mapping`, `notes`) VALUES
@@ -204,7 +191,7 @@ INSERT IGNORE INTO `list_options` (`list_id`, `option_id`, `title`, `seq`, `is_d
 ('apptstat', 'wsp-err',    'WSP: Error',      140, 0, 0, '', 'Failed to send message');
 
 -- ---------------------------------------------------------------------------
--- 7. Rate Limit Log (WhatsApp send rate control)
+-- 8. Rate Limit Log (WhatsApp send rate control)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_rate_limit_log` (
   `id`          int(11)      NOT NULL AUTO_INCREMENT,
@@ -218,7 +205,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_rate_limit_log` (
   COMMENT='WhatsApp send log for rate limiting control per time window';
 
 -- ---------------------------------------------------------------------------
--- 8. Blacklist (numbers with permanent delivery failures)
+-- 9. Blacklist (numbers with permanent delivery failures)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_blacklist` (
   `id`          int(11)      NOT NULL AUTO_INCREMENT,
@@ -239,25 +226,27 @@ CREATE TABLE IF NOT EXISTS `wsp_email_blacklist` (
   COMMENT='Blacklist of WhatsApp numbers with permanent or manual delivery failures';
 
 -- ---------------------------------------------------------------------------
--- Recall Schedule: secuencias escalonadas de notificación por facility
+-- 10. Recall Notification Schedule
+-- Staggered send sequences per facility (e.g. 7d, 3d, 1d before event)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_recall_schedule` (
   `id`            int(11)      NOT NULL AUTO_INCREMENT,
   `facility_id`   int(11)      NOT NULL                   COMMENT 'FK -> facility.id',
-  `seq`           tinyint(3)   NOT NULL                   COMMENT 'Orden de envío (1, 2, 3...)',
-  `days_before`   int(5)       NOT NULL DEFAULT 7         COMMENT 'Días antes de r_eventDate para enviar',
-  `enabled_wsp`   tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'WhatsApp habilitado',
-  `enabled_email` tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Email habilitado',
-  `enabled`       tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Secuencia activa',
+  `seq`           tinyint(3)   NOT NULL                   COMMENT 'Send order (1, 2, 3...)',
+  `days_before`   int(5)       NOT NULL DEFAULT 7         COMMENT 'Days before event_date to send',
+  `enabled_wsp`   tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'WhatsApp enabled',
+  `enabled_email` tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Email enabled',
+  `enabled`       tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Sequence active flag',
   `created_at`    timestamp    DEFAULT CURRENT_TIMESTAMP,
   `updated_at`    timestamp    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_facility_seq` (`facility_id`, `seq`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-  COMMENT='Secuencias escalonadas de notificación de recalls por facility';
+  COMMENT='Staggered recall notification sequences per facility';
 
 -- ---------------------------------------------------------------------------
--- Recall Notifications: registro de envíos por recall + secuencia
+-- 11. Recall Notification Log
+-- Tracks each recall+sequence send attempt (WSP / Email / Both)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_recall` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -278,15 +267,16 @@ CREATE TABLE IF NOT EXISTS `wsp_email_recall` (
   KEY `idx_pid` (`pid`),
   KEY `idx_log_id` (`log_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-  COMMENT='Registro de notificaciones de recalls por secuencia';
+  COMMENT='Per-sequence recall notification delivery records';
 
 -- ---------------------------------------------------------------------------
--- Recall Entries: recalls creados desde el módulo (sin restricción por paciente)
+-- 12. Custom Recall Entries
+-- Recalls created from the module (no unique constraint per patient)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_recall_entries` (
   `id`          int(11)      NOT NULL AUTO_INCREMENT,
   `pid`         int(11)      NOT NULL                   COMMENT 'FK -> patient_data.pid',
-  `event_date`  date         NOT NULL                   COMMENT 'Fecha del recall',
+  `event_date`  date         NOT NULL                   COMMENT 'Recall event date',
   `facility_id` int(11)      NOT NULL                   COMMENT 'FK -> facility.id',
   `provider_id` int(11)      DEFAULT NULL               COMMENT 'FK -> users.id',
   `reason`      varchar(255) DEFAULT NULL,
@@ -297,11 +287,12 @@ CREATE TABLE IF NOT EXISTS `wsp_email_recall_entries` (
   KEY `idx_facility` (`facility_id`),
   KEY `idx_event_date` (`event_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-  COMMENT='Recalls creados desde el módulo (sin restricción único por paciente)';
+  COMMENT='Custom recall entries without unique constraint per patient';
 
--- Elimina la UNIQUE KEY (r_PRACTID, r_pid) que impide
--- tener múltiples recalls para un mismo paciente.
--- La PRIMARY KEY (r_ID) ya garantiza unicidad de cada fila.
-
+-- ---------------------------------------------------------------------------
+-- 13. Legacy medex_recalls Fix
+-- Drop the UNIQUE KEY (r_PRACTID, r_pid) which prevents multiple recalls
+-- for the same patient. The PRIMARY KEY (r_ID) already ensures row uniqueness.
+-- ---------------------------------------------------------------------------
 ALTER TABLE `medex_recalls`
   DROP INDEX `r_PRACTID`;

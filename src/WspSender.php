@@ -570,9 +570,8 @@ class WspSender
             return $result;
         }
 
-        // Clean phone to international format (e.g. 5493404540440)
-        $cleanPhone = preg_replace('/\D/', '', $phone);
-        $number     = $cleanPhone . '@s.whatsapp.net';
+        // Clean phone to international format — Evolution Go uses bare number (no @s.whatsapp.net)
+        $number = preg_replace('/\D/', '', $phone);
 
         $headers = [
             'Content-Type' => 'application/json',
@@ -580,9 +579,9 @@ class WspSender
             'apikey'       => $apiKey,
         ];
 
-        $baseUrl = rtrim($baseUrl, '/');
-        $textUrl = "{$baseUrl}/message/sendText/{$instanceName}";
-        $mediaUrl = "{$baseUrl}/message/sendMedia/{$instanceName}";
+        $baseUrl  = rtrim($baseUrl, '/');
+        $textUrl  = "{$baseUrl}/send/text";
+        $mediaUrl = "{$baseUrl}/send/media";
         $msgId = null;
 
         try {
@@ -624,6 +623,8 @@ class WspSender
                     ?? $body['messageId']
                     ?? $body['data']['messageId']
                     ?? $body['data']['key']['id']
+                    ?? $body['data']['Info']['ID']
+                    ?? $body['data']['ID']
                     ?? null;
             };
 
@@ -640,8 +641,8 @@ class WspSender
             if (!empty($logoUrl)) {
                 $mediaPayload = [
                     'number'  => $number,
-                    'mediatype' => 'image',
-                    'media'   => $logoUrl,
+                    'type'    => 'image',
+                    'url'     => $logoUrl,
                     'caption' => mb_substr($textWithMap, 0, 1024),
                 ];
                 $mediaBody = $safePost($mediaUrl, $mediaPayload, 'image');
@@ -671,11 +672,11 @@ class WspSender
             // 2. Try sending .ics document (optional)
             if (!empty($icsUrl)) {
                 $docPayload = [
-                    'number'    => $number,
-                    'mediatype' => 'document',
-                    'media'     => $icsUrl,
-                    'fileName'  => 'appointment.ics',
-                    'caption'   => mb_substr(LocalizationHelper::appointmentAttachmentCaption(
+                    'number'   => $number,
+                    'type'     => 'document',
+                    'url'      => $icsUrl,
+                    'filename' => 'appointment.ics',
+                    'caption'  => mb_substr(LocalizationHelper::appointmentAttachmentCaption(
                         (string)($config['facility_name'] ?? '')
                     ), 0, 1024),
                 ];
