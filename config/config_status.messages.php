@@ -104,20 +104,19 @@ return [
          * https://github.com/rmyndharis/OpenWA
          */
         'openwa' => [
+            // Campo canónico recomendado (data.status) — a prueba de futuro
+            'pending'   => 'QUEUED',
             'sent'      => 'SENT',
-            'success'   => 'SENT',
-            'ack_0'     => 'QUEUED',
-            'ack_1'     => 'SENT',
-            'ack_2'     => 'DELIVERED',
-            'ack_3'     => 'READ',
-            'ack_4'     => 'READ',
-            'ack_-1'    => 'FAILED',
-            '0'         => 'QUEUED',
-            '1'         => 'SENT',
-            '2'         => 'DELIVERED',
-            '3'         => 'READ',
-            '4'         => 'READ',
-            '-1'        => 'FAILED',
+            'delivered' => 'DELIVERED',
+            'read'      => 'READ',
+            'failed'    => 'FAILED',
+
+            // Campo legacy (data.ack, deprecado) — se sigue usando hoy en tu webhook
+            '0'  => 'QUEUED',
+            '1'  => 'SENT',
+            '2'  => 'DELIVERED',
+            '3'  => 'READ',
+            '-1' => 'FAILED',
         ],
 
         /**

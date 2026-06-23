@@ -142,13 +142,18 @@ if ($event === 'message.sent' || $event === 'message.ack') {
         exit;
     }
 
-    if (!empty($msgId)) {
-        // Extract native status
+if (!empty($msgId)) {
+        // Extract native status — prefer the canonical `status` field,
+        // fall back to the deprecated `ack` integer for older payloads
         $rawStatus = '';
         if ($event === 'message.sent') {
             $rawStatus = 'sent';
+        } elseif (isset($webhookData['data']['status'])) {
+            $rawStatus = (string)$webhookData['data']['status'];
+        } elseif (isset($webhookData['data']['ack'])) {
+            $rawStatus = (string)$webhookData['data']['ack'];
         } else {
-            $rawStatus = isset($webhookData['data']['ack']) ? (string)$webhookData['data']['ack'] : 'unknown';
+            $rawStatus = 'unknown';
         }
 
         $notifLog = new NotificationLog();
