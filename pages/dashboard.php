@@ -24,6 +24,7 @@ require_once $GLOBALS['srcdir'] . '/formatting.inc.php';
 
 use OpenEMR\Core\Header;
 use OpenEMR\Common\Acl\AclMain;
+use OpenEMR\Common\Csrf\CsrfUtils;
 use OpenEMR\Modules\WspEmail\FacilityConfig;
 use OpenEMR\Modules\WspEmail\NotificationLog;
 
@@ -59,6 +60,7 @@ while ($pRow = sqlFetchArray($provRes)) {
     <?php Header::setupHeader(['bootstrap', 'jquery', 'fontawesome', 'datetime-picker', 'datetime-picker-translated']); ?>
     <link rel="stylesheet" href="<?php echo $moduleRoot; ?>/styles.css">
     <script src="<?php echo $moduleRoot; ?>/vendor/chart.js/dist/chart.umd.min.js"></script>
+    <script src="<?php echo $moduleRoot; ?>/public/js/listOptionsManager.js"></script>
     <!-- Leaflet for Map Picker -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -105,6 +107,11 @@ while ($pRow = sqlFetchArray($provRes)) {
         <li class="nav-item">
             <a class="nav-link <?php echo $activeTab === 'blacklist' ? 'active' : ''; ?>" href="?tab=blacklist">
                 <i class="fas fa-ban me-1"></i><?php echo xlt('Blacklist'); ?>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?php echo $activeTab === 'catalogs' ? 'active' : ''; ?>" href="?tab=catalogs">
+                <i class="fas fa-list me-1"></i><?php echo xlt('Catalogs'); ?>
             </a>
         </li>
     </ul>
@@ -1179,6 +1186,40 @@ while ($pRow = sqlFetchArray($provRes)) {
         <?php endif; ?>
 
     </div><!-- /tab-blacklist -->
+
+    <!-- ===================================================================
+         TAB: CATALOGS (Editable list_options)
+    ==================================================================== -->
+    <div id="tab-catalogs" class="<?php echo $activeTab === 'catalogs' ? '' : 'd-none'; ?>">
+        <?php if (AclMain::aclCheckCore('admin', 'super')): ?>
+        <div class="chart-card">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h5 class="mb-0"><i class="fas fa-list me-2 text-primary"></i><?php echo xlt('Editable Catalogs'); ?></h5>
+            </div>
+            <div id="lom-container">
+                <div class="text-center text-muted py-5">
+                    <i class="fa fa-spinner fa-spin fa-2x mb-2"></i>
+                    <p><?php echo xlt('Loading...'); ?></p>
+                </div>
+            </div>
+        </div>
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var lomTab = document.getElementById('tab-catalogs');
+            if (lomTab && !lomTab.classList.contains('d-none')) {
+                ListOptionsManager.init(
+                    'apptstat',
+                    '#lom-container',
+                    '<?php echo CsrfUtils::collectCsrfToken(); ?>',
+                    '<?php echo $moduleRoot; ?>/list_options_manager.php'
+                );
+            }
+        });
+        </script>
+        <?php else: ?>
+        <div class="alert alert-warning"><?php echo xlt('Access denied'); ?></div>
+        <?php endif; ?>
+    </div><!-- /tab-catalogs -->
 
     <!-- Modal: Add Blacklist Entry -->
     <div class="modal fade" id="blAddModal" tabindex="-1">

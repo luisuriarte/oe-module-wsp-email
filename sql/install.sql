@@ -190,6 +190,11 @@ INSERT IGNORE INTO `list_options` (`list_id`, `option_id`, `title`, `seq`, `is_d
 ('apptstat', 'wsp-read',   'WSP: Read',       130, 0, 0, '', 'Message read by patient'),
 ('apptstat', 'wsp-err',    'WSP: Error',      140, 0, 0, '', 'Failed to send message');
 
+-- Register apptstat in the master `lists` list so it appears in the standard
+-- OpenEMR list editor and in the module's Editable Catalogs tab.
+INSERT IGNORE INTO `list_options` (`list_id`, `option_id`, `title`, `seq`, `is_default`, `option_value`, `mapping`, `notes`, `codes`, `edit_options`) VALUES
+('lists', 'apptstat', 'Estados de Envio WSP', 15, 0, 0, '', 'Estados de envio a traves de WhatsApp', '', 1);
+
 -- ---------------------------------------------------------------------------
 -- 8. Rate Limit Log (WhatsApp send rate control)
 -- ---------------------------------------------------------------------------
