@@ -22,15 +22,13 @@ const ListOptionsManager = (function () {
 
     // ---- Public API -------------------------------------------------------
 
-    function init(listId, container, token, url) {
+    function init(listId, container, token, url, extraCols) {
         currentListId = listId;
         containerSelector = container;
         csrfToken = token;
         endpointUrl = url;
-        extraColumns = null;
-        loadListMeta(function () {
-            loadOptions();
-        });
+        extraColumns = extraCols || null;
+        loadOptions();
     }
 
     function initPicker(container, token, url) {
@@ -40,25 +38,6 @@ const ListOptionsManager = (function () {
         currentListId = null;
         extraColumns = null;
         loadLists();
-    }
-
-    // ---- Internal ---------------------------------------------------------
-
-    function loadListMeta(cb) {
-        fetch(endpointUrl + '?action=get_lists')
-            .then(function (res) { return res.json(); })
-            .then(function (json) {
-                if (json.success && json.data) {
-                    var found = json.data.filter(function (l) { return l.list_id === currentListId; });
-                    if (found.length > 0) {
-                        extraColumns = found[0].extra_columns || null;
-                    }
-                }
-                if (cb) cb();
-            })
-            .catch(function () {
-                if (cb) cb();
-            });
     }
 
     // ---- List Picker ------------------------------------------------------
@@ -191,7 +170,10 @@ const ListOptionsManager = (function () {
 
         var hRow = document.createElement('tr');
 
-        var headers = ['Seq', 'Option ID', 'Title', 'Notes', 'Codes', 'Default', 'Active', 'Actions'];
+        var isApptstat = currentListId === 'apptstat';
+        var headers = isApptstat
+            ? ['Seq', 'Option ID', 'Title', 'Color', 'Alert Time', 'Check In', 'Check Out', 'Code(s)', 'Default', 'Active', 'Actions']
+            : ['Seq', 'Option ID', 'Title', 'Notes', 'Codes', 'Default', 'Active', 'Actions'];
 
         headers.forEach(function (h) {
             var th = document.createElement('th');
@@ -251,23 +233,77 @@ const ListOptionsManager = (function () {
         tdTitle.appendChild(titleInput);
         row.appendChild(tdTitle);
 
-        // Notes
-        var tdNotes = document.createElement('td');
-        var notesInput = document.createElement('input');
-        notesInput.type = 'text';
-        notesInput.className = 'form-control form-control-sm lom-notes';
-        notesInput.value = opt.notes || '';
-        tdNotes.appendChild(notesInput);
-        row.appendChild(tdNotes);
+        var isApptstat = currentListId === 'apptstat';
 
-        // Codes
-        var tdCodes = document.createElement('td');
-        var codesInput = document.createElement('input');
-        codesInput.type = 'text';
-        codesInput.className = 'form-control form-control-sm lom-codes';
-        codesInput.value = opt.codes || '';
-        tdCodes.appendChild(codesInput);
-        row.appendChild(tdCodes);
+        if (isApptstat) {
+            // Color
+            var tdColor = document.createElement('td');
+            var colorInput = document.createElement('input');
+            colorInput.type = 'text';
+            colorInput.className = 'form-control form-control-sm lom-color';
+            colorInput.value = opt.color || '';
+            colorInput.placeholder = '#hexcolor';
+            tdColor.appendChild(colorInput);
+            row.appendChild(tdColor);
+
+            // Alert Time
+            var tdAlert = document.createElement('td');
+            var alertInput = document.createElement('input');
+            alertInput.type = 'number';
+            alertInput.className = 'form-control form-control-sm lom-alert-time';
+            alertInput.value = opt.alert_time || 0;
+            alertInput.min = 0;
+            alertInput.style.width = '70px';
+            tdAlert.appendChild(alertInput);
+            row.appendChild(tdAlert);
+
+            // Check In (toggle_setting_1)
+            var tdCI = document.createElement('td');
+            tdCI.className = 'text-center';
+            var ciCheck = document.createElement('input');
+            ciCheck.type = 'checkbox';
+            ciCheck.className = 'lom-checkin';
+            if (String(opt.toggle_setting_1) === '1') ciCheck.checked = true;
+            tdCI.appendChild(ciCheck);
+            row.appendChild(tdCI);
+
+            // Check Out (toggle_setting_2)
+            var tdCO = document.createElement('td');
+            tdCO.className = 'text-center';
+            var coCheck = document.createElement('input');
+            coCheck.type = 'checkbox';
+            coCheck.className = 'lom-checkout';
+            if (String(opt.toggle_setting_2) === '1') coCheck.checked = true;
+            tdCO.appendChild(coCheck);
+            row.appendChild(tdCO);
+
+            // Code(s)
+            var tdCodes = document.createElement('td');
+            var codesInput = document.createElement('input');
+            codesInput.type = 'text';
+            codesInput.className = 'form-control form-control-sm lom-codes';
+            codesInput.value = opt.codes || '';
+            tdCodes.appendChild(codesInput);
+            row.appendChild(tdCodes);
+        } else {
+            // Notes
+            var tdNotes = document.createElement('td');
+            var notesInput = document.createElement('input');
+            notesInput.type = 'text';
+            notesInput.className = 'form-control form-control-sm lom-notes';
+            notesInput.value = opt.notes || '';
+            tdNotes.appendChild(notesInput);
+            row.appendChild(tdNotes);
+
+            // Codes
+            var tdCodes = document.createElement('td');
+            var codesInput = document.createElement('input');
+            codesInput.type = 'text';
+            codesInput.className = 'form-control form-control-sm lom-codes';
+            codesInput.value = opt.codes || '';
+            tdCodes.appendChild(codesInput);
+            row.appendChild(tdCodes);
+        }
 
         // Default checkbox
         var tdDef = document.createElement('td');
@@ -352,11 +388,20 @@ const ListOptionsManager = (function () {
         data.append('list_id', currentListId);
         data.append('option_id', row.dataset.optionId);
         data.append('title', row.querySelector('.lom-title').value);
-        data.append('notes', row.querySelector('.lom-notes').value);
-        data.append('codes', row.querySelector('.lom-codes').value);
         data.append('seq', row.rowIndex);
         data.append('is_default', row.querySelector('.lom-default').checked ? '1' : '0');
         data.append('activity', row.querySelector('.lom-active').checked ? '1' : '0');
+
+        if (currentListId === 'apptstat') {
+            data.append('color', row.querySelector('.lom-color').value);
+            data.append('alert_time', row.querySelector('.lom-alert-time').value);
+            data.append('toggle_setting_1', row.querySelector('.lom-checkin').checked ? '1' : '0');
+            data.append('toggle_setting_2', row.querySelector('.lom-checkout').checked ? '1' : '0');
+            data.append('codes', row.querySelector('.lom-codes').value);
+        } else {
+            data.append('notes', row.querySelector('.lom-notes').value);
+            data.append('codes', row.querySelector('.lom-codes').value);
+        }
         data.append('csrf_token_form', csrfToken);
 
         fetch(endpointUrl, {
@@ -417,6 +462,25 @@ const ListOptionsManager = (function () {
             '      <label class="small mb-1">Title</label>' +
             '      <input type="text" id="lom-new-title" class="form-control form-control-sm" placeholder="Display title">' +
             '    </div>' +
+            (currentListId === 'apptstat' ?
+            '    <div class="col-auto">' +
+            '      <label class="small mb-1">Color</label>' +
+            '      <input type="text" id="lom-new-color" class="form-control form-control-sm" placeholder="#hexcolor" style="width:100px">' +
+            '    </div>' +
+            '    <div class="col-auto">' +
+            '      <label class="small mb-1">Alert Time</label>' +
+            '      <input type="number" id="lom-new-alert" class="form-control form-control-sm" value="0" min="0" style="width:70px">' +
+            '    </div>' +
+            '    <div class="col-auto">' +
+            '      <label class="small mb-1"><input type="checkbox" id="lom-new-checkin"> Check In</label>' +
+            '    </div>' +
+            '    <div class="col-auto">' +
+            '      <label class="small mb-1"><input type="checkbox" id="lom-new-checkout"> Check Out</label>' +
+            '    </div>' +
+            '    <div class="col">' +
+            '      <label class="small mb-1">Code(s)</label>' +
+            '      <input type="text" id="lom-new-codes" class="form-control form-control-sm" placeholder="Code(s)">' +
+            '    </div>' :
             '    <div class="col">' +
             '      <label class="small mb-1">Notes</label>' +
             '      <input type="text" id="lom-new-notes" class="form-control form-control-sm" placeholder="Notes">' +
@@ -424,7 +488,7 @@ const ListOptionsManager = (function () {
             '    <div class="col">' +
             '      <label class="small mb-1">Codes</label>' +
             '      <input type="text" id="lom-new-codes" class="form-control form-control-sm" placeholder="Codes">' +
-            '    </div>' +
+            '    </div>') +
             '    <div class="col-auto">' +
             '      <label class="small mb-1">&nbsp;</label>' +
             '      <div>' +
@@ -451,12 +515,21 @@ const ListOptionsManager = (function () {
             data.append('list_id', currentListId);
             data.append('option_id', optionId);
             data.append('title', title);
-            data.append('notes', document.getElementById('lom-new-notes').value.trim());
-            data.append('codes', document.getElementById('lom-new-codes').value.trim());
             data.append('seq', '0');
             data.append('is_default', '0');
             data.append('activity', '1');
             data.append('csrf_token_form', csrfToken);
+
+            if (currentListId === 'apptstat') {
+                data.append('color', document.getElementById('lom-new-color').value.trim());
+                data.append('alert_time', document.getElementById('lom-new-alert').value);
+                data.append('toggle_setting_1', document.getElementById('lom-new-checkin').checked ? '1' : '0');
+                data.append('toggle_setting_2', document.getElementById('lom-new-checkout').checked ? '1' : '0');
+                data.append('codes', document.getElementById('lom-new-codes').value.trim());
+            } else {
+                data.append('notes', document.getElementById('lom-new-notes').value.trim());
+                data.append('codes', document.getElementById('lom-new-codes').value.trim());
+            }
 
             fetch(endpointUrl, {
                 method: 'POST',

@@ -31,6 +31,7 @@ header('Content-Type: application/json');
 
 use OpenEMR\Common\Csrf\CsrfUtils;
 use OpenEMR\Common\Acl\AclMain;
+use OpenEMR\Services\ListService;
 
 // ---------------------------------------------------------------------------
 // ACL
@@ -55,19 +56,18 @@ if (in_array($_REQUEST['action'] ?? '', $writeActions, true)) {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers (using OpenEMR\Services\ListService)
 // ---------------------------------------------------------------------------
+
+$listService = new ListService();
 
 /**
  * Check if a list_id is registered in the master `lists` list.
  */
 function isManagedList(string $listId): bool
 {
-    $row = sqlQuery(
-        "SELECT option_id FROM list_options WHERE list_id = 'lists' AND option_id = ?",
-        [$listId]
-    );
-    return !empty($row);
+    global $listService;
+    return $listService->getListOption('lists', $listId) !== null;
 }
 
 /**
@@ -75,16 +75,17 @@ function isManagedList(string $listId): bool
  */
 function getManagedLists(): array
 {
-    $rows = sqlStatement(
-        "SELECT option_id AS list_id, title AS display_name, notes AS description,
-                codes AS extra_columns
-         FROM list_options
-         WHERE list_id = 'lists'
-         ORDER BY seq ASC, option_id ASC"
-    );
+    global $listService;
+    $result = $listService->searchLists([]);
+    $data = $result->getData();
     $out = [];
-    while ($row = sqlFetchArray($rows)) {
-        $out[] = $row;
+    foreach ($data as $row) {
+        $out[] = [
+            'list_id'       => $row['option_id'],
+            'display_name'  => $row['title'],
+            'description'   => $row['notes'] ?? '',
+            'extra_columns' => $row['codes'] ?? '',
+        ];
     }
     return $out;
 }
@@ -94,16 +95,36 @@ function getManagedLists(): array
  */
 function getOptions(string $listId): array
 {
-    $rows = sqlStatement(
-        "SELECT option_id, title, seq, is_default, activity, notes, codes, mapping, option_value
-         FROM list_options
-         WHERE list_id = ?
-         ORDER BY seq ASC, option_id ASC",
-        [$listId]
-    );
+    global $listService;
+    $rows = $listService->getOptionsByListName($listId);
     $out = [];
-    while ($row = sqlFetchArray($rows)) {
-        $out[] = $row;
+    foreach ($rows as $row) {
+        $entry = [
+            'option_id'       => $row['option_id'],
+            'title'           => $row['title'],
+            'seq'             => $row['seq'],
+            'is_default'      => $row['is_default'],
+            'activity'        => $row['activity'],
+            'codes'           => $row['codes'] ?? '',
+            'mapping'         => $row['mapping'] ?? '',
+            'option_value'    => $row['option_value'] ?? 0,
+            'toggle_setting_1'=> $row['toggle_setting_1'] ?? 0,
+            'toggle_setting_2'=> $row['toggle_setting_2'] ?? 0,
+        ];
+        // apptstat stores color + alert_time in notes: "#hexcolor|minutes"
+        if ($listId === 'apptstat') {
+            $notes = $row['notes'] ?? '';
+            if (preg_match('/^(#[0-9A-Fa-f]{6})\|(\d*)$/', $notes, $m)) {
+                $entry['color']      = $m[1];
+                $entry['alert_time'] = (int)$m[2];
+            } else {
+                $entry['color']      = $notes;
+                $entry['alert_time'] = 0;
+            }
+        } else {
+            $entry['notes'] = $row['notes'] ?? '';
+        }
+        $out[] = $entry;
     }
     return $out;
 }
@@ -145,10 +166,20 @@ switch ($action) {
         $seq        = (int) ($_POST['seq'] ?? 0);
         $isDefault  = !empty($_POST['is_default']) ? 1 : 0;
         $activity   = !empty($_POST['activity']) ? 1 : 0;
-        $notes      = $_POST['notes'] ?? '';
         $codes      = $_POST['codes'] ?? '';
         $mapping    = $_POST['mapping'] ?? '';
         $optionValue = (int) ($_POST['option_value'] ?? 0);
+        $toggle1    = !empty($_POST['toggle_setting_1']) ? 1 : 0;
+        $toggle2    = !empty($_POST['toggle_setting_2']) ? 1 : 0;
+
+        // apptstat stores color + alert_time in notes
+        if ($listId === 'apptstat') {
+            $color      = $_POST['color'] ?? '';
+            $alertTime  = (int) ($_POST['alert_time'] ?? 0);
+            $notes      = $color . '|' . $alertTime;
+        } else {
+            $notes = $_POST['notes'] ?? '';
+        }
 
         $existing = sqlQuery(
             "SELECT option_id FROM list_options WHERE list_id = ? AND option_id = ?",
@@ -159,20 +190,24 @@ switch ($action) {
             sqlStatement(
                 "UPDATE list_options
                  SET title = ?, seq = ?, is_default = ?, activity = ?,
-                     notes = ?, codes = ?, mapping = ?, option_value = ?
+                     notes = ?, codes = ?, mapping = ?, option_value = ?,
+                     toggle_setting_1 = ?, toggle_setting_2 = ?
                  WHERE list_id = ? AND option_id = ?",
                 [$title, $seq, $isDefault, $activity,
                  $notes, $codes, $mapping, $optionValue,
+                 $toggle1, $toggle2,
                  $listId, $optionId]
             );
         } else {
             sqlStatement(
                 "INSERT INTO list_options
                     (list_id, option_id, title, seq, is_default, activity,
-                     notes, codes, mapping, option_value)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     notes, codes, mapping, option_value,
+                     toggle_setting_1, toggle_setting_2)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [$listId, $optionId, $title, $seq, $isDefault, $activity,
-                 $notes, $codes, $mapping, $optionValue]
+                 $notes, $codes, $mapping, $optionValue,
+                 $toggle1, $toggle2]
             );
         }
 
