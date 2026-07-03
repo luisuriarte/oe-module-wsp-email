@@ -363,38 +363,53 @@ INSERT IGNORE INTO `lang_custom` (`lang_description`, `lang_code`, `constant_nam
 
 -- ============================================================================
 -- SYNC: Populate lang_languages, lang_constants and lang_definitions
--- Uses NOT EXISTS because these tables lack UNIQUE keys on target columns.
 -- Idempotent: safe to re-run, preserves existing entries.
--- NOTE: No DEDUP step — would delete pre-existing lang_custom entries.
+--
+-- IMPORTANTE: lang_constants.constant_name usa utf8mb4_bin (case-sensitive),
+-- mientras que lang_custom.constant_name usa utf8mb3_general_ci.
+-- Por eso usamos CONVERT(lc.constant_name USING utf8mb4) en los JOINs
+-- para que MySQL compare usando el collation utf8mb4_bin de lang_constants.
 -- ============================================================================
 
--- Ensure language exists in lang_languages
-INSERT INTO `lang_languages` (`lang_code`, `lang_description`)
-SELECT DISTINCT lc.`lang_code`, lc.`lang_description`
-FROM `lang_custom` lc
+-- 2. Create language if it does not exist
+INSERT INTO lang_languages (lang_code, lang_description)
+SELECT DISTINCT lc.lang_code, lc.lang_description
+FROM lang_custom lc
 WHERE NOT EXISTS (
-  SELECT 1 FROM `lang_languages` l
-  WHERE l.`lang_code` = lc.`lang_code`
+    SELECT 1 FROM lang_languages l WHERE l.lang_code = lc.lang_code
 );
 
--- Create any new constants (skip empty strings)
-INSERT INTO `lang_constants` (`constant_name`)
-SELECT DISTINCT lc.`constant_name`
-FROM `lang_custom` lc
-WHERE lc.`constant_name` != ''
+-- 3. Create new constants (case-sensitive comparison)
+INSERT INTO lang_constants (constant_name)
+SELECT DISTINCT lc.constant_name
+FROM lang_custom lc
+WHERE lc.constant_name <> ''
   AND NOT EXISTS (
-    SELECT 1 FROM `lang_constants` c
-    WHERE c.`constant_name` = lc.`constant_name`
+    SELECT 1 FROM lang_constants c
+    WHERE c.constant_name = CONVERT(lc.constant_name USING utf8mb4)
   );
 
--- Insert any missing definitions (matched by constant_name -> cons_id, lang_code -> lang_id)
-INSERT INTO `lang_definitions` (`cons_id`, `lang_id`, `definition`)
-SELECT c.`cons_id`, l.`lang_id`, lc.`definition`
-FROM `lang_custom` lc
-INNER JOIN `lang_constants` c ON c.`constant_name` = lc.`constant_name`
-INNER JOIN `lang_languages` l ON l.`lang_code` = lc.`lang_code`
+-- 4. Insert new definitions
+INSERT INTO lang_definitions (cons_id, lang_id, definition)
+SELECT c.cons_id, l.lang_id, lc.definition
+FROM lang_custom lc
+INNER JOIN lang_constants c
+    ON c.constant_name = CONVERT(lc.constant_name USING utf8mb4)
+INNER JOIN lang_languages l
+    ON l.lang_code = lc.lang_code
 WHERE NOT EXISTS (
-  SELECT 1 FROM `lang_definitions` d
-  WHERE d.`cons_id` = c.`cons_id`
-    AND d.`lang_id` = l.`lang_id`
+    SELECT 1 FROM lang_definitions d
+    WHERE d.cons_id = c.cons_id AND d.lang_id = l.lang_id
 );
+
+-- 5. Update modified translations
+UPDATE lang_definitions d
+INNER JOIN lang_constants c ON c.cons_id = d.cons_id
+INNER JOIN lang_languages l ON l.lang_id = d.lang_id
+INNER JOIN lang_custom lc
+    ON l.lang_code = lc.lang_code
+    AND c.constant_name = CONVERT(lc.constant_name USING utf8mb4)
+SET d.definition = lc.definition
+WHERE IFNULL(d.definition, '') <> IFNULL(lc.definition, '');
+
+COMMIT;

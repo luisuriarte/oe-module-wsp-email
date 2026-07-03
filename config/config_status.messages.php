@@ -110,6 +110,7 @@ return [
             'delivered' => 'DELIVERED',
             'read'      => 'READ',
             'failed'    => 'FAILED',
+            'revoked'   => 'UNSENT',    // message.revoked — mensaje eliminado por el usuario
 
             // Campo legacy (data.ack, deprecado) — se sigue usando hoy en tu webhook
             '0'  => 'QUEUED',

@@ -245,6 +245,8 @@ class StatusNormalizer
                     $nativeStatus = 'sent';
                 } elseif ($event === 'message.ack') {
                     $nativeStatus = isset($webhookData['data']['ack']) ? (string)$webhookData['data']['ack'] : 'unknown';
+                } elseif ($event === 'message.revoked') {
+                    $nativeStatus = 'revoked';
                 } else {
                     $nativeStatus = $event;
                 }

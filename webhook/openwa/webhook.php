@@ -3,8 +3,10 @@
  * webhook.php (OpenWA) — Receives delivery status updates from the OpenWA gateway.
  *
  * This endpoint is called by OpenWA (wa.origen.ar) when the delivery status of
- * a message changes (e.g. message.sent, message.ack).
+ * a message changes (e.g. message.sent, message.ack, message.revoked).
  * It validates the request using X-OpenWA-Signature HMAC SHA256 and updates notification_log.
+ * Uses X-Openwa-Idempotency-Key for deduplication (msg_{sessionId}_{waMessageId} or
+ * rev_{sessionId}_{waMessageId}).
  *
  * Public URL:
  *   https://tudominio.openemr.com/webhook/openwa/webhook.php
@@ -131,9 +133,11 @@ if (empty($expectedSecret)) {
 }
 
 // --- Handle events ---
-if ($event === 'message.sent' || $event === 'message.ack') {
+$supportedEvents = ['message.sent', 'message.ack', 'message.revoked'];
+
+if (in_array($event, $supportedEvents, true)) {
     $msgId = $webhookData['data']['messageId'] ?? $webhookData['data']['id'] ?? '';
-    
+
     // Ignore group chats
     $chatId = $webhookData['data']['chatId'] ?? $webhookData['data']['from'] ?? $webhookData['data']['to'] ?? '';
     if (strpos($chatId, '@g.us') !== false) {
@@ -142,12 +146,13 @@ if ($event === 'message.sent' || $event === 'message.ack') {
         exit;
     }
 
-if (!empty($msgId)) {
-        // Extract native status — prefer the canonical `status` field,
-        // fall back to the deprecated `ack` integer for older payloads
+    if (!empty($msgId)) {
+        // Extract native status
         $rawStatus = '';
         if ($event === 'message.sent') {
             $rawStatus = 'sent';
+        } elseif ($event === 'message.revoked') {
+            $rawStatus = 'revoked';
         } elseif (isset($webhookData['data']['status'])) {
             $rawStatus = (string)$webhookData['data']['status'];
         } elseif (isset($webhookData['data']['ack'])) {
@@ -156,16 +161,41 @@ if (!empty($msgId)) {
             $rawStatus = 'unknown';
         }
 
+        // Idempotency: skip if same or higher priority status already recorded
+        $idempotencyKey = $headers['X-Openwa-Idempotency-Key'] ?? '';
         $notifLog = new NotificationLog();
+
+        $incomingPriority = StatusNormalizer::getPriority(
+            StatusNormalizer::normalize('openwa', $rawStatus)
+        );
+
+        $existing = sqlQuery(
+            "SELECT status_priority, status_current FROM notification_log WHERE msg_id = ?",
+            [$msgId]
+        );
+
+        if ($existing && isset($existing['status_priority'])) {
+            $existingPriority = (int)$existing['status_priority'];
+            // Skip if existing status is same or higher priority (duplicate/reordered event)
+            if ($existingPriority >= $incomingPriority && $existingPriority > 0) {
+                openwaLog("Skipped: msgId=$msgId already has priority $existingPriority >= $incomingPriority" .
+                    ($idempotencyKey ? " (key=$idempotencyKey)" : ''));
+                http_response_code(200);
+                echo json_encode(['status' => 'ok', 'skipped' => 'duplicate']);
+                exit;
+            }
+        }
+
         $notifLog->updateStatus($msgId, $rawStatus, 'openwa', $webhookData);
 
         $normalized = StatusNormalizer::normalize('openwa', $rawStatus);
-        openwaLog("Updated: msgId=$msgId → raw=$rawStatus, canonical=$normalized");
+        openwaLog("Updated: msgId=$msgId → raw=$rawStatus, canonical=$normalized" .
+            ($idempotencyKey ? " (key=$idempotencyKey)" : ''));
     } else {
         openwaLog('Warning: message ID (data.id) is missing in payload.');
     }
 } else {
-    openwaLog("Event '$event' is not message.sent or message.ack — ignoring.");
+    openwaLog("Event '$event' is not supported — ignoring.");
 }
 
 http_response_code(200);
