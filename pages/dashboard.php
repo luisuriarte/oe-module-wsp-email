@@ -809,10 +809,10 @@ while ($pRow = sqlFetchArray($provRes)) {
                         <hr>
                         <div class="d-flex gap-2 mt-3">
                             <button type="submit" class="btn btn-success btn-save">
-                                <i class="fas fa-save me-1"></i><?php echo xlt('Save Configuration'); ?>
+                                <?php echo xlt('Save Configuration'); ?>
                             </button>
                             <button type="button" id="btnCancelConfig" class="btn btn-outline-secondary btn-cancel">
-                                <i class="fas fa-times me-1"></i><?php echo xlt('Cancel'); ?>
+                                <?php echo xlt('Cancel'); ?>
                             </button>
                             <button type="button" class="btn btn-outline-info" onclick="openTemplateManager()">
                                 <i class="fas fa-edit me-1"></i><?php echo xlt('Templates'); ?>
