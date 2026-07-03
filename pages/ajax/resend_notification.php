@@ -159,7 +159,7 @@ try {
         $blacklist->processResult($phone, $facilityId, $vendor, $result);
 
         $msgId           = $result['msgId'] ?? null;
-        $notifLog->updateMsgId($logId, $msgId ?? '', $success ? 'in_progress' : 'error');
+        $notifLog->updateMsgId($logId, $msgId ?? '', $success ? 'sent' : 'error');
     } else {
         writeDebugLog("Email branch");
         $template        = $config['email_message'] ?? '';

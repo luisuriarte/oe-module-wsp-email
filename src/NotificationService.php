@@ -39,7 +39,7 @@ class NotificationService
         $this->log            = new NotificationLog();
         $this->facilityConfig = new FacilityConfig();
         $this->moduleBaseUrl  = rtrim($GLOBALS['site_addr_oath'] ?? '', '/') .
-                                '/interface/modules/custom_modules/oe-module-wsp-email/public/ics/';
+                                '/public/ics/';
         $this->rateLimiter = new RateLimiter();
         $this->blacklist   = new Blacklist();
     }
@@ -243,10 +243,10 @@ class NotificationService
         if (empty($baseUrl)) {
             $baseUrl = rtrim($GLOBALS['site_addr_oath'] ?? '', '/');
         }
-        $patient['_ics_url'] = "{$baseUrl}/interface/modules/custom_modules/oe-module-wsp-email/public/ics/{$icsPublicName}";
+        $patient['_ics_url'] = "{$baseUrl}/public/ics/{$icsPublicName}";
         error_log("WspEmail deliverWsp: _ics_url={$patient['_ics_url']}, website_url={$config['website_url']}, site_addr_oath=" . ($GLOBALS['site_addr_oath'] ?? '(not set)'));
 
-        $publicIcsDir = __DIR__ . '/../public/ics/';
+        $publicIcsDir = $GLOBALS['fileroot'] . '/public/ics/';
         if (!is_dir($publicIcsDir)) {
             mkdir($publicIcsDir, 0755, true);
         }

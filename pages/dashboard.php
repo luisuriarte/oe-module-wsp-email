@@ -1311,6 +1311,7 @@ while ($pRow = sqlFetchArray($provRes)) {
    Dashboard — Chart.js
    ========================================================================= */
 const moduleRoot = <?php echo js_escape($moduleRoot); ?>;
+const baseUrl    = <?php echo js_escape($GLOBALS['webroot']); ?>;
 let chart = null;
 
 // Status colors for charts - WhatsApp (Green), Email (Light Blue)
@@ -1572,6 +1573,7 @@ function renderStatus(status, type) {
     const statusConfig = {
         'QUEUED':    { icon: 'fa-clock',         label: '<?php echo xlt('Queued'); ?>',    css: 'badge-queue' },
         'SENT':      { icon: 'fa-check',         label: '<?php echo xlt('Sent'); ?>',      css: 'badge-sent ' + (type === 'WSP' ? 'type-wsp' : type === 'EMAIL' ? 'type-email' : '') },
+        'IN_PROGRESS': { icon: 'fa-spinner fa-spin', label: '<?php echo xlt('Sending...'); ?>', css: 'badge-queue' },
         'DELIVERED': { icon: 'fa-box',           label: '<?php echo xlt('Delivered'); ?>', css: 'badge-delivered' },
         'READ':      { icon: 'fa-eye',           label: '<?php echo xlt('Read'); ?>',      css: 'badge-read' },
         'FAILED':    { icon: 'fa-times-circle',  label: '<?php echo xlt('Failed'); ?>',    css: 'badge-error' },
@@ -1931,7 +1933,7 @@ function loadFacilityConfig(facilityId) {
             const nameWsp = document.getElementById('currentLogoWspName');
             if (c.logo_wsp) {
                 nameWsp.textContent = c.logo_wsp;
-                prevWsp.innerHTML = `<img src="${moduleRoot}/public/images/logo_wsp/${c.logo_wsp}" style="max-height:60px; border:1px solid #ddd; padding:2px;">`;
+                prevWsp.innerHTML = `<img src="${baseUrl}/public/images/wsp_email/logo_wsp/${c.logo_wsp}" style="max-height:60px; border:1px solid #ddd; padding:2px;">`;
                 prevWsp.style.display = 'block';
             } else {
                 nameWsp.textContent = 'None';
@@ -1942,7 +1944,7 @@ function loadFacilityConfig(facilityId) {
             const nameEmail = document.getElementById('currentLogoEmailName');
             if (c.logo_email) {
                 nameEmail.textContent = c.logo_email;
-                prevEmail.innerHTML = `<img src="${moduleRoot}/public/images/logo_email/${c.logo_email}" style="max-height:60px; border:1px solid #ddd; padding:2px;">`;
+                prevEmail.innerHTML = `<img src="${baseUrl}/public/images/wsp_email/logo_email/${c.logo_email}" style="max-height:60px; border:1px solid #ddd; padding:2px;">`;
                 prevEmail.style.display = 'block';
             } else {
                 nameEmail.textContent = 'None';

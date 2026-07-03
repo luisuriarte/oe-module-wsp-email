@@ -35,7 +35,7 @@ class EmailSender
         $facilityEmail  = $config['facility_email']   ?? '';
         $facilityUrl    = $config['website_url']      ?? '';
         $logoFilename   = $config['logo_email']       ?? '';
-        $logoPath       = !empty($logoFilename) ? __DIR__ . '/../public/images/logo_email/' . $logoFilename : '';
+        $logoPath       = !empty($logoFilename) ? $GLOBALS['fileroot'] . '/public/images/wsp_email/logo_email/' . $logoFilename : '';
         $geoapifyKey    = $config['geoapify_key']     ?? '';
         $latitude       = $config['latitude']         ?? null;
         $longitude      = $config['longitude']        ?? null;

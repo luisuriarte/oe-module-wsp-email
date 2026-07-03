@@ -65,7 +65,7 @@ $logoPath = '';
 if ($facilityId > 0) {
     $facConfig = sqlQuery("SELECT logo_email FROM wsp_email_facility_config WHERE facility_id = ?", [$facilityId]);
     if (!empty($facConfig['logo_email'])) {
-        $logoPath = __DIR__ . '/../../public/images/logo_email/' . $facConfig['logo_email'];
+        $logoPath = $GLOBALS['fileroot'] . '/public/images/wsp_email/logo_email/' . $facConfig['logo_email'];
     }
 }
 

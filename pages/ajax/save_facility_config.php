@@ -101,7 +101,7 @@ $data['gateway_config_evolution-go'] = [
 ];
 
 // -- Handle File Uploads --
-$uploadDir = __DIR__ . '/../../public/images/';
+$uploadDir = $GLOBALS['fileroot'] . '/public/images/wsp_email/';
 $types = ['logo_wsp', 'logo_email'];
 $uploadErrors = [];
 

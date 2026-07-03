@@ -94,7 +94,7 @@ class WspSender
             // Use facility website URL as base (e.g., https://myclinic.com)
             $baseUrl = rtrim($config['website_url'] ?? '', '/');
             if (!empty($baseUrl)) {
-                $logoUrl = "{$baseUrl}/interface/modules/custom_modules/oe-module-wsp-email/public/images/logo_wsp/{$logoFilename}";
+                $logoUrl = "{$baseUrl}/public/images/wsp_email/logo_wsp/{$logoFilename}";
             }
         }
 

@@ -170,9 +170,46 @@ if (in_array($event, $supportedEvents, true)) {
         );
 
         $existing = sqlQuery(
-            "SELECT status_priority, status_current FROM notification_log WHERE msg_id = ?",
+            "SELECT iLogId, status_priority, status_current FROM notification_log WHERE msg_id = ?",
             [$msgId]
         );
+
+        // Auto-create minimal record if msg_id doesn't exist in notification_log
+        // (e.g. message was sent manually from wa.origen.ar, not via module cron)
+        if (!$existing || empty($existing['iLogId'])) {
+            $chatId  = $webhookData['data']['chatId'] ?? $webhookData['data']['from'] ?? $webhookData['data']['to'] ?? '';
+            $phone   = preg_replace('/\D/', '', explode('@', $chatId)[0] ?? '');
+            $canonical = StatusNormalizer::normalize('openwa', $rawStatus);
+            $priority  = StatusNormalizer::getPriority($canonical);
+
+            sqlStatement(
+                "INSERT INTO notification_log
+                    (msg_id, type, sms_gateway_type, status, status_current, status_priority,
+                     provider_raw_status, provider_payload, patient_info, smsgateway_info,
+                     notification_seq, dSentDateTime)
+                 VALUES (?, 'WSP', 'openwa', ?, ?, ?, ?, ?, ?, ?, 0, NOW())",
+                [
+                    $msgId,
+                    $rawStatus,
+                    $canonical,
+                    $priority,
+                    $rawStatus,
+                    $webhookData ? json_encode($webhookData, JSON_UNESCAPED_UNICODE) : null,
+                    $phone ? "Webhook auto-creado |||{$phone}" : 'Webhook auto-creado',
+                    $sessionId,
+                ]
+            );
+            $newId = (int)sqlGetLastInsertId();
+            if ($newId > 0) {
+                $notifLog->addStatusHistory($newId, $canonical, $rawStatus, 'openwa', $webhookData);
+                openwaLog("Auto-created notification_log entry: iLogId=$newId, msgId=$msgId, phone=$phone, canonical=$canonical");
+            }
+            // Re-fetch so the priority check below works
+            $existing = sqlQuery(
+                "SELECT iLogId, status_priority, status_current FROM notification_log WHERE msg_id = ?",
+                [$msgId]
+            );
+        }
 
         if ($existing && isset($existing['status_priority'])) {
             $existingPriority = (int)$existing['status_priority'];
