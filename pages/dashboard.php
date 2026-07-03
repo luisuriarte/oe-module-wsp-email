@@ -929,7 +929,7 @@ while ($pRow = sqlFetchArray($provRes)) {
         <div class="chart-card mb-3">
             <div class="d-flex align-items-center justify-content-between mb-3">
                 <h5 class="mb-0">
-                    <i class="fas fa-bell me-2 text-warning"></i><?php echo xlt('Active Recalls — Pending Notifications'); ?>
+                    <i class="fas fa-bell me-2 text-warning"></i><?php echo xlt('Active Recalls - Pending Notifications'); ?>
                 </h5>
                 <div class="d-flex align-items-center gap-2">
                     <label class="form-label small mb-0 me-1"><?php echo xlt('Horizon (days):'); ?></label>
@@ -1211,7 +1211,41 @@ while ($pRow = sqlFetchArray($provRes)) {
                     'apptstat',
                     '#lom-container',
                     '<?php echo CsrfUtils::collectCsrfToken(); ?>',
-                    '<?php echo $moduleRoot; ?>/list_options_manager.php'
+                    '<?php echo $moduleRoot; ?>/list_options_manager.php',
+                    null,
+                    {
+                        selectList: <?php echo js_escape(xlt('Select List to Manage')); ?>,
+                        lists: <?php echo js_escape(xlt('Lists')); ?>,
+                        add: <?php echo js_escape(xlt('Add')); ?>,
+                        noOptions: <?php echo js_escape(xlt('No options found for')); ?>,
+                        newOption: <?php echo js_escape(xlt('New Option')); ?>,
+                        optionId: <?php echo js_escape(xlt('Option ID')); ?>,
+                        title: <?php echo js_escape(xlt('Title')); ?>,
+                        color: <?php echo js_escape(xlt('Color')); ?>,
+                        alertTime: <?php echo js_escape(xlt('Alert Time')); ?>,
+                        checkIn: <?php echo js_escape(xlt('Check In')); ?>,
+                        checkOut: <?php echo js_escape(xlt('Check Out')); ?>,
+                        codes: <?php echo js_escape(xlt('Code(s)')); ?>,
+                        notes: <?php echo js_escape(xlt('Notes')); ?>,
+                        seq: <?php echo js_escape(xlt('Seq')); ?>,
+                        optionIdCol: <?php echo js_escape(xlt('Option ID')); ?>,
+                        titleCol: <?php echo js_escape(xlt('Title')); ?>,
+                        notesCol: <?php echo js_escape(xlt('Notes')); ?>,
+                        codesCol: <?php echo js_escape(xlt('Codes')); ?>,
+                        colorCol: <?php echo js_escape(xlt('Color')); ?>,
+                        alertTimeCol: <?php echo js_escape(xlt('Alert Time')); ?>,
+                        checkInCol: <?php echo js_escape(xlt('Check In')); ?>,
+                        checkOutCol: <?php echo js_escape(xlt('Check Out')); ?>,
+                        defaultCol: <?php echo js_escape(xlt('Default')); ?>,
+                        active: <?php echo js_escape(xlt('Active')); ?>,
+                        actions: <?php echo js_escape(xlt('Actions')); ?>,
+                        save: <?php echo js_escape(xlt('Save')); ?>,
+                        deactivate: <?php echo js_escape(xlt('Deactivate')); ?>,
+                        cancel: <?php echo js_escape(xlt('Cancel')); ?>,
+                        networkError: <?php echo js_escape(xlt('Network error')); ?> + ': ',
+                        optionIdRequired: <?php echo js_escape(xlt('Option ID is required')); ?>,
+                        deactivateConfirm: <?php echo js_escape(xlt('Deactivate')); ?>
+                    }
                 );
             }
         });
@@ -1294,14 +1328,14 @@ const statusColors = {
 
 // Available status filters (canonical statuses)
 const statusFilters = [
-    { value: 'QUEUED', label: 'Queued', checked: true },
-    { value: 'SENT', label: 'Sent', checked: true },
-    { value: 'DELIVERED', label: 'Delivered', checked: true },
-    { value: 'READ', label: 'Read', checked: true },
-    { value: 'FAILED', label: 'Failed', checked: true },
-    { value: 'INVALID', label: 'Invalid', checked: true },
-    { value: 'ERROR', label: 'Error', checked: true },
-    { value: 'UNSENT', label: 'Unsent', checked: true }
+    { value: 'QUEUED', label: '<?php echo xlt('Queued'); ?>', checked: true },
+    { value: 'SENT', label: '<?php echo xlt('Sent'); ?>', checked: true },
+    { value: 'DELIVERED', label: '<?php echo xlt('Delivered'); ?>', checked: true },
+    { value: 'READ', label: '<?php echo xlt('Read'); ?>', checked: true },
+    { value: 'FAILED', label: '<?php echo xlt('Failed'); ?>', checked: true },
+    { value: 'INVALID', label: '<?php echo xlt('Invalid'); ?>', checked: true },
+    { value: 'ERROR', label: '<?php echo xlt('Error'); ?>', checked: true },
+    { value: 'UNSENT', label: '<?php echo xlt('Unsent'); ?>', checked: true }
 ];
 
 function buildChart(stats) {
@@ -1536,18 +1570,18 @@ function renderStatus(status, type) {
     // Define status configuration with icon, label, and CSS class
     // Uses canonical statuses from StatusNormalizer
     const statusConfig = {
-        'QUEUED':    { icon: 'fa-clock',         label: 'Queued',    css: 'badge-queue' },
-        'SENT':      { icon: 'fa-check',         label: 'Sent',      css: 'badge-sent ' + (type === 'WSP' ? 'type-wsp' : type === 'EMAIL' ? 'type-email' : '') },
-        'DELIVERED': { icon: 'fa-box',           label: 'Delivered', css: 'badge-delivered' },
-        'READ':      { icon: 'fa-eye',           label: 'Read',      css: 'badge-read' },
-        'FAILED':    { icon: 'fa-times-circle',  label: 'Failed',    css: 'badge-error' },
-        'INVALID':   { icon: 'fa-question-circle', label: 'Invalid', css: 'badge-invalid' },
-        'ERROR':     { icon: 'fa-exclamation-triangle', label: 'Error', css: 'badge-error' },
-        'UNSENT':    { icon: 'fa-envelope',      label: 'Unsent',    css: 'badge-unsent' },
-        'MANUAL_WSP':   { icon: 'fa-paper-plane',  label: 'Manual WSP',  css: 'badge-sent type-wsp' },
-        'MANUAL_EMAIL': { icon: 'fa-paper-plane',  label: 'Manual Email', css: 'badge-sent type-email' },
-        'MANUAL_SMS':   { icon: 'fa-sms',          label: 'Manual SMS',  css: 'badge-sms' },
-        'MANUAL_VOZ':   { icon: 'fa-phone-alt',    label: 'Manual Voz',  css: 'badge-voz' }
+        'QUEUED':    { icon: 'fa-clock',         label: '<?php echo xlt('Queued'); ?>',    css: 'badge-queue' },
+        'SENT':      { icon: 'fa-check',         label: '<?php echo xlt('Sent'); ?>',      css: 'badge-sent ' + (type === 'WSP' ? 'type-wsp' : type === 'EMAIL' ? 'type-email' : '') },
+        'DELIVERED': { icon: 'fa-box',           label: '<?php echo xlt('Delivered'); ?>', css: 'badge-delivered' },
+        'READ':      { icon: 'fa-eye',           label: '<?php echo xlt('Read'); ?>',      css: 'badge-read' },
+        'FAILED':    { icon: 'fa-times-circle',  label: '<?php echo xlt('Failed'); ?>',    css: 'badge-error' },
+        'INVALID':   { icon: 'fa-question-circle', label: '<?php echo xlt('Invalid'); ?>', css: 'badge-invalid' },
+        'ERROR':     { icon: 'fa-exclamation-triangle', label: '<?php echo xlt('Error'); ?>', css: 'badge-error' },
+        'UNSENT':    { icon: 'fa-envelope',      label: '<?php echo xlt('Unsent'); ?>',    css: 'badge-unsent' },
+        'MANUAL_WSP':   { icon: 'fa-paper-plane',  label: '<?php echo xlt('Manual WSP'); ?>',  css: 'badge-sent type-wsp' },
+        'MANUAL_EMAIL': { icon: 'fa-paper-plane',  label: '<?php echo xlt('Manual Email'); ?>', css: 'badge-sent type-email' },
+        'MANUAL_SMS':   { icon: 'fa-sms',          label: '<?php echo xlt('Manual SMS'); ?>',  css: 'badge-sms' },
+        'MANUAL_VOZ':   { icon: 'fa-phone-alt',    label: '<?php echo xlt('Manual Voz'); ?>',  css: 'badge-voz' }
     };
 
     const config = statusConfig[status] || { icon: 'fa-question', label: status, css: 'badge-secondary' };
@@ -1647,12 +1681,15 @@ function searchPatients() {
 }
 
 function resend(logId) {
-    if (!confirm('Resend this notification?')) return;
+    if (!confirm(<?php echo js_escape(xlt('Resend this notification?')); ?>)) return;
     fetch(`${moduleRoot}/pages/ajax/resend_notification.php?log_id=${logId}`, { method: 'POST' })
         .then(r => r.json())
         .then(d => {
-            alert(d.message || 'Done');
-            searchPatients();
+            alert(d.message || <?php echo js_escape(xlt('Done')); ?>);
+            if (d.success) searchPatients();
+        })
+        .catch(err => {
+            alert(<?php echo js_escape(xlt('Resend failed: network or server error.')); ?> + ' ' + err);
         });
 }
 
@@ -2445,7 +2482,7 @@ document.getElementById('facilityConfigForm')?.addEventListener('submit', functi
     }
     const oldHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> <?php echo xlt('Saving...'); ?>';
 
     const fd = new FormData(this);
     fd.set('enabled_wsp',   document.getElementById('cfgEnabledWsp').checked   ? 1 : 0);
@@ -3117,11 +3154,11 @@ let allTemplatesData = [];
 
 function openTemplateManager() {
     const facId = document.getElementById('cfgFacilityId').value;
-    if (!facId) { alert('Please select a facility first.'); return; }
+    if (!facId) { alert('<?php echo js_escape(xlt('Please select a facility first.')); ?>'); return; }
     
     document.getElementById('tmFacilityId').value = facId;
     const tbody = document.getElementById('templateTableBody');
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> <?php echo js_escape(xlt('Loading...')); ?></td></tr>';
     
     const modal = new bootstrap.Modal(document.getElementById('modalTemplateManager'));
     modal.show();
@@ -3131,7 +3168,7 @@ function openTemplateManager() {
         .then(r => r.json())
         .then(cats => {
             const sel = document.getElementById('tmNewCat');
-            sel.innerHTML = '<option value="">-- Select --</option>';
+            sel.innerHTML = '<option value=""><?php echo js_escape(xlt('-- Select --')); ?></option>';
             (cats.rows || []).forEach(c => {
                 sel.innerHTML += `<option value="${c.pc_catid}">${escHtml(c.category)}</option>`;
             });
@@ -3158,7 +3195,7 @@ function addTemplateRow() {
     const catId  = document.getElementById('tmNewCat').value;
     const status = document.getElementById('tmNewStatus').value;
     const recip  = document.getElementById('tmNewRecipient').value;
-    if (!catId) { alert('Select a category'); return; }
+    if (!catId) { alert('<?php echo js_escape(xlt('Select a category')); ?>'); return; }
     const catName = document.querySelector('#tmNewCat option:checked').text;
 
     allTemplatesData.push({
@@ -3178,7 +3215,7 @@ function addTemplateRow() {
 }
 
 function removeTemplateRow(index) {
-    if (!confirm('Remove this template?')) return;
+    if (!confirm('<?php echo js_escape(xlt('Remove this template?')); ?>')) return;
     allTemplatesData.splice(index, 1);
     renderTemplateTable();
 }
@@ -3194,17 +3231,17 @@ function renderTemplateTable() {
             <td>
                 <select class="form-select form-select-sm status-select" data-idx="${index}"
                     onchange="updateTpl(${index}, 'pc_apptstatus', this.value); renderTemplateTable();">
-                    <option value="-scheduled" ${tpl.pc_apptstatus === '-scheduled' ? 'selected' : ''}>-scheduled</option>
-                    <option value="-cancelled" ${tpl.pc_apptstatus === '-cancelled' ? 'selected' : ''}>-cancelled</option>
-                    <option value="-noshow" ${tpl.pc_apptstatus === '-noshow' ? 'selected' : ''}>-noshow</option>
-                    <option value="-pending" ${tpl.pc_apptstatus === '-pending' ? 'selected' : ''}>-pending</option>
-                    <option value="-" ${tpl.pc_apptstatus === '-' || (tpl.pc_apptstatus !== '-scheduled' && tpl.pc_apptstatus !== '-cancelled' && tpl.pc_apptstatus !== '-noshow' && tpl.pc_apptstatus !== '-pending') ? 'selected' : ''}>- (any)</option>
+                    <option value="-scheduled" ${tpl.pc_apptstatus === '-scheduled' ? 'selected' : ''}>${'<?php echo js_escape(xlt('Scheduled')); ?>'} (-scheduled)</option>
+                    <option value="-cancelled" ${tpl.pc_apptstatus === '-cancelled' ? 'selected' : ''}>${'<?php echo js_escape(xlt('Cancelled')); ?>'} (-cancelled)</option>
+                    <option value="-noshow" ${tpl.pc_apptstatus === '-noshow' ? 'selected' : ''}>${'<?php echo js_escape(xlt('No Show')); ?>'} (-noshow)</option>
+                    <option value="-pending" ${tpl.pc_apptstatus === '-pending' ? 'selected' : ''}>${'<?php echo js_escape(xlt('Pending')); ?>'} (-pending)</option>
+                    <option value="-" ${tpl.pc_apptstatus === '-' || (tpl.pc_apptstatus !== '-scheduled' && tpl.pc_apptstatus !== '-cancelled' && tpl.pc_apptstatus !== '-noshow' && tpl.pc_apptstatus !== '-pending') ? 'selected' : ''}>${'<?php echo js_escape(xlt('All')); ?>'} (-)</option>
                 </select>
             </td>
             <td>
                 <select class="form-select form-select-sm" onchange="updateTpl(${index}, 'recipient_type', this.value)">
-                    <option value="patient" ${tpl.recipient_type === 'patient' ? 'selected' : ''}>Patient</option>
-                    <option value="provider" ${tpl.recipient_type === 'provider' ? 'selected' : ''}>Provider</option>
+                    <option value="patient" ${tpl.recipient_type === 'patient' ? 'selected' : ''}>${'<?php echo js_escape(xlt('Patient')); ?>'}</option>
+                    <option value="provider" ${tpl.recipient_type === 'provider' ? 'selected' : ''}>${'<?php echo js_escape(xlt('Provider')); ?>'}</option>
                 </select>
             </td>
             <td><textarea class="form-control form-control-sm mono" rows="3" onchange="updateTpl(${index}, 'wsp_message', this.value)">${escHtml(tpl.wsp_message)}</textarea></td>
@@ -3226,7 +3263,7 @@ function saveTemplates() {
     const facId = document.getElementById('tmFacilityId').value;
     const btn = document.querySelector('#modalTemplateManager .btn-primary');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <?php echo js_escape(xlt('Saving...')); ?>';
 
     fetch(`${moduleRoot}/pages/ajax/save_templates.php`, {
         method: 'POST',
@@ -3236,7 +3273,7 @@ function saveTemplates() {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            alert('Templates saved successfully.');
+            alert('<?php echo js_escape(xlt('Templates saved successfully.')); ?>');
             // Cierre compatible con Bootstrap 4 y 5
             try {
                 const modalEl = document.getElementById('modalTemplateManager');
@@ -3258,7 +3295,7 @@ function saveTemplates() {
     .catch(err => alert('Error: ' + err))
     .finally(() => {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save Changes';
+        btn.innerHTML = '<i class="fas fa-save me-1"></i> <?php echo js_escape(xlt('Save Changes')); ?>';
     });
 }
 </script>
@@ -3347,21 +3384,21 @@ function saveTemplates() {
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header bg-info text-white">
-                <h5 class="modal-title"><i class="fas fa-file-alt me-2"></i>Manage Notification Templates</h5>
+                <h5 class="modal-title"><i class="fas fa-file-alt me-2"></i><?php echo xlt('Manage Notification Templates'); ?></h5>
                 <button type="button" class="btn btn-sm btn-link text-white" data-dismiss="modal" data-bs-dismiss="modal" onclick="closeModalParent(this)"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
-                <p class="text-muted small">Edit messages for different scenarios. Tokens like <code>***NAME***</code>, <code>***DATE***</code> will be replaced automatically.</p>
+                <p class="text-muted small"><?php echo xlt('Edit messages for different scenarios. Tokens like ***NAME***, ***DATE*** will be replaced automatically.'); ?></p>
                 <div class="table-responsive">
                     <table class="table table-bordered table-sm align-middle" id="templateManagerTable">
                         <thead class="table-light">
                             <tr>
-                                <th width="14%">Scenario</th>
-                                <th width="10%">Status</th>
-                                <th width="10%">Recipient</th>
-                                <th class="col-wsp">WhatsApp Message</th>
-                                <th class="col-subj">Email Subject</th>
-                                <th class="col-body">HTML Email Body</th>
+                                <th width="14%"><?php echo xlt('Scenario'); ?></th>
+                                <th width="10%"><?php echo xlt('Status'); ?></th>
+                                <th width="10%"><?php echo xlt('Recipient'); ?></th>
+                                <th class="col-wsp"><?php echo xlt('WhatsApp Message'); ?></th>
+                                <th class="col-subj"><?php echo xlt('Email Subject'); ?></th>
+                                <th class="col-body"><?php echo xlt('HTML Email Body'); ?></th>
                                 <th width="5%"></th>
                             </tr>
                         </thead>
@@ -3380,18 +3417,18 @@ function saveTemplates() {
                         <div class="col-md-2">
                             <label class="form-label small mb-1"><?php echo xlt('Status'); ?></label>
                             <select class="form-select form-select-sm" id="tmNewStatus">
-                                <option value="-scheduled">-scheduled</option>
-                                <option value="-cancelled">-cancelled</option>
-                                <option value="-noshow">-noshow</option>
-                                <option value="-pending">-pending</option>
-                                <option value="-">- (any)</option>
+                                <option value="-scheduled"><?php echo xlt('Scheduled'); ?> (-scheduled)</option>
+                                <option value="-cancelled"><?php echo xlt('Cancelled'); ?> (-cancelled)</option>
+                                <option value="-noshow"><?php echo xlt('No Show'); ?> (-noshow)</option>
+                                <option value="-pending"><?php echo xlt('Pending'); ?> (-pending)</option>
+                                <option value="-"><?php echo xlt('All'); ?> (-)</option>
                             </select>
                         </div>
                         <div class="col-md-2">
                             <label class="form-label small mb-1"><?php echo xlt('Recipient'); ?></label>
                             <select class="form-select form-select-sm" id="tmNewRecipient">
-                                <option value="patient">Patient</option>
-                                <option value="provider">Provider</option>
+                                <option value="patient"><?php echo xlt('Patient'); ?></option>
+                                <option value="provider"><?php echo xlt('Provider'); ?></option>
                             </select>
                         </div>
                         <div class="col-md-3 d-flex gap-1">
@@ -3754,7 +3791,7 @@ function updateRecallsPagination() {
     const totalPages = Math.max(1, Math.ceil(recallsTotal / recallsLimit));
     pg.style.removeProperty('display');
 
-    if (label) label.textContent = `${recallsTotal} recall(s)`;
+    if (label) label.textContent = `${recallsTotal} <?php echo js_escape(xlt('records')); ?>`;
     if (pageLabel) pageLabel.textContent = `${recallsPage} / ${totalPages}`;
     if (prevBtn) prevBtn.disabled = recallsPage <= 1;
     if (nextBtn) nextBtn.disabled = recallsPage >= totalPages;

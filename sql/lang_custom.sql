@@ -358,8 +358,67 @@ INSERT IGNORE INTO `lang_custom` (`lang_description`, `lang_code`, `constant_nam
 ('Spanish (Latin American)', 'el', 'Contact',                             'Contacto'),
 ('Spanish (Latin American)', 'el', 'Select a facility',                   'Seleccione un centro'),
 
+-- Catalogs tab
+('Spanish (Latin American)', 'el', 'Catalogs',         'Catálogos'),
+('Spanish (Latin American)', 'el', 'Editable Catalogs', 'Catálogos Editables'),
+
+-- Template Manager modal
+('Spanish (Latin American)', 'el', 'Manage Notification Templates',  'Gestionar Plantillas de Notificación'),
+('Spanish (Latin American)', 'el', 'Edit messages for different scenarios. Tokens like ***NAME***, ***DATE*** will be replaced automatically.', 'Edite mensajes para diferentes escenarios. Los tokens como ***NAME***, ***DATE*** se reemplazarán automáticamente.'),
+('Spanish (Latin American)', 'el', 'Scenario',     'Escenario'),
+('Spanish (Latin American)', 'el', 'WhatsApp Message', 'Mensaje WhatsApp'),
+('Spanish (Latin American)', 'el', 'Email Subject',    'Asunto del Email'),
+('Spanish (Latin American)', 'el', 'HTML Email Body',  'Cuerpo HTML del Email'),
+('Spanish (Latin American)', 'el', 'Remove',           'Eliminar'),
+('Spanish (Latin American)', 'el', 'Select a category', 'Seleccione una categoría'),
+('Spanish (Latin American)', 'el', 'Please select a facility first.', 'Seleccione un centro primero.'),
+('Spanish (Latin American)', 'el', 'Remove this template?', '¿Eliminar esta plantilla?'),
+('Spanish (Latin American)', 'el', 'Templates saved successfully.', 'Plantillas guardadas correctamente.'),
+('Spanish (Latin American)', 'el', 'Save Changes',        'Guardar Cambios'),
+('Spanish (Latin American)', 'el', '-- Select --',        '-- Seleccionar --'),
+('Spanish (Latin American)', 'el', 'Patient',             'Paciente'),
+('Spanish (Latin American)', 'el', 'Provider',            'Proveedor'),
+('Spanish (Latin American)', 'el', 'Loading...',          'Cargando...'),
+('Spanish (Latin American)', 'el', 'Saving...',           'Guardando...'),
+('Spanish (Latin American)', 'el', 'Manual WSP',          'WSP Manual'),
+('Spanish (Latin American)', 'el', 'Manual Email',        'Email Manual'),
+('Spanish (Latin American)', 'el', 'Manual SMS',          'SMS Manual'),
+('Spanish (Latin American)', 'el', 'Manual Voz',          'Voz Manual'),
+
+-- Template status dropdowns
+('Spanish (Latin American)', 'el', 'Scheduled', 'Programada'),
+('Spanish (Latin American)', 'el', 'Cancelled', 'Cancelada'),
+('Spanish (Latin American)', 'el', 'No Show',   'No Asistió'),
+('Spanish (Latin American)', 'el', 'All',       'Todos'),
+
 -- Access Denied (also in generate_report.php and sync_status.php)
-('Spanish (Latin American)', 'el', 'Access Denied', 'Acceso Denegado');
+('Spanish (Latin American)', 'el', 'Access Denied', 'Acceso Denegado'),
+
+-- resend_notification.php messages
+('Spanish (Latin American)', 'el', 'POST required',                          'Se requiere POST'),
+('Spanish (Latin American)', 'el', 'Invalid log_id',                         'log_id inválido'),
+('Spanish (Latin American)', 'el', 'Log entry not found',                    'Entrada de registro no encontrada'),
+('Spanish (Latin American)', 'el', 'Facility not configured for notifications', 'Centro no configurado para notificaciones'),
+('Spanish (Latin American)', 'el', 'Failed to resend: This number is blacklisted due to delivery failures.', 'Error al reenviar: Este número está en lista negra por fallos de entrega.'),
+('Spanish (Latin American)', 'el', 'Notification resent successfully.',      'Notificación reenviada correctamente.'),
+('Spanish (Latin American)', 'el', 'Failed to resend notification.',         'Error al reenviar la notificación.'),
+('Spanish (Latin American)', 'el', 'Server error',                           'Error del servidor'),
+('Spanish (Latin American)', 'el', 'Done',                                   'Listo'),
+('Spanish (Latin American)', 'el', 'Resend this notification?',              '¿Reenviar esta notificación?'),
+('Spanish (Latin American)', 'el', 'Resend failed: network or server error.', 'Reenvío fallido: error de red o del servidor.'),
+
+-- ListOptionsManager translations
+('Spanish (Latin American)', 'el', 'Select List to Manage',                  'Seleccionar Lista para Gestionar'),
+('Spanish (Latin American)', 'el', 'No options found for',                   'No se encontraron opciones para'),
+('Spanish (Latin American)', 'el', 'New Option',                             'Nueva Opción'),
+('Spanish (Latin American)', 'el', 'Option ID',                              'ID de Opción'),
+('Spanish (Latin American)', 'el', 'Alert Time',                             'Tiempo de Alerta'),
+('Spanish (Latin American)', 'el', 'Check In',                               'Entrada'),
+('Spanish (Latin American)', 'el', 'Check Out',                              'Salida'),
+('Spanish (Latin American)', 'el', 'Code(s)',                                'Código(s)'),
+('Spanish (Latin American)', 'el', 'Deactivate',                             'Desactivar'),
+('Spanish (Latin American)', 'el', 'Network error',                          'Error de red'),
+('Spanish (Latin American)', 'el', 'Option ID is required',                  'ID de Opción es requerido');
 
 -- ============================================================================
 -- SYNC: Populate lang_languages, lang_constants and lang_definitions

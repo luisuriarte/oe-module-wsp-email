@@ -133,8 +133,8 @@ class NotificationLog
     public function updateMsgId(int $logId, string $msgId, string $status): void
     {
         sqlStatement(
-            "UPDATE notification_log SET msg_id = ?, status = ? WHERE iLogId = ?",
-            [$msgId, $status, $logId]
+            "UPDATE notification_log SET msg_id = ?, status = ?, status_current = ? WHERE iLogId = ?",
+            [$msgId, $status, $status, $logId]
         );
         $this->addStatusHistory($logId, $status);
     }

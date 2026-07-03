@@ -106,6 +106,7 @@ class WspSender
         }
 
         $log[] = "WspSender::send() — vendor=$vendor, phone=$phone";
+        $log[] = "logoUrl=" . ($logoUrl ?: 'empty') . ", logoFilename=" . ($logoFilename ?: 'empty') . ", website_url=" . ($config['website_url'] ?? 'empty');
         try {
             switch ($vendor) {
                 case 'ultramsg':
@@ -471,33 +472,25 @@ class WspSender
                 $textWithMap .= "\n\n📍 " . $mapLink;
             }
 
-            // 1. Send image with caption — fall back to plain text if image fails
+            // 1. Always send text first (guarantees delivery to the patient)
+            $textBody = $safePost($textUrl, [
+                'chatId' => $chatId,
+                'text'   => mb_substr($textWithMap, 0, 4096),
+            ], 'texto');
+            if ($textBody) {
+                $msgId = $extractMsgId($textBody) ?? $msgId;
+            }
+
+            // 2. Send image as a bonus (non-critical — if URL is not publicly accessible, message still arrives)
             if (!empty($logoUrl)) {
                 $imgPayload          = ['chatId' => $chatId, 'url' => $logoUrl];
                 $imgPayload['caption'] = mb_substr($textWithMap, 0, 1024);
                 $imgBody = $safePost($imageUrl, $imgPayload, 'imagen');
-
                 if ($imgBody) {
                     $msgId = $extractMsgId($imgBody) ?? $msgId;
+                    $log[] = 'OpenWA: image sent successfully (non-critical)';
                 } else {
-                    // Image failed (e.g. logo URL not reachable from WA server) → send text
-                    $log[]    = 'OpenWA: image failed, falling back to send-text';
-                    $textBody = $safePost($textUrl, [
-                        'chatId' => $chatId,
-                        'text'   => mb_substr($textWithMap, 0, 4096),
-                    ], 'texto (fallback)');
-                    if ($textBody) {
-                        $msgId = $extractMsgId($textBody) ?? $msgId;
-                    }
-                }
-            } else {
-                // No logo configured — send plain text directly
-                $textBody = $safePost($textUrl, [
-                    'chatId' => $chatId,
-                    'text'   => mb_substr($textWithMap, 0, 4096),
-                ], 'texto');
-                if ($textBody) {
-                    $msgId = $extractMsgId($textBody) ?? $msgId;
+                    $log[] = 'OpenWA: image skipped (URL may not be publicly accessible) — text already sent';
                 }
             }
 
@@ -856,35 +849,54 @@ class WspSender
             (string)($patient['pc_startTime'] ?? '00:00:00')
         );
 
-        $find    = [
-            '***NAME***', '***PROVIDER***', '***USER_PREFFIX***', '***DATE***',
-            '***STARTTIME***', '***ENDTIME***', '***FACILITY_NAME***',
-            '***FACILITY_ADDRESS***', '***FACILITY_PHONE***', '***FACILITY_EMAIL***',
-            '***FACILITY_MAP_LINK***', '***FACILITY_WEBSITE***',
-            '***PID***', '***REASON***', '***TITLE***'
-        ];
+        $startTime = date('H:i', $dtWrk);
+        $endTime   = date('H:i', strtotime($patient['pc_endTime']));
+        $provider  = trim(($patient['user_name'] ?? ''));
+        $facilityName    = $patient['facility_name']    ?? '';
+        $facilityAddress = $patient['facility_address'] ?? '';
+        $facilityPhone   = $patient['facility_phone']   ?? '';
+        $facilityEmail   = $patient['facility_email']   ?? '';
+        $websiteUrl      = $patient['website_url']      ?? '';
 
         $mapLink = '';
         if (!empty($patient['latitude']) && !empty($patient['longitude'])) {
             $mapLink = "https://www.google.com/maps/search/?api=1&query=" . $patient['latitude'] . "," . $patient['longitude'];
         }
 
+        $find    = [
+            // Appointment tokens
+            '***NAME***', '***PROVIDER***', '***USER_PREFFIX***', '***DATE***',
+            '***STARTTIME***', '***ENDTIME***', '***FACILITY_NAME***',
+            '***FACILITY_ADDRESS***', '***FACILITY_PHONE***', '***FACILITY_EMAIL***',
+            '***FACILITY_MAP_LINK***', '***FACILITY_WEBSITE***',
+            '***PID***', '***REASON***', '***TITLE***',
+            // Telehealth / provider template aliases
+            '***PATIENT_NAME***', '***PROVIDER_NAME***', '***TIME***',
+            // Jitsi / telehealth link
+            '***JITSI_LINK***',
+        ];
         $replace = [
             $name,
-            trim(($patient['user_name'] ?? '')),
+            $provider,
             $patient['user_preffix'] ?? '',
             $date,
-            date('H:i', $dtWrk),
-            date('H:i', strtotime($patient['pc_endTime'])),
-            $patient['facility_name']    ?? '',
-            $patient['facility_address'] ?? '',
-            $patient['facility_phone']   ?? '',
-            $patient['facility_email']   ?? '',
+            $startTime,
+            $endTime,
+            $facilityName,
+            $facilityAddress,
+            $facilityPhone,
+            $facilityEmail,
             $mapLink,
-            $patient['website_url']      ?? '',
+            $websiteUrl,
             $patient['pid']              ?? '',
             $patient['pc_hometext']       ?? '',
-            $patient['pc_title']          ?? ''
+            $patient['pc_title']          ?? '',
+            // Telehealth / provider template aliases
+            $name,
+            $provider,
+            $startTime,
+            // Jitsi link — build from config if available
+            self::buildJitsiLink($patient),
         ];
 
         return str_replace($find, $replace, $template);
@@ -939,5 +951,24 @@ class WspSender
     private static function escapeIcalValue(string $value): string
     {
         return str_replace(['\\', "\n", "\r", ',', ';'], ['\\\\', '\\n', '', '\\,', '\\;'], $value);
+    }
+
+    /**
+     * Build a Jitsi meeting URL from config + patient data.
+     */
+    private static function buildJitsiLink(array $patient): string
+    {
+        $domain = $patient['th_jitsi_domain'] ?? '';
+        $base   = $patient['th_jitsi_base_url'] ?? '';
+        $prefix = $patient['th_room_prefix'] ?? 'telehealth-';
+        $eid    = $patient['pc_eid'] ?? '';
+
+        if (!empty($base)) {
+            return rtrim($base, '/') . '/' . $prefix . $eid;
+        }
+        if (!empty($domain)) {
+            return 'https://' . $domain . '/' . $prefix . $eid;
+        }
+        return '';
     }
 }

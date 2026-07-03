@@ -19,24 +19,62 @@ const ListOptionsManager = (function () {
     let csrfToken = null;
     let endpointUrl = null;
     let extraColumns = null;
+    let trans = null;
+
+    // Default English translations (used when none provided)
+    const defaultTrans = {
+        selectList: 'Select List to Manage',
+        lists: 'Lists',
+        add: 'Add',
+        noOptions: 'No options found for',
+        newOption: 'New Option',
+        optionId: 'Option ID',
+        title: 'Title',
+        color: 'Color',
+        alertTime: 'Alert Time',
+        checkIn: 'Check In',
+        checkOut: 'Check Out',
+        codes: 'Code(s)',
+        notes: 'Notes',
+        seq: 'Seq',
+        optionIdCol: 'Option ID',
+        titleCol: 'Title',
+        notesCol: 'Notes',
+        codesCol: 'Codes',
+        defaultCol: 'Default',
+        active: 'Active',
+        actions: 'Actions',
+        colorCol: 'Color',
+        alertTimeCol: 'Alert Time',
+        checkInCol: 'Check In',
+        checkOutCol: 'Check Out',
+        save: 'Save',
+        deactivate: 'Deactivate',
+        cancel: 'Cancel',
+        networkError: 'Network error: ',
+        optionIdRequired: 'Option ID is required',
+        deactivateConfirm: 'Deactivate',
+    };
 
     // ---- Public API -------------------------------------------------------
 
-    function init(listId, container, token, url, extraCols) {
+    function init(listId, container, token, url, extraCols, translations) {
         currentListId = listId;
         containerSelector = container;
         csrfToken = token;
         endpointUrl = url;
         extraColumns = extraCols || null;
+        trans = Object.assign({}, defaultTrans, translations || {});
         loadOptions();
     }
 
-    function initPicker(container, token, url) {
+    function initPicker(container, token, url, translations) {
         containerSelector = container;
         csrfToken = token;
         endpointUrl = url;
         currentListId = null;
         extraColumns = null;
+        trans = Object.assign({}, defaultTrans, translations || {});
         loadLists();
     }
 
@@ -52,7 +90,7 @@ const ListOptionsManager = (function () {
                     showError(json.message);
                 }
             })
-            .catch(function (err) { showError('Network error: ' + err.message); });
+            .catch(function (err) { showError(trans.networkError + err.message); });
     }
 
     function renderListPicker(lists) {
@@ -61,7 +99,7 @@ const ListOptionsManager = (function () {
 
         var heading = document.createElement('h5');
         heading.className = 'mb-3';
-        heading.textContent = 'Select List to Manage';
+        heading.textContent = trans.selectList;
         container.appendChild(heading);
 
         var row = document.createElement('div');
@@ -120,7 +158,7 @@ const ListOptionsManager = (function () {
                     showError(json.message);
                 }
             })
-            .catch(function (err) { showError('Network error: ' + err.message); });
+            .catch(function (err) { showError(trans.networkError + err.message); });
     }
 
     function renderTable(options) {
@@ -142,7 +180,7 @@ const ListOptionsManager = (function () {
 
         var backBtn = document.createElement('button');
         backBtn.className = 'btn btn-outline-secondary btn-sm me-2';
-        backBtn.innerHTML = '<i class="fa fa-arrow-left me-1"></i> Lists';
+        backBtn.innerHTML = '<i class="fa fa-arrow-left me-1"></i> ' + trans.lists;
         backBtn.addEventListener('click', function () {
             currentListId = null;
             extraColumns = null;
@@ -152,7 +190,7 @@ const ListOptionsManager = (function () {
 
         var addBtn = document.createElement('button');
         addBtn.className = 'btn btn-success btn-sm';
-        addBtn.innerHTML = '<i class="fa fa-plus me-1"></i> Add';
+        addBtn.innerHTML = '<i class="fa fa-plus me-1"></i> ' + trans.add;
         addBtn.addEventListener('click', function () {
             showAddForm();
         });
@@ -172,8 +210,8 @@ const ListOptionsManager = (function () {
 
         var isApptstat = currentListId === 'apptstat';
         var headers = isApptstat
-            ? ['Seq', 'Option ID', 'Title', 'Color', 'Alert Time', 'Check In', 'Check Out', 'Code(s)', 'Default', 'Active', 'Actions']
-            : ['Seq', 'Option ID', 'Title', 'Notes', 'Codes', 'Default', 'Active', 'Actions'];
+            ? [trans.seq, trans.optionIdCol, trans.titleCol, trans.colorCol, trans.alertTimeCol, trans.checkInCol, trans.checkOutCol, trans.codesCol, trans.defaultCol, trans.active, trans.actions]
+            : [trans.seq, trans.optionIdCol, trans.titleCol, trans.notesCol, trans.codesCol, trans.defaultCol, trans.active, trans.actions];
 
         headers.forEach(function (h) {
             var th = document.createElement('th');
@@ -192,7 +230,7 @@ const ListOptionsManager = (function () {
             var emptyCell = document.createElement('td');
             emptyCell.colSpan = headers.length;
             emptyCell.className = 'text-center text-muted py-3';
-            emptyCell.textContent = 'No options found for ' + currentListId;
+            emptyCell.textContent = trans.noOptions + ' ' + currentListId;
             emptyRow.appendChild(emptyCell);
             tbody.appendChild(emptyRow);
         } else {
@@ -332,13 +370,13 @@ const ListOptionsManager = (function () {
         var saveBtn = document.createElement('button');
         saveBtn.className = 'btn btn-sm btn-primary me-1 lom-save';
         saveBtn.innerHTML = '<i class="fa fa-save"></i>';
-        saveBtn.title = 'Save';
+        saveBtn.title = trans.save;
         tdActs.appendChild(saveBtn);
 
         var delBtn = document.createElement('button');
         delBtn.className = 'btn btn-sm btn-outline-danger lom-delete';
         delBtn.innerHTML = '<i class="fa fa-ban"></i>';
-        delBtn.title = 'Deactivate';
+        delBtn.title = trans.deactivate;
         tdActs.appendChild(delBtn);
 
         row.appendChild(tdActs);
@@ -362,7 +400,7 @@ const ListOptionsManager = (function () {
             btn.addEventListener('click', function () {
                 var row = this.closest('tr');
                 var optionId = row.dataset.optionId;
-                if (confirm('Deactivate "' + optionId + '"?')) {
+                if (confirm(trans.deactivateConfirm + ' "' + optionId + '"?')) {
                     deleteOption(row);
                 }
             });
@@ -417,7 +455,7 @@ const ListOptionsManager = (function () {
                     showError(json.message);
                 }
             })
-            .catch(function (err) { showError('Network error: ' + err.message); });
+            .catch(function (err) { showError(trans.networkError + err.message); });
     }
 
     function deleteOption(row) {
@@ -440,7 +478,7 @@ const ListOptionsManager = (function () {
                     showError(json.message);
                 }
             })
-            .catch(function (err) { showError('Network error: ' + err.message); });
+            .catch(function (err) { showError(trans.networkError + err.message); });
     }
 
     // ---- Add new option ---------------------------------------------------
@@ -452,48 +490,48 @@ const ListOptionsManager = (function () {
         form.className = 'card mb-3 border-success';
         form.innerHTML =
             '<div class="card-body p-3">' +
-            '  <h6 class="card-title text-success mb-3">New Option</h6>' +
+            '  <h6 class="card-title text-success mb-3">' + trans.newOption + '</h6>' +
             '  <div class="row g-2 align-items-end">' +
             '    <div class="col-auto">' +
-            '      <label class="small mb-1">Option ID</label>' +
+            '      <label class="small mb-1">' + trans.optionId + '</label>' +
             '      <input type="text" id="lom-new-id" class="form-control form-control-sm" placeholder="e.g. my_option">' +
             '    </div>' +
             '    <div class="col">' +
-            '      <label class="small mb-1">Title</label>' +
-            '      <input type="text" id="lom-new-title" class="form-control form-control-sm" placeholder="Display title">' +
+            '      <label class="small mb-1">' + trans.title + '</label>' +
+            '      <input type="text" id="lom-new-title" class="form-control form-control-sm" placeholder="' + trans.title + '">' +
             '    </div>' +
             (currentListId === 'apptstat' ?
             '    <div class="col-auto">' +
-            '      <label class="small mb-1">Color</label>' +
+            '      <label class="small mb-1">' + trans.color + '</label>' +
             '      <input type="text" id="lom-new-color" class="form-control form-control-sm" placeholder="#hexcolor" style="width:100px">' +
             '    </div>' +
             '    <div class="col-auto">' +
-            '      <label class="small mb-1">Alert Time</label>' +
+            '      <label class="small mb-1">' + trans.alertTime + '</label>' +
             '      <input type="number" id="lom-new-alert" class="form-control form-control-sm" value="0" min="0" style="width:70px">' +
             '    </div>' +
             '    <div class="col-auto">' +
-            '      <label class="small mb-1"><input type="checkbox" id="lom-new-checkin"> Check In</label>' +
+            '      <label class="small mb-1"><input type="checkbox" id="lom-new-checkin"> ' + trans.checkIn + '</label>' +
             '    </div>' +
             '    <div class="col-auto">' +
-            '      <label class="small mb-1"><input type="checkbox" id="lom-new-checkout"> Check Out</label>' +
+            '      <label class="small mb-1"><input type="checkbox" id="lom-new-checkout"> ' + trans.checkOut + '</label>' +
             '    </div>' +
             '    <div class="col">' +
-            '      <label class="small mb-1">Code(s)</label>' +
-            '      <input type="text" id="lom-new-codes" class="form-control form-control-sm" placeholder="Code(s)">' +
+            '      <label class="small mb-1">' + trans.codes + '</label>' +
+            '      <input type="text" id="lom-new-codes" class="form-control form-control-sm" placeholder="' + trans.codes + '">' +
             '    </div>' :
             '    <div class="col">' +
-            '      <label class="small mb-1">Notes</label>' +
-            '      <input type="text" id="lom-new-notes" class="form-control form-control-sm" placeholder="Notes">' +
+            '      <label class="small mb-1">' + trans.notes + '</label>' +
+            '      <input type="text" id="lom-new-notes" class="form-control form-control-sm" placeholder="' + trans.notes + '">' +
             '    </div>' +
             '    <div class="col">' +
-            '      <label class="small mb-1">Codes</label>' +
-            '      <input type="text" id="lom-new-codes" class="form-control form-control-sm" placeholder="Codes">' +
+            '      <label class="small mb-1">' + trans.codes + '</label>' +
+            '      <input type="text" id="lom-new-codes" class="form-control form-control-sm" placeholder="' + trans.codes + '">' +
             '    </div>') +
             '    <div class="col-auto">' +
             '      <label class="small mb-1">&nbsp;</label>' +
             '      <div>' +
-            '        <button class="btn btn-sm btn-success me-1" id="lom-new-save"><i class="fa fa-check"></i> Save</button>' +
-            '        <button class="btn btn-sm btn-outline-secondary" id="lom-new-cancel">Cancel</button>' +
+            '        <button class="btn btn-sm btn-success me-1" id="lom-new-save"><i class="fa fa-check"></i> ' + trans.save + '</button>' +
+            '        <button class="btn btn-sm btn-outline-secondary" id="lom-new-cancel">' + trans.cancel + '</button>' +
             '      </div>' +
             '    </div>' +
             '  </div>' +
@@ -506,7 +544,7 @@ const ListOptionsManager = (function () {
             var title = document.getElementById('lom-new-title').value.trim();
 
             if (!optionId) {
-                alert('Option ID is required');
+                alert(trans.optionIdRequired);
                 return;
             }
 
@@ -544,7 +582,7 @@ const ListOptionsManager = (function () {
                         showError(json.message);
                     }
                 })
-                .catch(function (err) { showError('Network error: ' + err.message); });
+                .catch(function (err) { showError(trans.networkError + err.message); });
         });
 
         document.getElementById('lom-new-cancel').addEventListener('click', function () {
