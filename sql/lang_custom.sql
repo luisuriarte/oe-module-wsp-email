@@ -3,6 +3,8 @@
 -- Spanish (Latin American) / lang_code = el
 -- ---------------------------------------------------------------
 
+START TRANSACTION;
+
 INSERT IGNORE INTO `lang_custom` (`lang_description`, `lang_code`, `constant_name`, `definition`) VALUES
 
 -- openemr.bootstrap.php (menu labels)
