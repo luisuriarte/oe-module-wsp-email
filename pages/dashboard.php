@@ -1311,7 +1311,7 @@ while ($pRow = sqlFetchArray($provRes)) {
    Dashboard — Chart.js
    ========================================================================= */
 const moduleRoot = <?php echo js_escape($moduleRoot); ?>;
-const baseUrl    = <?php echo js_escape($GLOBALS['webroot']); ?>;
+const baseUrl    = <?php echo js_escape(rtrim($GLOBALS['site_addr_oath'] ?? $GLOBALS['webroot'] ?? '', '/')); ?>;
 let chart = null;
 
 // Status colors for charts - WhatsApp (Green), Email (Light Blue)
@@ -1933,7 +1933,7 @@ function loadFacilityConfig(facilityId) {
             const nameWsp = document.getElementById('currentLogoWspName');
             if (c.logo_wsp) {
                 nameWsp.textContent = c.logo_wsp;
-                prevWsp.innerHTML = `<img src="${baseUrl}/public/images/wsp_email/logo_wsp/${c.logo_wsp}" style="max-height:60px; border:1px solid #ddd; padding:2px;">`;
+                prevWsp.innerHTML = `<img src="${baseUrl}/public/images/wsp_email/logo_wsp/${c.logo_wsp}?t=${Date.now()}" style="max-height:60px; border:1px solid #ddd; padding:2px;">`;
                 prevWsp.style.display = 'block';
             } else {
                 nameWsp.textContent = 'None';
@@ -1944,7 +1944,7 @@ function loadFacilityConfig(facilityId) {
             const nameEmail = document.getElementById('currentLogoEmailName');
             if (c.logo_email) {
                 nameEmail.textContent = c.logo_email;
-                prevEmail.innerHTML = `<img src="${baseUrl}/public/images/wsp_email/logo_email/${c.logo_email}" style="max-height:60px; border:1px solid #ddd; padding:2px;">`;
+                prevEmail.innerHTML = `<img src="${baseUrl}/public/images/wsp_email/logo_email/${c.logo_email}?t=${Date.now()}" style="max-height:60px; border:1px solid #ddd; padding:2px;">`;
                 prevEmail.style.display = 'block';
             } else {
                 nameEmail.textContent = 'None';
@@ -2467,6 +2467,23 @@ document.addEventListener('DOMContentLoaded', function() {
         vendorSelect.addEventListener('change', handleVendorChange);
         // Don't call handleVendorChange() here - it's called by loadFacilityConfig()
     }
+
+    // Live preview when selecting a logo file (before saving)
+    ['cfgLogoWsp', 'cfgLogoEmail'].forEach(function(id) {
+        const input = document.getElementById(id);
+        if (!input) return;
+        input.addEventListener('change', function() {
+            const nameId   = id === 'cfgLogoWsp' ? 'currentLogoWspName' : 'currentLogoEmailName';
+            const prevId   = id === 'cfgLogoWsp' ? 'previewWsp'        : 'previewEmail';
+            const nameSpan = document.getElementById(nameId);
+            const prevDiv  = document.getElementById(prevId);
+            if (this.files && this.files[0]) {
+                nameSpan.textContent = this.files[0].name;
+                prevDiv.innerHTML = `<img src="${URL.createObjectURL(this.files[0])}" style="max-height:60px; border:1px solid #ddd; padding:2px;">`;
+                prevDiv.style.display = 'block';
+            }
+        });
+    });
 });
 
 function renumberSchedule() {
