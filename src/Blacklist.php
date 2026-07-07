@@ -67,14 +67,14 @@ class Blacklist
                 'INVALID', 1,
                 'Auto-blacklisted: invalid number format'
             );
-            echo "    [BLACKLIST] Added phone={$phone} — reason=INVALID\n";
+            error_log("WspEmail [BLACKLIST] Added phone={$phone} — reason=INVALID");
             return;
         }
 
         // Consecutive failure tracking
         if ($status === 'ERROR') {
             $failCount = $this->incrementFailCount($phone, $facilityId, $vendor);
-            echo "    [BLACKLIST] Failure count for phone={$phone}: {$failCount}/" . self::MAX_FAILURES . "\n";
+            error_log("WspEmail [BLACKLIST] Failure count for phone={$phone}: {$failCount}/" . self::MAX_FAILURES);
 
             if ($failCount >= self::MAX_FAILURES) {
                 $this->addToBlacklist(
@@ -82,7 +82,7 @@ class Blacklist
                     'FAILED_MAX', $failCount,
                     "Auto-blacklisted after {$failCount} consecutive failures"
                 );
-                echo "    [BLACKLIST] Added phone={$phone} — reason=FAILED_MAX\n";
+                error_log("WspEmail [BLACKLIST] Added phone={$phone} — reason=FAILED_MAX");
             }
             return;
         }

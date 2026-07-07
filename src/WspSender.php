@@ -958,17 +958,24 @@ class WspSender
      */
     private static function buildJitsiLink(array $patient): string
     {
+        $patientName = trim(($patient['title'] ?? '') . ' ' . ($patient['fname'] ?? '') . ' ' . ($patient['lname'] ?? ''));
+        $nameSuffix  = !empty($patientName) ? '#userInfo.displayName=' . rawurlencode('"' . $patientName . '"') : '';
+
+        // If a pre-built link exists (from telehealth_videocalls), use it
+        if (!empty($patient['_jitsi_link_full'])) {
+            return $patient['_jitsi_link_full'] . $nameSuffix;
+        }
         $domain = $patient['th_jitsi_domain'] ?? '';
         $base   = $patient['th_jitsi_base_url'] ?? '';
         $prefix = $patient['th_room_prefix'] ?? 'telehealth-';
         $eid    = $patient['pc_eid'] ?? '';
 
+        $link = '';
         if (!empty($base)) {
-            return rtrim($base, '/') . '/' . $prefix . $eid;
+            $link = rtrim($base, '/') . '/' . $prefix . $eid;
+        } elseif (!empty($domain)) {
+            $link = 'https://' . $domain . '/' . $prefix . $eid;
         }
-        if (!empty($domain)) {
-            return 'https://' . $domain . '/' . $prefix . $eid;
-        }
-        return '';
+        return $link . $nameSuffix;
     }
 }

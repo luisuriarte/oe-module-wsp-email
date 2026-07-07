@@ -192,7 +192,7 @@ class EmailSender
         <body style="font-family:Arial,sans-serif;color:#333;margin:0;padding:0;font-size:16px;">
             <div style="text-align:center;padding:20px 20px 0;">' . $logoTag . '</div>
             <div style="background:#f9f9f9;border-radius:8px;padding:24px;margin:10px 20px 20px;border:1px solid #e0e0e0;font-size:16px;line-height:1.6;">
-                <p style="white-space:pre-line;font-size:16px;">' . nl2br(htmlspecialchars($messageBody)) . '</p>
+                <div style="font-size:16px;">' . $messageBody . '</div>
                 <hr style="border:none;border-top:1px solid #e0e0e0;margin:16px 0;">
                 <p style="font-size:15px;"><strong>' . htmlspecialchars($facilityName) . '</strong><br>
            ' . htmlspecialchars($facilityAddr) . '<br>
