@@ -136,7 +136,21 @@ if (empty($expectedSecret)) {
 $supportedEvents = ['message.sent', 'message.ack', 'message.revoked'];
 
 if (in_array($event, $supportedEvents, true)) {
-    $msgId = $webhookData['data']['messageId'] ?? $webhookData['data']['id'] ?? '';
+    // For message.revoked (since OpenWA v0.7.18): data.revokedId holds the original
+    // deleted message ID. data.id is the revocation-notification ID (a different message),
+    // which never matches the stored row — so we must check revokedId first.
+    // For all other events, fall back to the standard messageId / id fields.
+    if ($event === 'message.revoked') {
+        $revokedIdSource = isset($webhookData['data']['revokedId']) ? 'revokedId'
+            : (isset($webhookData['data']['messageId']) ? 'messageId' : 'id');
+        $msgId = $webhookData['data']['revokedId']
+              ?? $webhookData['data']['messageId']
+              ?? $webhookData['data']['id']
+              ?? '';
+        openwaLog("message.revoked: resolved msgId='$msgId' from field='$revokedIdSource'.");
+    } else {
+        $msgId = $webhookData['data']['messageId'] ?? $webhookData['data']['id'] ?? '';
+    }
 
     // Ignore group chats
     $chatId = $webhookData['data']['chatId'] ?? $webhookData['data']['from'] ?? $webhookData['data']['to'] ?? '';
