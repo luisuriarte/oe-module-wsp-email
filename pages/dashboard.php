@@ -24,7 +24,7 @@ require_once $GLOBALS['srcdir'] . '/formatting.inc.php';
 
 use OpenEMR\Core\Header;
 use OpenEMR\Common\Acl\AclMain;
-use OpenEMR\Common\Csrf\CsrfUtils;
+use OpenEMR\Modules\WspEmail\CsrfCompat;
 use OpenEMR\Modules\WspEmail\FacilityConfig;
 use OpenEMR\Modules\WspEmail\NotificationLog;
 
@@ -1210,7 +1210,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                 ListOptionsManager.init(
                     'apptstat',
                     '#lom-container',
-                    '<?php echo CsrfUtils::collectCsrfToken(); ?>',
+                    '<?php echo CsrfCompat::collectCsrfToken(); ?>',
                     '<?php echo $moduleRoot; ?>/list_options_manager.php',
                     null,
                     {

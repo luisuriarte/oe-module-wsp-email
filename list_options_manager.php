@@ -29,8 +29,8 @@ require_once __DIR__ . '/../../../globals.php';
 
 header('Content-Type: application/json');
 
-use OpenEMR\Common\Csrf\CsrfUtils;
 use OpenEMR\Common\Acl\AclMain;
+use OpenEMR\Modules\WspEmail\CsrfCompat;
 use OpenEMR\Services\ListService;
 
 // ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ if (!AclMain::aclCheckCore('admin', 'super')) {
 $writeActions = ['save_option', 'delete_option', 'reorder'];
 
 if (in_array($_REQUEST['action'] ?? '', $writeActions, true)) {
-    if (!CsrfUtils::verifyCsrfToken($_POST['csrf_token_form'] ?? '')) {
+    if (!CsrfCompat::verifyCsrfToken($_POST['csrf_token_form'] ?? '')) {
         http_response_code(403);
         echo json_encode(['success' => false, 'message' => xlt('Invalid CSRF token')]);
         exit;
