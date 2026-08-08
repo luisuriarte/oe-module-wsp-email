@@ -698,6 +698,93 @@ class WspSender
         return ['status' => $msgId ? 'success' : 'error', 'msgId' => $msgId, 'log' => implode("\n", $log)];
     }
 
+    // -------------------------------------------------------------------------
+    // OpenWA — pre-send contact validation
+    // -------------------------------------------------------------------------
+
+    /**
+     * Checks whether a phone number exists on WhatsApp via OpenWA's contacts endpoint.
+     *
+     * Called ONLY before the initial notification (seq 1 / on-booking).
+     * NOT called during recall / escalation sequences.
+     *
+     * Endpoint: GET https://wa.origen.ar/api/contacts/check/{number}
+     * Headers:  X-API-Key, Accept: application/json
+     *
+     * @param string $sessionId OpenWA session ID  (openwa_instance config field)
+     * @param string $apiKey    OpenWA API key     (openwa_api_key config field)
+     * @param string $phone     Raw phone number from patient_data.phone_cell
+     *
+     * @return string One of:
+     *   'exists'              – number is registered on WhatsApp → proceed with send
+     *   'not_found'           – number does NOT exist on WhatsApp → trigger email fallback
+     *   'service_unavailable' – OpenWA returned 503 or the request failed entirely
+     *                           → fail-closed: skip WhatsApp AND email, log for manual review
+     */
+    public function checkOpenWaContact(string $sessionId, string $apiKey, string $phone): string
+    {
+        if (empty($sessionId) || empty($apiKey) || empty($phone)) {
+            // Missing credentials: treat as unavailable so we don't silently skip
+            error_log('WspSender::checkOpenWaContact — missing sessionId, apiKey or phone; returning service_unavailable');
+            return 'service_unavailable';
+        }
+
+        $cleanPhone = preg_replace('/\D/', '', $phone);
+        $url        = "https://wa.origen.ar/api/contacts/check/{$cleanPhone}";
+
+        try {
+            $resp = $this->http->get($url, [
+                'headers' => [
+                    'X-API-Key' => $apiKey,
+                    'Accept'    => 'application/json',
+                ],
+                'timeout' => 15,
+            ]);
+
+            $httpCode = $resp->getStatusCode();
+            $body     = json_decode((string)$resp->getBody(), true);
+
+            error_log("WspSender::checkOpenWaContact — phone={$cleanPhone} http={$httpCode} body=" . json_encode($body));
+
+            if ($httpCode === 503) {
+                return 'service_unavailable';
+            }
+
+            // OpenWA returns { "exists": true|false } (or similar boolean field)
+            $exists = $body['exists'] ?? $body['registered'] ?? $body['isRegistered'] ?? null;
+
+            if ($exists === true || $exists === 1 || $exists === '1' || strtolower((string)$exists) === 'true') {
+                return 'exists';
+            }
+
+            if ($exists === false || $exists === 0 || $exists === '0' || strtolower((string)$exists) === 'false') {
+                return 'not_found';
+            }
+
+            // Unexpected payload — treat conservatively as service_unavailable
+            error_log('WspSender::checkOpenWaContact — unexpected response payload: ' . json_encode($body));
+            return 'service_unavailable';
+
+        } catch (RequestException $e) {
+            $httpCode = 0;
+            if ($e->hasResponse()) {
+                $httpCode = $e->getResponse()->getStatusCode();
+            }
+            error_log("WspSender::checkOpenWaContact — RequestException http={$httpCode}: " . $e->getMessage());
+
+            if ($httpCode === 503) {
+                return 'service_unavailable';
+            }
+
+            // Any other HTTP error (e.g. 500, connection timeout) → fail-closed
+            return 'service_unavailable';
+
+        } catch (\Throwable $e) {
+            error_log('WspSender::checkOpenWaContact — Throwable: ' . $e->getMessage());
+            return 'service_unavailable';
+        }
+    }
+
     public function syncStatus(array $config, string $msgId): array
     {
         $vendor   = strtolower($config['vendor'] ?? $config['current_vendor'] ?? '');

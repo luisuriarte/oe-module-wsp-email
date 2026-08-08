@@ -14,6 +14,36 @@ class Blacklist
     /** Vendor statuses that trigger immediate blacklisting (no retry) */
     private const PERMANENT_STATUSES = ['INVALID'];
 
+    /**
+     * Days after which a NOT_ON_WA blacklist entry is considered expired.
+     *
+     * Phone numbers in Argentina (and most countries) are recycled by carriers
+     * after a period of inactivity. After this TTL the next cron run will
+     * re-check the number via checkOpenWaContact() instead of skipping it.
+     *
+     * Set to 0 to disable TTL (permanent blacklist for NOT_ON_WA).
+     */
+    private const NOT_ON_WA_TTL_DAYS = 180;
+
+    /**
+     * Add a number to the blacklist because it is not registered on WhatsApp.
+     * Called after a positive 'not_found' result from checkOpenWaContact().
+     * Scope: facility_id + vendor so it only blocks future WSP sends for this facility.
+     *
+     * @param string $phone      Raw phone from patient_data.phone_cell
+     * @param int    $facilityId
+     * @param string $vendor     Should be 'openwa'
+     */
+    public function addNotOnWhatsApp(string $phone, int $facilityId, string $vendor): void
+    {
+        $this->addToBlacklist(
+            $phone, $facilityId, $vendor,
+            'NOT_ON_WA', 1,
+            'Auto-blacklisted: number not registered on WhatsApp (contact check)'
+        );
+        error_log("WspEmail [BLACKLIST] Added phone={$phone} — reason=NOT_ON_WA (not on WhatsApp)");
+    }
+
     public function __construct()
     {
         // No initialization needed
@@ -29,6 +59,17 @@ class Blacklist
      */
     public function isBlacklisted(string $phone, int $facilityId, string $vendor): bool
     {
+        // Build the TTL exclusion clause for NOT_ON_WA entries.
+        // If TTL is 0, the clause is omitted and NOT_ON_WA entries never expire.
+        $ttlClause = '';
+        $ttlParams  = [];
+        if (self::NOT_ON_WA_TTL_DAYS > 0) {
+            // Exclude NOT_ON_WA rows whose updated_at is older than the TTL.
+            // This lets the cron re-check recycled numbers automatically.
+            $ttlClause = 'AND NOT (reason = ? AND updated_at < DATE_SUB(NOW(), INTERVAL ? DAY))';
+            $ttlParams  = ['NOT_ON_WA', self::NOT_ON_WA_TTL_DAYS];
+        }
+
         $row = sqlQuery(
             "SELECT COUNT(*) AS total FROM wsp_email_blacklist
              WHERE phone     = ?
@@ -37,8 +78,9 @@ class Blacklist
                    (facility_id = ? AND vendor IN (?, 'all'))
                    OR
                    (facility_id = 0 AND vendor IN (?, 'all'))
-               )",
-            [$phone, $facilityId, $vendor, $vendor]
+               )
+               {$ttlClause}",
+            array_merge([$phone, $facilityId, $vendor, $vendor], $ttlParams)
         );
 
         return (int)($row['total'] ?? 0) > 0;

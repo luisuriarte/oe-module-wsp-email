@@ -18,14 +18,16 @@ return [
      * Cada proveedor mapea sus estados nativos a estos estados canónicos.
      */
     'canonical' => [
-        'QUEUED',      // En cola / pendiente de envío
-        'SENT',        // Enviado al proveedor WhatsApp
-        'DELIVERED',   // Entregado al dispositivo del destinatario
-        'READ',        // Leído por el destinatario (o played en audio)
-        'FAILED',      // Falló el envío (reintentos agotados)
-        'INVALID',     // Número inválido o no existe
-        'ERROR',       // Error técnico del proveedor
-        'UNSENT'       // Cancelado / no enviado
+        'QUEUED',           // En cola / pendiente de envío
+        'SENT',             // Enviado al proveedor WhatsApp
+        'DELIVERED',        // Entregado al dispositivo del destinatario
+        'READ',             // Leído por el destinatario (o played en audio)
+        'FAILED',           // Falló el envío (reintentos agotados)
+        'INVALID',          // Número inválido o no existe
+        'ERROR',            // Error técnico del proveedor
+        'UNSENT',           // Cancelado / no enviado
+        'WSP_NOT_ON_WA',    // Número no registrado en WhatsApp (contact check openwa) → se usó email fallback
+        'WSP_CHECK_UNAVAILABLE' // Servicio de validación no disponible (503) → revisión manual
     ],
 
     /**
@@ -34,14 +36,16 @@ return [
      * Valores más altos = estado más avanzado en el ciclo de vida
      */
     'priority' => [
-        'QUEUED'    => 1,
-        'SENT'      => 2,
-        'DELIVERED' => 3,
-        'READ'      => 4,
-        'FAILED'    => 5,
-        'INVALID'   => 5,
-        'ERROR'     => 5,
-        'UNSENT'    => 0
+        'QUEUED'                 => 1,
+        'SENT'                   => 2,
+        'DELIVERED'              => 3,
+        'READ'                   => 4,
+        'FAILED'                 => 5,
+        'INVALID'                => 5,
+        'ERROR'                  => 5,
+        'UNSENT'                 => 0,
+        'WSP_NOT_ON_WA'          => 5,  // Terminal: número no existe en WA (email fallback disparado)
+        'WSP_CHECK_UNAVAILABLE'  => 0,  // Indeterminado: revisión manual requerida
     ],
 
     /**
@@ -190,41 +194,47 @@ return [
      * Colores para cada estado canónico (para UI)
      */
     'colors' => [
-        'QUEUED'    => ['#FFC107', '#FFA000'],    // Ámbar
-        'SENT'      => ['#25D366', '#128C7E'],    // Verde WhatsApp
-        'DELIVERED' => ['#2196F3', '#1565C0'],    // Azul
-        'READ'      => ['#9C27B0', '#7B1FA2'],    // Violeta
-        'FAILED'    => ['#F44336', '#C62828'],    // Rojo
-        'INVALID'   => ['#9E9E9E', '#616161'],    // Gris
-        'ERROR'     => ['#FF5722', '#E64A19'],    // Naranja Rojizo
-        'UNSENT'    => ['#BDBDBD', '#757575'],    // Gris Claro
+        'QUEUED'                 => ['#FFC107', '#FFA000'],    // Ámbar
+        'SENT'                   => ['#25D366', '#128C7E'],    // Verde WhatsApp
+        'DELIVERED'              => ['#2196F3', '#1565C0'],    // Azul
+        'READ'                   => ['#9C27B0', '#7B1FA2'],    // Violeta
+        'FAILED'                 => ['#F44336', '#C62828'],    // Rojo
+        'INVALID'                => ['#9E9E9E', '#616161'],    // Gris
+        'ERROR'                  => ['#FF5722', '#E64A19'],    // Naranja Rojizo
+        'UNSENT'                 => ['#BDBDBD', '#757575'],    // Gris Claro
+        'WSP_NOT_ON_WA'          => ['#795548', '#4E342E'],    // Marrón — sin WA, redirigido a email
+        'WSP_CHECK_UNAVAILABLE'  => ['#607D8B', '#37474F'],    // Azul grisáceo — pendiente revisión manual
     ],
 
     /**
      * Iconos FontAwesome para cada estado
      */
     'icons' => [
-        'QUEUED'    => 'fa-clock',
-        'SENT'      => 'fa-check',
-        'DELIVERED' => 'fa-box',
-        'READ'      => 'fa-eye',
-        'FAILED'    => 'fa-times-circle',
-        'INVALID'   => 'fa-question-circle',
-        'ERROR'     => 'fa-exclamation-triangle',
-        'UNSENT'    => 'fa-envelope',
+        'QUEUED'                 => 'fa-clock',
+        'SENT'                   => 'fa-check',
+        'DELIVERED'              => 'fa-box',
+        'READ'                   => 'fa-eye',
+        'FAILED'                 => 'fa-times-circle',
+        'INVALID'                => 'fa-question-circle',
+        'ERROR'                  => 'fa-exclamation-triangle',
+        'UNSENT'                 => 'fa-envelope',
+        'WSP_NOT_ON_WA'          => 'fa-ban',               // Número no existe en WA
+        'WSP_CHECK_UNAVAILABLE'  => 'fa-hourglass-half',   // Revisión manual pendiente
     ],
 
     /**
      * Etiquetas amigables para UI (traducibles)
      */
     'labels' => [
-        'QUEUED'    => 'En Cola',
-        'SENT'      => 'Enviado',
-        'DELIVERED' => 'Entregado',
-        'READ'      => 'Leído',
-        'FAILED'    => 'Fallido',
-        'INVALID'   => 'Inválido',
-        'ERROR'     => 'Error',
-        'UNSENT'    => 'No Enviado',
+        'QUEUED'                 => 'En Cola',
+        'SENT'                   => 'Enviado',
+        'DELIVERED'              => 'Entregado',
+        'READ'                   => 'Leído',
+        'FAILED'                 => 'Fallido',
+        'INVALID'                => 'Inválido',
+        'ERROR'                  => 'Error',
+        'UNSENT'                 => 'No Enviado',
+        'WSP_NOT_ON_WA'          => 'Sin WhatsApp (→ Email)',
+        'WSP_CHECK_UNAVAILABLE'  => 'Verificación Pendiente',
     ],
 ];

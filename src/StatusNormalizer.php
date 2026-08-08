@@ -32,8 +32,8 @@ class StatusNormalizer
             } else {
                 // Configuración por defecto si no existe el archivo
                 self::$config = [
-                    'canonical' => ['QUEUED', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'INVALID', 'ERROR', 'UNSENT'],
-                    'priority'  => ['QUEUED' => 1, 'SENT' => 2, 'DELIVERED' => 3, 'READ' => 4, 'FAILED' => 5, 'INVALID' => 5, 'ERROR' => 5, 'UNSENT' => 0],
+                    'canonical' => ['QUEUED', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'INVALID', 'ERROR', 'UNSENT', 'WSP_NOT_ON_WA', 'WSP_CHECK_UNAVAILABLE'],
+                    'priority'  => ['QUEUED' => 1, 'SENT' => 2, 'DELIVERED' => 3, 'READ' => 4, 'FAILED' => 5, 'INVALID' => 5, 'ERROR' => 5, 'UNSENT' => 0, 'WSP_NOT_ON_WA' => 5, 'WSP_CHECK_UNAVAILABLE' => 0],
                     'providers' => [],
                     'colors'    => [],
                     'icons'     => [],
@@ -163,7 +163,7 @@ class StatusNormalizer
     public static function isTerminal(string $status): bool
     {
         $status = strtoupper($status);
-        return in_array($status, ['READ', 'FAILED', 'INVALID', 'ERROR', 'UNSENT']);
+        return in_array($status, ['READ', 'FAILED', 'INVALID', 'ERROR', 'UNSENT', 'WSP_NOT_ON_WA', 'WSP_CHECK_UNAVAILABLE']);
     }
 
     /**
@@ -187,7 +187,7 @@ class StatusNormalizer
     public static function isFailure(string $status): bool
     {
         $status = strtoupper($status);
-        return in_array($status, ['FAILED', 'INVALID', 'ERROR']);
+        return in_array($status, ['FAILED', 'INVALID', 'ERROR', 'WSP_NOT_ON_WA', 'WSP_CHECK_UNAVAILABLE']);
     }
 
     /**

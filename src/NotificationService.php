@@ -258,6 +258,77 @@ class NotificationService
             $vendor = strtolower($config['current_vendor'] ?? $config['vendor'] ?? 'wasenderapi');
             $facilityId = (int)($config['facility_id'] ?? $patient['pc_facility'] ?? 0);
 
+            // -----------------------------------------------------------------
+            // OpenWA pre-send contact validation (initial notification only)
+            // Only runs for seq <= 1 (seq=1 = first scheduled slot, seq=0 = on-booking).
+            // Recall / escalation sequences (seq > 1) skip this check.
+            // -----------------------------------------------------------------
+            if ($vendor === 'openwa' && $seq <= 1) {
+                $owInstance = $config['openwa_instance'] ?? '';
+                $owApiKey   = $config['openwa_api_key']  ?? '';
+
+                $contactStatus = $this->wspSender->checkOpenWaContact($owInstance, $owApiKey, $phone);
+
+                if ($contactStatus === 'not_found') {
+                    // Number is NOT on WhatsApp → log and deliver via email fallback
+                    $msg = "OpenWA contact check: phone={$phone} NOT on WhatsApp — triggering email fallback (seq={$seq}).";
+                    echo "    [CONTACT-CHECK] {$msg}\n";
+                    error_log($msg);
+
+                    $this->insertLog(
+                        'WSP', $patient, $config, null, 'WSP_NOT_ON_WA',
+                        $seq, 'WSP_NOT_ON_WA', 0, $vendor,
+                        ['contact_check' => 'not_found', 'phone' => $phone]
+                    );
+
+                    // Auto-blacklist: prevent future WSP attempts to this number
+                    $this->blacklist->addNotOnWhatsApp($phone, $facilityId, $vendor);
+                    echo "    [CONTACT-CHECK] Phone={$phone} added to blacklist (NOT_ON_WA).\n";
+
+                    // Trigger email fallback if email channel is enabled for this facility
+                    if (!empty($config['enabled_email']) && !empty($patient['email'])
+                        && ($patient['hipaa_allowemail'] ?? '') === 'YES'
+                        && !$this->alreadySent('EMAIL', (int)$patient['pid'], (int)$patient['pc_eid'], $seq)
+                    ) {
+                        echo "    [CONTACT-CHECK] Delivering via email fallback to {$patient['email']}\n";
+                        $this->deliverEmail($patient, $config, $seq, $updateCalFlag);
+                    } else {
+                        echo "    [CONTACT-CHECK] No email fallback available (disabled, no email, or HIPAA restriction).\n";
+                    }
+
+                    // Clean up .ics file before returning
+                    sleep(2);
+                    @unlink($publicIcsDir . $icsPublicName);
+                    return;
+
+                } elseif ($contactStatus === 'service_unavailable') {
+                    // OpenWA did not confirm the session — fail-closed: no WSP, no email fallback
+                    $msg = "OpenWA contact check: phone={$phone} returned service_unavailable (503) — will retry on next cron run (seq={$seq}).";
+                    echo "    [CONTACT-CHECK] {$msg}\n";
+                    error_log($msg);
+
+                    // NOTE: Intentionally NOT inserting into notification_log here.
+                    // The NOT EXISTS filter in getPatientsForSlot() will include this
+                    // patient again on the next cron run, giving automatic retry
+                    // once the OpenWA session recovers. Only write to the module log
+                    // for traceability without blocking the retry cycle.
+                    $logLine = date('Y-m-d H:i:s') . " [CHECK_UNAVAILABLE] pid={$patient['pid']} pc_eid={$patient['pc_eid']} phone={$phone} seq={$seq} — will retry automatically\n";
+                    $logFile = __DIR__ . '/../logs/wsp_notify.log';
+                    if (!is_dir(dirname($logFile))) {
+                        @mkdir(dirname($logFile), 0755, true);
+                    }
+                    @file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
+
+                    // Do NOT fall back to email; retry via cron is the safe path
+                    sleep(2);
+                    @unlink($publicIcsDir . $icsPublicName);
+                    return;
+                }
+
+                // $contactStatus === 'exists' → continue with normal send flow below
+                error_log("WspSender::checkOpenWaContact — phone={$phone} exists on WhatsApp, proceeding with send.");
+            }
+
             // Rate limiting + delay aleatorio antes de enviar
             $this->rateLimiter->throttle($facilityId, $vendor, $phone);
 
