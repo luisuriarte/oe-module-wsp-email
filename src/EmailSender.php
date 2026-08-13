@@ -104,19 +104,35 @@ class EmailSender
         $mail = new PHPMailer(true);
         try {
             // Try SMTP if configured
-            if (!empty($GLOBALS['SMTP_HOST'])) {
+            $emailMethod = strtoupper($GLOBALS['EMAIL_METHOD'] ?? 'SMTP');
+            if (!empty($GLOBALS['SMTP_HOST']) && $emailMethod !== 'MAIL') {
                 try {
                     $crypto = new CryptoGen();
                     $mail->isSMTP();
-                    $mail->Host       = $GLOBALS['SMTP_HOST'];
-                    $mail->Port       = (int)($GLOBALS['SMTP_PORT'] ?? 587);
-                    $mail->SMTPAuth   = true;
-                    $mail->Username   = $GLOBALS['SMTP_USER'] ?? '';
-                    $mail->Password   = $crypto->decryptStandard($GLOBALS['SMTP_PASS'] ?? '');
-                    $mail->SMTPSecure = $GLOBALS['SMTP_SECURE'] ?? PHPMailer::ENCRYPTION_STARTTLS;
+                    $mail->Host = $GLOBALS['SMTP_HOST'];
+                    $mail->Port = (int)($GLOBALS['SMTP_PORT'] ?? 587);
+
+                    $smtpUser = $GLOBALS['SMTP_USER'] ?? '';
+                    $smtpPass = $GLOBALS['SMTP_PASS'] ?? '';
+                    $hasAuth  = !empty($smtpUser) || !empty($GLOBALS['SMTP_Auth']);
+
+                    $mail->SMTPAuth = $hasAuth;
+                    if ($hasAuth) {
+                        $mail->Username = $smtpUser;
+                        $mail->Password = !empty($smtpPass) ? $crypto->decryptStandard($smtpPass) : '';
+                    }
+
+                    if (!empty($GLOBALS['SMTP_SECURE'])) {
+                        $mail->SMTPSecure = $GLOBALS['SMTP_SECURE'];
+                    } elseif ($mail->Port === 465) {
+                        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+                    } else {
+                        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+                    }
                 } catch (\Exception $e) {
                     // SMTP config failed, fall back to mail()
                     error_log('EmailSender: SMTP config failed, using mail(). Error: ' . $e->getMessage());
+                    $mail->isMail();
                 }
             }
 

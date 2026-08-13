@@ -223,10 +223,17 @@ class FacilityConfig
             return $config;
         }
 
+        // Apply sensible defaults if facility config row hasn't been saved yet
+        $config['facility_id']    = $facilityId;
+        $config['current_vendor'] = !empty($config['current_vendor']) ? $config['current_vendor'] : (!empty($config['vendor']) ? $config['vendor'] : 'wasenderapi');
+        $config['vendor']         = $config['current_vendor'];
+        $config['enabled_wsp']    = isset($config['enabled_wsp']) && $config['enabled_wsp'] !== null ? (int)$config['enabled_wsp'] : 1;
+        $config['enabled_email']  = isset($config['enabled_email']) && $config['enabled_email'] !== null ? (int)$config['enabled_email'] : 1;
+
         $gateways = $this->getAllGatewayConfigs($facilityId);
         foreach ($gateways as $gw) {
             $gwName = $gw['gateway_name'];
-            // Normalize to underscores for safe PHP key access (e.g. evolution-go → evolution_go)
+            // Normalize to underscores for safe PHP key access (e.g. evolution-go -> evolution_go)
             $prefix  = str_replace('-', '_', $gwName) . '_';
             $gwData = json_decode($gw['config_json'] ?? '{}', true);
             if (!is_array($gwData)) {
@@ -234,7 +241,8 @@ class FacilityConfig
             }
             foreach ($gwData as $key => $value) {
                 $prefixedKey = $prefix . $key;
-                if (!isset($config[$prefixedKey])) {
+                // Precedence: credentials from wsp_email_gateways_config take precedence if non-empty
+                if (($value !== null && $value !== '') || !isset($config[$prefixedKey])) {
                     $config[$prefixedKey] = $value;
                 }
             }

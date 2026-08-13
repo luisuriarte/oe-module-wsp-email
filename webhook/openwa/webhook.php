@@ -85,11 +85,11 @@ if ($event === 'test') {
     exit;
 }
 
-// --- Validate token from URL ---
-$receivedToken = $_GET['token'] ?? '';
+// --- Validate signature (HMAC-SHA256 over raw body) ---
+$receivedSignature = $headers['X-Openwa-Signature'] ?? $headers['X-OpenWA-Signature'] ?? '';
 
-if (empty($receivedToken)) {
-    openwaLog('Rejected: missing token in URL.');
+if (empty($receivedSignature)) {
+    openwaLog('Rejected: missing X-Openwa-Signature header.');
     http_response_code(401);
     exit;
 }
@@ -110,27 +110,23 @@ foreach ($allFacilities as $facility) {
     }
 }
 
-// Fallback: first facility with a secret
 if (empty($expectedSecret)) {
-    foreach ($allFacilities as $facility) {
-        $secret = $facility['openwa_webhook_secret'] ?? '';
-        if (!empty($secret)) {
-            $expectedSecret  = $secret;
-            $matchedFacility = $facility;
-            break;
-        }
-    }
-}
-
-if (empty($expectedSecret)) {
-    openwaLog('Warning: no openwa_webhook_secret configured. Skipping token validation.');
-} elseif (!hash_equals($expectedSecret, $receivedToken)) {
-    openwaLog("Rejected: invalid token. Received: '$receivedToken'");
+    openwaLog("Rejected: no facility matched sessionId='$sessionId', cannot verify signature.");
     http_response_code(401);
     exit;
-} else {
-    openwaLog('Token validated successfully.');
 }
+
+// IMPORTANT: sign over $rawInput (the exact bytes received), never over
+// json_encode($webhookData) — re-encoding can reorder/re-escape and break the match.
+$expectedSignature = 'sha256=' . hash_hmac('sha256', $rawInput, $expectedSecret);
+
+if (!hash_equals($expectedSignature, $receivedSignature)) {
+    openwaLog("Rejected: invalid signature for sessionId='$sessionId'.");
+    http_response_code(401);
+    exit;
+}
+
+openwaLog('Signature validated successfully.');
 
 // --- Handle events ---
 $supportedEvents = ['message.sent', 'message.ack', 'message.revoked'];

@@ -235,8 +235,9 @@ class NotificationService
         $patient['_message'] = WspSender::buildMessage($template, $patient);
 
         // Build and publish the temporary .ics file
+        $pcEid              = (int)($patient['pc_eid'] ?? 0);
         $icsPath            = WspSender::buildIcsFile($patient, $config);
-        $icsPublicName      = 'calendario.ics';
+        $icsPublicName      = "appointment_{$pcEid}_{$seq}.ics";
 
         // Build public URL for the .ics file (must be reachable by the WhatsApp vendor)
         $baseUrl = rtrim($config['website_url'] ?? '', '/');
@@ -504,8 +505,8 @@ class NotificationService
                 LEFT JOIN patient_tracker_element pt_latest ON pt_latest.pt_tracker_id = pt.id
                     AND pt_latest.seq = (SELECT MAX(seq) FROM patient_tracker_element WHERE pt_tracker_id = pt.id)
                 WHERE ope.pc_facility = ?
-                  AND CONCAT(ope.pc_eventDate, ' ', ope.pc_startTime) > ?
-                  AND CONCAT(ope.pc_eventDate, ' ', ope.pc_startTime) <= ?
+                  AND CONCAT(ope.pc_eventDate, ' ', COALESCE(ope.pc_startTime, '00:00:00')) > ?
+                  AND CONCAT(ope.pc_eventDate, ' ', COALESCE(ope.pc_startTime, '00:00:00')) <= ?
                   AND ope.pc_apptstatus NOT IN ('X', '%', '^', '*', '-cancelled', '-noshow')
                   AND COALESCE(pt_latest.status, ope.pc_apptstatus) NOT IN ('x', '%', '?', '^', 'wsp-err')
                   $hipaaFilter
