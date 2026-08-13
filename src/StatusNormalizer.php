@@ -243,12 +243,22 @@ class StatusNormalizer
                 $event = $webhookData['event'] ?? '';
                 if ($event === 'message.sent') {
                     $nativeStatus = 'sent';
-                } elseif ($event === 'message.ack') {
-                    $nativeStatus = isset($webhookData['data']['ack']) ? (string)$webhookData['data']['ack'] : 'unknown';
+                } elseif ($event === 'message.failed') {
+                    $nativeStatus = 'failed';
                 } elseif ($event === 'message.revoked') {
                     $nativeStatus = 'revoked';
+                } elseif ($event === 'message.ack') {
+                    $statusStr = $webhookData['data']['status'] ?? '';
+                    $ackVal    = $webhookData['data']['ack'] ?? '';
+                    if ($statusStr !== '') {
+                        $nativeStatus = (string)$statusStr;
+                    } elseif ($ackVal !== '') {
+                        $nativeStatus = (string)$ackVal;
+                    } else {
+                        $nativeStatus = 'ack';
+                    }
                 } else {
-                    $nativeStatus = $event;
+                    $nativeStatus = (string)($webhookData['data']['status'] ?? $event);
                 }
                 break;
 

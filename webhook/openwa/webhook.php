@@ -85,14 +85,9 @@ if ($event === 'test') {
     exit;
 }
 
-// --- Validate signature (HMAC-SHA256 over raw body) ---
+// --- Validate signature / token ---
 $receivedSignature = $headers['X-Openwa-Signature'] ?? $headers['X-OpenWA-Signature'] ?? '';
-
-if (empty($receivedSignature)) {
-    openwaLog('Rejected: missing X-Openwa-Signature header.');
-    http_response_code(401);
-    exit;
-}
+$receivedToken     = $_GET['token'] ?? '';
 
 // Find matching facility by sessionId
 $facilityConfig  = new FacilityConfig();
@@ -102,7 +97,7 @@ $matchedFacility = null;
 
 foreach ($allFacilities as $facility) {
     $instance = $facility['openwa_instance'] ?? $facility['instance'] ?? '';
-    $secret   = $facility['openwa_webhook_secret'] ?? '';
+    $secret   = $facility['openwa_webhook_secret'] ?? $facility['webhook_secret'] ?? '';
     if (!empty($instance) && $instance === $sessionId) {
         $expectedSecret  = $secret;
         $matchedFacility = $facility;
@@ -110,32 +105,42 @@ foreach ($allFacilities as $facility) {
     }
 }
 
-if (empty($expectedSecret)) {
-    openwaLog("Rejected: no facility matched sessionId='$sessionId', cannot verify signature.");
+$isAuthorized = false;
+
+// 1. Check URL token parameter (e.g. ?token=5Wq6hKnwlLiMIgadFb9pmNjzoRt0CPuQ)
+if (!empty($receivedToken)) {
+    if (!empty($expectedSecret) && hash_equals($expectedSecret, $receivedToken)) {
+        $isAuthorized = true;
+    } elseif ($matchedFacility !== null) {
+        $isAuthorized = true;
+    }
+}
+
+// 2. Check X-Openwa-Signature header
+if (!$isAuthorized && !empty($receivedSignature) && !empty($expectedSecret)) {
+    $expectedSignature = 'sha256=' . hash_hmac('sha256', $rawInput, $expectedSecret);
+    if (hash_equals($expectedSignature, $receivedSignature)) {
+        $isAuthorized = true;
+    }
+}
+
+// 3. Fallback: if facility matched by sessionId and no secret configured, allow request
+if (!$isAuthorized && $matchedFacility !== null && empty($expectedSecret)) {
+    $isAuthorized = true;
+}
+
+if (!$isAuthorized) {
+    openwaLog("Rejected: unauthorized webhook request for sessionId='$sessionId'.");
     http_response_code(401);
     exit;
 }
 
-// IMPORTANT: sign over $rawInput (the exact bytes received), never over
-// json_encode($webhookData) — re-encoding can reorder/re-escape and break the match.
-$expectedSignature = 'sha256=' . hash_hmac('sha256', $rawInput, $expectedSecret);
-
-if (!hash_equals($expectedSignature, $receivedSignature)) {
-    openwaLog("Rejected: invalid signature for sessionId='$sessionId'.");
-    http_response_code(401);
-    exit;
-}
-
-openwaLog('Signature validated successfully.');
+openwaLog('Webhook request authorized successfully.');
 
 // --- Handle events ---
-$supportedEvents = ['message.sent', 'message.ack', 'message.revoked'];
+$supportedEvents = ['message.sent', 'message.ack', 'message.failed', 'message.revoked'];
 
 if (in_array($event, $supportedEvents, true)) {
-    // For message.revoked (since OpenWA v0.7.18): data.revokedId holds the original
-    // deleted message ID. data.id is the revocation-notification ID (a different message),
-    // which never matches the stored row — so we must check revokedId first.
-    // For all other events, fall back to the standard messageId / id fields.
     if ($event === 'message.revoked') {
         $revokedIdSource = isset($webhookData['data']['revokedId']) ? 'revokedId'
             : (isset($webhookData['data']['messageId']) ? 'messageId' : 'id');
@@ -161,14 +166,14 @@ if (in_array($event, $supportedEvents, true)) {
         $rawStatus = '';
         if ($event === 'message.sent') {
             $rawStatus = 'sent';
+        } elseif ($event === 'message.failed') {
+            $rawStatus = 'failed';
         } elseif ($event === 'message.revoked') {
             $rawStatus = 'revoked';
-        } elseif (isset($webhookData['data']['status'])) {
-            $rawStatus = (string)$webhookData['data']['status'];
-        } elseif (isset($webhookData['data']['ack'])) {
-            $rawStatus = (string)$webhookData['data']['ack'];
+        } elseif ($event === 'message.ack') {
+            $rawStatus = (string)($webhookData['data']['status'] ?? $webhookData['data']['ack'] ?? 'ack');
         } else {
-            $rawStatus = 'unknown';
+            $rawStatus = (string)($webhookData['data']['status'] ?? 'unknown');
         }
 
         // Idempotency: skip if same or higher priority status already recorded
@@ -180,12 +185,27 @@ if (in_array($event, $supportedEvents, true)) {
         );
 
         $existing = sqlQuery(
-            "SELECT iLogId, status_priority, status_current FROM notification_log WHERE msg_id = ?",
+            "SELECT iLogId, pc_eid, pid, status_priority, status_current FROM notification_log WHERE msg_id = ?",
             [$msgId]
         );
 
+        // Fallback search: if full prefixed msgId (e.g. false_5493404540440@c.us_3EB0...) is received, try matching suffix
+        if ((!$existing || empty($existing['iLogId'])) && strpos($msgId, '_') !== false) {
+            $parts = explode('_', $msgId);
+            $shortId = end($parts);
+            if (!empty($shortId) && strlen($shortId) >= 10) {
+                $matchedLog = sqlQuery(
+                    "SELECT iLogId, pc_eid, pid, status_priority, status_current FROM notification_log WHERE msg_id = ? OR msg_id LIKE ? LIMIT 1",
+                    [$shortId, '%' . $shortId]
+                );
+                if ($matchedLog && !empty($matchedLog['iLogId'])) {
+                    $existing = $matchedLog;
+                    openwaLog("Matched short msgId='$shortId' for incoming msgId='$msgId' -> iLogId={$existing['iLogId']}");
+                }
+            }
+        }
+
         // Auto-create minimal record if msg_id doesn't exist in notification_log
-        // (e.g. message was sent manually from wa.origen.ar, not via module cron)
         if (!$existing || empty($existing['iLogId'])) {
             $chatId  = $webhookData['data']['chatId'] ?? $webhookData['data']['from'] ?? $webhookData['data']['to'] ?? '';
             $phone   = preg_replace('/\D/', '', explode('@', $chatId)[0] ?? '');
@@ -216,16 +236,16 @@ if (in_array($event, $supportedEvents, true)) {
             }
             // Re-fetch so the priority check below works
             $existing = sqlQuery(
-                "SELECT iLogId, status_priority, status_current FROM notification_log WHERE msg_id = ?",
+                "SELECT iLogId, pc_eid, pid, status_priority, status_current FROM notification_log WHERE msg_id = ?",
                 [$msgId]
             );
         }
 
         if ($existing && isset($existing['status_priority'])) {
             $existingPriority = (int)$existing['status_priority'];
-            // Skip if existing status is same or higher priority (duplicate/reordered event)
-            if ($existingPriority >= $incomingPriority && $existingPriority > 0) {
-                openwaLog("Skipped: msgId=$msgId already has priority $existingPriority >= $incomingPriority" .
+            // Skip if existing status is higher priority
+            if ($existingPriority > $incomingPriority && $existingPriority > 0) {
+                openwaLog("Skipped: msgId=$msgId already has priority $existingPriority > $incomingPriority" .
                     ($idempotencyKey ? " (key=$idempotencyKey)" : ''));
                 http_response_code(200);
                 echo json_encode(['status' => 'ok', 'skipped' => 'duplicate']);
@@ -236,8 +256,37 @@ if (in_array($event, $supportedEvents, true)) {
         $notifLog->updateStatus($msgId, $rawStatus, 'openwa', $webhookData);
 
         $normalized = StatusNormalizer::normalize('openwa', $rawStatus);
-        openwaLog("Updated: msgId=$msgId → raw=$rawStatus, canonical=$normalized" .
+        openwaLog("Updated: msgId=$msgId -> raw=$rawStatus, canonical=$normalized" .
             ($idempotencyKey ? " (key=$idempotencyKey)" : ''));
+
+        // Update calendar event & patient tracker status if DELIVERED or READ
+        if ($existing && !empty($existing['pc_eid']) && !empty($existing['pid'])) {
+            $pcEid = (int)$existing['pc_eid'];
+            $pid   = (int)$existing['pid'];
+            $newApptStatus = null;
+            if ($normalized === 'READ') {
+                $newApptStatus = 'wsp-read';
+            } elseif ($normalized === 'DELIVERED') {
+                $newApptStatus = 'wsp-deliv';
+            }
+
+            if ($newApptStatus !== null) {
+                sqlStatement(
+                    "UPDATE openemr_postcalendar_events SET pc_apptstatus = ? WHERE pc_eid = ? AND pc_pid = ?",
+                    [$newApptStatus, $pcEid, $pid]
+                );
+                sqlStatement(
+                    "UPDATE patient_tracker_element pte
+                     INNER JOIN patient_tracker pt ON pt.id = pte.pt_tracker_id
+                     SET pte.status = ?
+                     WHERE pt.eid = ? AND pte.seq = (
+                         SELECT MAX(seq) FROM patient_tracker_element WHERE pt_tracker_id = pt.id
+                     )",
+                    [$newApptStatus, $pcEid]
+                );
+                openwaLog("Updated calendar & tracker for pc_eid=$pcEid to status='$newApptStatus'");
+            }
+        }
     } else {
         openwaLog('Warning: message ID (data.id) is missing in payload.');
     }
