@@ -256,21 +256,22 @@ if (in_array($event, $supportedEvents, true)) {
 
         // Fallback search 2: match recent log entry sent to the same phone number in the last 15 minutes
         if (!$existing || empty($existing['iLogId'])) {
-            $chatId = $webhookData['data']['chatId'] ?? $webhookData['data']['from'] ?? $webhookData['data']['to'] ?? '';
+            $chatId = $webhookData['data']['chatId'] ?? $webhookData['data']['to'] ?? $webhookData['data']['from'] ?? '';
             $phone  = preg_replace('/\D/', '', explode('@', $chatId)[0] ?? '');
             if (!empty($phone) && strlen($phone) >= 8) {
+                $shortPhone = substr($phone, -10);
                 $recentLog = sqlQuery(
-                    "SELECT iLogId, pc_eid, pid, status_priority, status_current
+                    "SELECT iLogId, pc_eid, pid, msg_id, status_priority, status_current
                      FROM notification_log
                      WHERE type = 'WSP'
                        AND (patient_info LIKE ? OR smsgateway_info LIKE ?)
                        AND dSentDateTime >= NOW() - INTERVAL 15 MINUTE
                      ORDER BY iLogId DESC LIMIT 1",
-                    ["%{$phone}%", "%{$phone}%"]
+                    ["%{$shortPhone}%", "%{$shortPhone}%"]
                 );
                 if ($recentLog && !empty($recentLog['iLogId'])) {
                     $existing = $recentLog;
-                    openwaLog("Matched recent log entry by phone={$phone} -> iLogId={$existing['iLogId']}");
+                    openwaLog("Matched recent log entry by shortPhone={$shortPhone} -> iLogId={$existing['iLogId']}");
                 }
             }
         }

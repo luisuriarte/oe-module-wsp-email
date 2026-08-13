@@ -815,14 +815,24 @@ class WspSender
                     // OpenWA API expects full serialized ID (e.g. false_5493404540440@c.us_3EB0...)
                     $targetMsgIds = [$msgId];
                     if (strpos($msgId, '_') === false) {
-                        $phone = preg_replace('/\D/', '', $config['phone_cell'] ?? $config['phone_home'] ?? $config['phone'] ?? '');
-                        if (empty($phone) && !empty($config['patient_info'])) {
+                        $rawPhone = $config['phone_cell'] ?? $config['phone_home'] ?? $config['phone'] ?? '';
+                        if (empty($rawPhone) && !empty($config['patient_info'])) {
                             $parts = explode('|||', $config['patient_info']);
-                            $phone = preg_replace('/\D/', '', end($parts));
+                            $rawPhone = end($parts);
                         }
+                        $phone = preg_replace('/\D/', '', (string)$rawPhone);
                         if (!empty($phone)) {
                             $targetMsgIds[] = "false_{$phone}@c.us_{$msgId}";
                             $targetMsgIds[] = "true_{$phone}@c.us_{$msgId}";
+
+                            if (str_starts_with($phone, '0')) {
+                                $noZero = substr($phone, 1);
+                                $targetMsgIds[] = "false_549{$noZero}@c.us_{$msgId}";
+                                $targetMsgIds[] = "true_549{$noZero}@c.us_{$msgId}";
+                            } elseif (!str_starts_with($phone, '549') && strlen($phone) === 10) {
+                                $targetMsgIds[] = "false_549{$phone}@c.us_{$msgId}";
+                                $targetMsgIds[] = "true_549{$phone}@c.us_{$msgId}";
+                            }
                         }
                     }
 
