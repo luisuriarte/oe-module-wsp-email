@@ -21,10 +21,43 @@ declare(strict_types=1);
 // Webhook must be accessible without browser session
 $ignoreAuth = true;
 
-$openemrRoot = realpath(__DIR__ . '/../../');  // sube a /var/www/html/origen.ar/demo
-$moduleRoot  = $openemrRoot . '/interface/modules/custom_modules/oe-module-wsp-email';
+// 1. Dynamically locate OpenEMR interface/globals.php ascending the directory tree
+$dir = __DIR__;
+$globalsPath = null;
+while ($dir && $dir !== '/' && $dir !== '\\' && strlen($dir) > 4) {
+    if (file_exists($dir . '/interface/globals.php')) {
+        $globalsPath = $dir . '/interface/globals.php';
+        break;
+    }
+    if (file_exists($dir . '/globals.php')) {
+        $globalsPath = $dir . '/globals.php';
+        break;
+    }
+    $parent = dirname($dir);
+    if ($parent === $dir) {
+        break;
+    }
+    $dir = $parent;
+}
 
-require_once $openemrRoot . '/interface/globals.php';
+if (!$globalsPath) {
+    http_response_code(500);
+    echo json_encode(['error' => 'OpenEMR globals.php not found']);
+    exit;
+}
+
+require_once $globalsPath;
+
+// 2. Locate module root (supports both /webhook/openwa/ and custom_modules execution paths)
+$openemrRoot = dirname(dirname($globalsPath)); // /var/www/html/origen.ar/hcd
+if (!file_exists($openemrRoot . '/interface/globals.php') && file_exists(dirname($globalsPath) . '/interface/globals.php')) {
+    $openemrRoot = dirname($globalsPath);
+}
+
+$moduleRoot = $openemrRoot . '/interface/modules/custom_modules/oe-module-wsp-email';
+if (!file_exists($moduleRoot . '/src/NotificationLog.php')) {
+    $moduleRoot = realpath(__DIR__ . '/../../');
+}
 
 require_once $moduleRoot . '/src/NotificationLog.php';
 require_once $moduleRoot . '/src/FacilityConfig.php';
@@ -34,23 +67,34 @@ use OpenEMR\Modules\WspEmail\NotificationLog;
 use OpenEMR\Modules\WspEmail\FacilityConfig;
 use OpenEMR\Modules\WspEmail\StatusNormalizer;
 
-// Define a dedicated log file
+// Define a dedicated log file writing to module logs, local logs, and parent logs
 function openwaLog(string $message): void
 {
+    global $moduleRoot;
     $line = date('Y-m-d H:i:s') . ' — ' . $message . "\n";
-    
-    // 1. Webhook logs folder (/webhook/logs/)
-    $whLogDir = __DIR__ . '/../logs';
-    if (!is_dir($whLogDir)) {
-        @mkdir($whLogDir, 0755, true);
-    }
-    @file_put_contents($whLogDir . '/openwa_webhook.log', $line, FILE_APPEND | LOCK_EX);
 
-    // 2. Main module logs folder (/logs/)
-    $modLogDir = realpath(__DIR__ . '/../../') . '/logs';
-    if ($modLogDir && is_dir($modLogDir)) {
+    // 1. Module main logs folder (/interface/modules/custom_modules/oe-module-wsp-email/logs/)
+    if (!empty($moduleRoot)) {
+        $modLogDir = $moduleRoot . '/logs';
+        if (!is_dir($modLogDir)) {
+            @mkdir($modLogDir, 0777, true);
+        }
         @file_put_contents($modLogDir . '/openwa_webhook.log', $line, FILE_APPEND | LOCK_EX);
     }
+
+    // 2. Webhook local logs folder (__DIR__/logs/)
+    $localLogDir = __DIR__ . '/logs';
+    if (!is_dir($localLogDir)) {
+        @mkdir($localLogDir, 0777, true);
+    }
+    @file_put_contents($localLogDir . '/openwa_webhook.log', $line, FILE_APPEND | LOCK_EX);
+
+    // 3. Webhook parent logs folder (__DIR__/../logs/)
+    $whLogDir = __DIR__ . '/../logs';
+    if (!is_dir($whLogDir)) {
+        @mkdir($whLogDir, 0777, true);
+    }
+    @file_put_contents($whLogDir . '/openwa_webhook.log', $line, FILE_APPEND | LOCK_EX);
 }
 
 // Log incoming request

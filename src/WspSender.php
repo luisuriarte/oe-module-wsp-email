@@ -812,19 +812,46 @@ class WspSender
             $apiKey    = !empty($config['openwa_api_key'])  ? $config['openwa_api_key']  : $apiKey;
             if (!empty($sessionId) && !empty($apiKey) && !empty($msgId)) {
                 try {
-                    $encodedMsgId = rawurlencode($msgId);
-                    $url = "https://wa.origen.ar/api/sessions/{$sessionId}/messages/{$encodedMsgId}";
-                    $resp = $this->http->get($url, [
-                        'headers' => [
-                            'X-API-Key' => $apiKey,
-                            'Accept'    => 'application/json',
-                        ],
-                        'timeout' => 15,
-                    ]);
-                    $body = json_decode((string)$resp->getBody(), true);
-                    $status = $body['status'] ?? $body['data']['status'] ?? $body['ack'] ?? $body['data']['ack'] ?? null;
-                    if ($status !== null) {
-                        return ['status' => (string)$status, 'raw' => $body];
+                    // OpenWA API expects full serialized ID (e.g. false_5493404540440@c.us_3EB0...)
+                    $targetMsgIds = [$msgId];
+                    if (strpos($msgId, '_') === false) {
+                        $phone = preg_replace('/\D/', '', $config['phone_cell'] ?? $config['phone_home'] ?? $config['phone'] ?? '');
+                        if (empty($phone) && !empty($config['patient_info'])) {
+                            $parts = explode('|||', $config['patient_info']);
+                            $phone = preg_replace('/\D/', '', end($parts));
+                        }
+                        if (!empty($phone)) {
+                            $targetMsgIds[] = "false_{$phone}@c.us_{$msgId}";
+                            $targetMsgIds[] = "true_{$phone}@c.us_{$msgId}";
+                        }
+                    }
+
+                    $body = null;
+                    foreach ($targetMsgIds as $idToTry) {
+                        try {
+                            $url = "https://wa.origen.ar/api/sessions/{$sessionId}/messages/" . rawurlencode($idToTry);
+                            $resp = $this->http->get($url, [
+                                'headers' => [
+                                    'X-API-Key' => $apiKey,
+                                    'Accept'    => 'application/json',
+                                ],
+                                'timeout' => 15,
+                            ]);
+                            $body = json_decode((string)$resp->getBody(), true);
+                            if (!empty($body) && (isset($body['status']) || isset($body['ack']) || isset($body['data']))) {
+                                break;
+                            }
+                        } catch (\Exception $e) {
+                            // Try next ID format
+                            continue;
+                        }
+                    }
+
+                    if ($body !== null) {
+                        $status = $body['status'] ?? $body['data']['status'] ?? $body['ack'] ?? $body['data']['ack'] ?? null;
+                        if ($status !== null) {
+                            return ['status' => (string)$status, 'raw' => $body];
+                        }
                     }
                 } catch (\Exception $e) {
                     error_log("WspSender::syncStatus openwa error: " . $e->getMessage());
