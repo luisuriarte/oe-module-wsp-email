@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * dashboard.php — Main UI for the WSP/Email Notification Module.
  *
@@ -1745,7 +1745,7 @@ function viewLogDetail(logId) {
                 <div class="d-flex gap-3 mb-3">
                     <div class="${color} pt-1"><i class="fas ${icon} fa-lg"></i></div>
                     <div>
-                        <div class="fw-bold text-uppercase small">${escHtml(h.status)}</div>
+                        <div class="fw-bold text-uppercase small">${escHtml(h.status_label || h.status)}</div>
                         <div class="text-muted extra-small">${escHtml(h.created_at)}</div>
                     </div>
                 </div>`;

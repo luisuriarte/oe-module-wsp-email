@@ -29,7 +29,25 @@ if (!$logId) {
     exit;
 }
 
-$log     = new NotificationLog();
-$history = $log->getStatusHistory($logId);
+$log        = new NotificationLog();
+$rawHistory = $log->getStatusHistory($logId);
+
+$history = array_map(function (array $h): array {
+    $statusUpper = strtoupper($h['status'] ?? '');
+    $labels = [
+        'QUEUED'                 => xl('Queued'),
+        'SENT'                   => xl('Sent'),
+        'DELIVERED'              => xl('Delivered'),
+        'READ'                   => xl('Read'),
+        'FAILED'                 => xl('Failed'),
+        'INVALID'                => xl('Invalid'),
+        'ERROR'                  => xl('Error'),
+        'UNSENT'                 => xl('Not Sent'),
+        'WSP_NOT_ON_WA'          => xl('Not on WhatsApp'),
+        'WSP_CHECK_UNAVAILABLE'  => xl('Verification Pending'),
+    ];
+    $h['status_label'] = $labels[$statusUpper] ?? xl($h['status'] ?? '');
+    return $h;
+}, $rawHistory);
 
 echo json_encode(['history' => $history]);
