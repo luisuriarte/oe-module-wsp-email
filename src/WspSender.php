@@ -730,7 +730,7 @@ class WspSender
         }
 
         $cleanPhone = preg_replace('/\D/', '', $phone);
-        $url        = "https://wa.origen.ar/api/contacts/check/{$cleanPhone}";
+        $url = "https://wa.origen.ar/api/sessions/{$sessionId}/contacts/check/{$cleanPhone}";
 
         try {
             $resp = $this->http->get($url, [
