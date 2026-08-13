@@ -107,9 +107,14 @@ $uploadErrors = [];
 
 foreach ($types as $type) {
     if (isset($_FILES[$type]) && $_FILES[$type]['error'] === UPLOAD_ERR_OK) {
+        $typeDir = $uploadDir . $type;
+        if (!is_dir($typeDir)) {
+            @mkdir($typeDir, 0755, true);
+        }
+
         $ext = pathinfo($_FILES[$type]['name'], PATHINFO_EXTENSION);
         $filename = "{$type}_f{$facilityId}." . $ext;
-        $targetPath = $uploadDir . $type . '/' . $filename;
+        $targetPath = $typeDir . '/' . $filename;
 
         if (move_uploaded_file($_FILES[$type]['tmp_name'], $targetPath)) {
             $data[$type] = $filename;

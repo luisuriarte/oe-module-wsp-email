@@ -188,20 +188,25 @@ class NotificationLog
         $like      = '%' . $search . '%';
         $pidSearch = is_numeric($search) ? (int)$search : 0;
 
-        // Base conditions: Search in patient_info (log), then name fields, phones, email and pid
-        $where = "(nl.patient_info LIKE ?
-                   OR pd.fname LIKE ?
-                   OR pd.lname LIKE ?
-                   OR pd.mname LIKE ?
-                   OR CONCAT(pd.fname, ' ', pd.mname, ' ', pd.lname) LIKE ?
-                   OR CONCAT(pd.lname, ' ', pd.fname, ' ', pd.mname) LIKE ?
-                   OR pd.phone_cell LIKE ?
-                   OR pd.phone_home LIKE ?
-                   OR pd.phone_biz LIKE ?
-                   OR pd.email LIKE ?
-                   OR nl.pid = ?)";
+        // Base conditions: Exclude pid=0, search in patient_info (log), name fields, phones, email and pid
+        $pidCondition = $pidSearch > 0 ? "OR nl.pid = ?" : "";
+        $where = "nl.pid > 0 AND (nl.patient_info IS NULL OR nl.patient_info NOT LIKE 'Webhook auto-creado%')
+                  AND (nl.patient_info LIKE ?
+                       OR pd.fname LIKE ?
+                       OR pd.lname LIKE ?
+                       OR pd.mname LIKE ?
+                       OR CONCAT(pd.fname, ' ', pd.mname, ' ', pd.lname) LIKE ?
+                       OR CONCAT(pd.lname, ' ', pd.fname, ' ', pd.mname) LIKE ?
+                       OR pd.phone_cell LIKE ?
+                       OR pd.phone_home LIKE ?
+                       OR pd.phone_biz LIKE ?
+                       OR pd.email LIKE ?
+                       $pidCondition)";
 
-        $params = [$like, $like, $like, $like, $like, $like, $like, $like, $like, $like, $pidSearch];
+        $params = [$like, $like, $like, $like, $like, $like, $like, $like, $like, $like];
+        if ($pidSearch > 0) {
+            $params[] = $pidSearch;
+        }
 
         if (!empty($dateFrom) && !empty($dateTo)) {
             $where .= " AND nl.dSentDateTime >= ? AND nl.dSentDateTime <= ?";

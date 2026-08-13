@@ -478,23 +478,22 @@ class WspSender
                 'text'   => mb_substr($textWithMap, 0, 4096),
             ], 'texto');
             if ($textBody) {
-                $msgId = $extractMsgId($textBody) ?? $msgId;
+                $msgId = $extractMsgId($textBody);
             }
 
-            // 2. Send image as a bonus (non-critical — if URL is not publicly accessible, message still arrives)
+            // 2. Send image as a bonus (do NOT overwrite primary text msgId)
             if (!empty($logoUrl)) {
                 $imgPayload          = ['chatId' => $chatId, 'url' => $logoUrl];
                 $imgPayload['caption'] = mb_substr($textWithMap, 0, 1024);
                 $imgBody = $safePost($imageUrl, $imgPayload, 'imagen');
                 if ($imgBody) {
-                    $msgId = $extractMsgId($imgBody) ?? $msgId;
                     $log[] = 'OpenWA: image sent successfully (non-critical)';
                 } else {
                     $log[] = 'OpenWA: image skipped (URL may not be publicly accessible) — text already sent';
                 }
             }
 
-            // 2. Try sending .ics document (optional — failures are non-fatal)
+            // 3. Try sending .ics document (optional — do NOT overwrite primary text msgId)
             if (!empty($icsUrl)) {
                 $docBody = $safePost($docUrl, [
                     'chatId'   => $chatId,
@@ -504,9 +503,6 @@ class WspSender
                         (string)($config['facility_name'] ?? '')
                     ), 0, 1024),
                 ], '.ics');
-                if ($docBody) {
-                    $msgId = $extractMsgId($docBody) ?? $msgId;
-                }
             }
 
         } catch (RequestException $e) {
@@ -787,9 +783,9 @@ class WspSender
 
     public function syncStatus(array $config, string $msgId): array
     {
-        $vendor   = strtolower($config['vendor'] ?? $config['current_vendor'] ?? '');
-        $apiKey   = $config['vendor_api_key'] ?? $config['ultramsg_api_key'] ?? '';
-        $instance = $config['vendor_instance'] ?? $config['ultramsg_instance'] ?? '';
+        $vendor   = strtolower($config['sms_gateway_type'] ?? $config['current_vendor'] ?? $config['vendor'] ?? '');
+        $apiKey   = $config['openwa_api_key'] ?? $config['vendor_api_key'] ?? $config['ultramsg_api_key'] ?? '';
+        $instance = $config['openwa_instance'] ?? $config['vendor_instance'] ?? $config['ultramsg_instance'] ?? '';
 
         if ($vendor === 'ultramsg') {
             try {
@@ -811,10 +807,34 @@ class WspSender
             }
         }
 
+        if ($vendor === 'openwa' || !empty($config['openwa_api_key'])) {
+            $sessionId = !empty($config['openwa_instance']) ? $config['openwa_instance'] : $instance;
+            $apiKey    = !empty($config['openwa_api_key'])  ? $config['openwa_api_key']  : $apiKey;
+            if (!empty($sessionId) && !empty($apiKey) && !empty($msgId)) {
+                try {
+                    $encodedMsgId = rawurlencode($msgId);
+                    $url = "https://wa.origen.ar/api/sessions/{$sessionId}/messages/{$encodedMsgId}";
+                    $resp = $this->http->get($url, [
+                        'headers' => [
+                            'X-API-Key' => $apiKey,
+                            'Accept'    => 'application/json',
+                        ],
+                        'timeout' => 15,
+                    ]);
+                    $body = json_decode((string)$resp->getBody(), true);
+                    $status = $body['status'] ?? $body['data']['status'] ?? $body['ack'] ?? $body['data']['ack'] ?? null;
+                    if ($status !== null) {
+                        return ['status' => (string)$status, 'raw' => $body];
+                    }
+                } catch (\Exception $e) {
+                    error_log("WspSender::syncStatus openwa error: " . $e->getMessage());
+                    return ['status' => 'error', 'error' => $e->getMessage()];
+                }
+            }
+        }
+
         if ($vendor === 'wasenderapi') {
-            // For WaSenderAPI, we'll try to get-message if they have such endpoint,
-            // otherwise we return current status as-is or error.
-            // Placeholder: currently returning null as research didn't confirm a polling endpoint by ID for wasender yet.
+            // For WaSenderAPI, placeholder for polling endpoint if available
         }
 
         return ['status' => null];

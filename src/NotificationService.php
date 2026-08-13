@@ -801,20 +801,58 @@ class NotificationService
             return ['success' => false, 'message' => 'Notification not found or has no message ID.'];
         }
 
-        // Merge gateway credentials from the new table via FacilityConfig
+        // Merge gateway credentials via FacilityConfig
         $facilityId = (int)($data['pc_facility'] ?? 0);
+        if ($facilityId === 0 && !empty($data['pc_eid'])) {
+            $evt = sqlQuery("SELECT pc_facility FROM openemr_postcalendar_events WHERE pc_eid = ?", [(int)$data['pc_eid']]);
+            $facilityId = (int)($evt['pc_facility'] ?? 0);
+        }
+
+        $fc = new FacilityConfig();
         if ($facilityId > 0) {
-            $fc = new FacilityConfig();
             $facilityConfig = $fc->getByFacilityId($facilityId);
-            $data = array_merge($data, $facilityConfig);
+        } else {
+            $all = $fc->getAllFacilitiesWithConfig();
+            $facilityConfig = $all[0] ?? [];
+        }
+        if (!empty($facilityConfig)) {
+            $data = array_merge($facilityConfig, $data);
         }
 
         $sync = $this->wspSender->syncStatus($data, $data['msg_id']);
-        if (!empty($sync['status'])) {
-            $this->log->updateStatus($data['msg_id'], $sync['status']);
-            return ['success' => true, 'status' => $sync['status']];
+        if (!empty($sync['status']) && $sync['status'] !== 'error') {
+            $vendorName = strtolower($data['sms_gateway_type'] ?? $data['current_vendor'] ?? 'openwa');
+            $this->log->updateStatus($data['msg_id'], (string)$sync['status'], $vendorName, $sync['raw'] ?? null);
+            $canonical = StatusNormalizer::normalize($vendorName, (string)$sync['status']);
+
+            // Update calendar & tracker status if DELIVERED or READ
+            if (!empty($data['pc_eid']) && !empty($data['pid'])) {
+                $newApptStatus = null;
+                if ($canonical === 'READ') {
+                    $newApptStatus = 'wsp-read';
+                } elseif ($canonical === 'DELIVERED') {
+                    $newApptStatus = 'wsp-deliv';
+                }
+
+                if ($newApptStatus !== null) {
+                    sqlStatement(
+                        "UPDATE openemr_postcalendar_events SET pc_apptstatus = ? WHERE pc_eid = ?",
+                        [$newApptStatus, (int)$data['pc_eid']]
+                    );
+                    sqlStatement(
+                        "UPDATE patient_tracker_element pte
+                         INNER JOIN patient_tracker pt ON pt.id = pte.pt_tracker_id
+                         SET pte.status = ?
+                         WHERE pt.eid = ?",
+                        [$newApptStatus, (int)$data['pc_eid']]
+                    );
+                }
+            }
+
+            return ['success' => true, 'status' => $canonical, 'raw_status' => $sync['status']];
         }
 
-        return ['success' => false, 'message' => 'Status not updated from vendor.'];
+        $err = $sync['error'] ?? 'Status not updated from vendor.';
+        return ['success' => false, 'message' => $err];
     }
 }

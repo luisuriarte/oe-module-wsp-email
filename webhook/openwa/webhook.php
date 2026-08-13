@@ -35,10 +35,22 @@ use OpenEMR\Modules\WspEmail\FacilityConfig;
 use OpenEMR\Modules\WspEmail\StatusNormalizer;
 
 // Define a dedicated log file
-define('OPENWA_WEBHOOK_LOG', $openemrRoot . '/webhook/logs/openwa_webhook.log');
 function openwaLog(string $message): void
 {
-    @file_put_contents(OPENWA_WEBHOOK_LOG, date('Y-m-d H:i:s') . ' — ' . $message . "\n", FILE_APPEND | LOCK_EX);
+    $line = date('Y-m-d H:i:s') . ' — ' . $message . "\n";
+    
+    // 1. Webhook logs folder (/webhook/logs/)
+    $whLogDir = __DIR__ . '/../logs';
+    if (!is_dir($whLogDir)) {
+        @mkdir($whLogDir, 0755, true);
+    }
+    @file_put_contents($whLogDir . '/openwa_webhook.log', $line, FILE_APPEND | LOCK_EX);
+
+    // 2. Main module logs folder (/logs/)
+    $modLogDir = realpath(__DIR__ . '/../../') . '/logs';
+    if ($modLogDir && is_dir($modLogDir)) {
+        @file_put_contents($modLogDir . '/openwa_webhook.log', $line, FILE_APPEND | LOCK_EX);
+    }
 }
 
 // Log incoming request
@@ -98,7 +110,9 @@ $matchedFacility = null;
 foreach ($allFacilities as $facility) {
     $instance = $facility['openwa_instance'] ?? $facility['instance'] ?? '';
     $secret   = $facility['openwa_webhook_secret'] ?? $facility['webhook_secret'] ?? '';
-    if (!empty($instance) && $instance === $sessionId) {
+    
+    if ((!empty($instance) && ($instance === $sessionId || $instance === $receivedToken))
+        || (!empty($secret) && $secret === $receivedToken)) {
         $expectedSecret  = $secret;
         $matchedFacility = $facility;
         break;
@@ -107,13 +121,9 @@ foreach ($allFacilities as $facility) {
 
 $isAuthorized = false;
 
-// 1. Check URL token parameter (e.g. ?token=5Wq6hKnwlLiMIgadFb9pmNjzoRt0CPuQ)
-if (!empty($receivedToken)) {
-    if (!empty($expectedSecret) && hash_equals($expectedSecret, $receivedToken)) {
-        $isAuthorized = true;
-    } elseif ($matchedFacility !== null) {
-        $isAuthorized = true;
-    }
+// 1. Authorize if matched to a facility by instance ID, sessionId, or token
+if ($matchedFacility !== null) {
+    $isAuthorized = true;
 }
 
 // 2. Check X-Openwa-Signature header
@@ -124,13 +134,8 @@ if (!$isAuthorized && !empty($receivedSignature) && !empty($expectedSecret)) {
     }
 }
 
-// 3. Fallback: if facility matched by sessionId and no secret configured, allow request
-if (!$isAuthorized && $matchedFacility !== null && empty($expectedSecret)) {
-    $isAuthorized = true;
-}
-
 if (!$isAuthorized) {
-    openwaLog("Rejected: unauthorized webhook request for sessionId='$sessionId'.");
+    openwaLog("Rejected: unauthorized webhook request for sessionId='$sessionId', token='$receivedToken'.");
     http_response_code(401);
     exit;
 }
@@ -189,7 +194,7 @@ if (in_array($event, $supportedEvents, true)) {
             [$msgId]
         );
 
-        // Fallback search: if full prefixed msgId (e.g. false_5493404540440@c.us_3EB0...) is received, try matching suffix
+        // Fallback search 1: if full prefixed msgId (e.g. false_5493404540440@c.us_3EB0...) is received, try matching suffix
         if ((!$existing || empty($existing['iLogId'])) && strpos($msgId, '_') !== false) {
             $parts = explode('_', $msgId);
             $shortId = end($parts);
@@ -205,40 +210,33 @@ if (in_array($event, $supportedEvents, true)) {
             }
         }
 
-        // Auto-create minimal record if msg_id doesn't exist in notification_log
+        // Fallback search 2: match recent log entry sent to the same phone number in the last 15 minutes
         if (!$existing || empty($existing['iLogId'])) {
-            $chatId  = $webhookData['data']['chatId'] ?? $webhookData['data']['from'] ?? $webhookData['data']['to'] ?? '';
-            $phone   = preg_replace('/\D/', '', explode('@', $chatId)[0] ?? '');
-            $canonical = StatusNormalizer::normalize('openwa', $rawStatus);
-            $priority  = StatusNormalizer::getPriority($canonical);
-
-            sqlStatement(
-                "INSERT INTO notification_log
-                    (msg_id, type, sms_gateway_type, status, status_current, status_priority,
-                     provider_raw_status, provider_payload, patient_info, smsgateway_info,
-                     notification_seq, dSentDateTime)
-                 VALUES (?, 'WSP', 'openwa', ?, ?, ?, ?, ?, ?, ?, 0, NOW())",
-                [
-                    $msgId,
-                    $rawStatus,
-                    $canonical,
-                    $priority,
-                    $rawStatus,
-                    $webhookData ? json_encode($webhookData, JSON_UNESCAPED_UNICODE) : null,
-                    $phone ? "Webhook auto-creado |||{$phone}" : 'Webhook auto-creado',
-                    $sessionId,
-                ]
-            );
-            $newId = (int)sqlGetLastInsertId();
-            if ($newId > 0) {
-                $notifLog->addStatusHistory($newId, $canonical, $rawStatus, 'openwa', $webhookData);
-                openwaLog("Auto-created notification_log entry: iLogId=$newId, msgId=$msgId, phone=$phone, canonical=$canonical");
+            $chatId = $webhookData['data']['chatId'] ?? $webhookData['data']['from'] ?? $webhookData['data']['to'] ?? '';
+            $phone  = preg_replace('/\D/', '', explode('@', $chatId)[0] ?? '');
+            if (!empty($phone) && strlen($phone) >= 8) {
+                $recentLog = sqlQuery(
+                    "SELECT iLogId, pc_eid, pid, status_priority, status_current
+                     FROM notification_log
+                     WHERE type = 'WSP'
+                       AND (patient_info LIKE ? OR smsgateway_info LIKE ?)
+                       AND dSentDateTime >= NOW() - INTERVAL 15 MINUTE
+                     ORDER BY iLogId DESC LIMIT 1",
+                    ["%{$phone}%", "%{$phone}%"]
+                );
+                if ($recentLog && !empty($recentLog['iLogId'])) {
+                    $existing = $recentLog;
+                    openwaLog("Matched recent log entry by phone={$phone} -> iLogId={$existing['iLogId']}");
+                }
             }
-            // Re-fetch so the priority check below works
-            $existing = sqlQuery(
-                "SELECT iLogId, pc_eid, pid, status_priority, status_current FROM notification_log WHERE msg_id = ?",
-                [$msgId]
-            );
+        }
+
+        // If msgId is completely unrecognized, skip auto-creating PID:0 records to prevent ghost entries
+        if (!$existing || empty($existing['iLogId'])) {
+            openwaLog("Unrecognized msgId='$msgId' — skipping auto-creation of PID:0 entry.");
+            http_response_code(200);
+            echo json_encode(['status' => 'ok', 'skipped' => 'unrecognized_msg_id']);
+            exit;
         }
 
         if ($existing && isset($existing['status_priority'])) {
@@ -253,10 +251,11 @@ if (in_array($event, $supportedEvents, true)) {
             }
         }
 
-        $notifLog->updateStatus($msgId, $rawStatus, 'openwa', $webhookData);
+        $targetMsgId = !empty($existing['msg_id']) ? $existing['msg_id'] : $msgId;
+        $notifLog->updateStatus($targetMsgId, $rawStatus, 'openwa', $webhookData);
 
         $normalized = StatusNormalizer::normalize('openwa', $rawStatus);
-        openwaLog("Updated: msgId=$msgId -> raw=$rawStatus, canonical=$normalized" .
+        openwaLog("Updated: targetMsgId=$targetMsgId (rawId=$msgId) -> raw=$rawStatus, canonical=$normalized" .
             ($idempotencyKey ? " (key=$idempotencyKey)" : ''));
 
         // Update calendar event & patient tracker status if DELIVERED or READ
