@@ -297,6 +297,19 @@ if (in_array($event, $supportedEvents, true)) {
         }
 
         $targetMsgId = !empty($existing['msg_id']) ? $existing['msg_id'] : $msgId;
+
+        // Reconciliar: si el ID real de WhatsApp (rawId) difiere del guardado en la fila,
+        // actualizar msg_id ahora — los eventos message.ack no traen chatId/teléfono,
+        // así que el match exacto por msg_id es su ÚNICA forma de encontrar esta fila después.
+        if (!empty($msgId) && $msgId !== $targetMsgId && !empty($existing['iLogId'])) {
+            sqlStatement(
+                "UPDATE notification_log SET msg_id = ? WHERE iLogId = ?",
+                [$msgId, $existing['iLogId']]
+            );
+            openwaLog("Reconciled msg_id: iLogId={$existing['iLogId']} old='$targetMsgId' -> new='$msgId'");
+            $targetMsgId = $msgId;
+        }
+
         $notifLog->updateStatus($targetMsgId, $rawStatus, 'openwa', $webhookData);
 
         $normalized = StatusNormalizer::normalize('openwa', $rawStatus);
