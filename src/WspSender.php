@@ -65,6 +65,9 @@ class WspSender
         } elseif ($vendor === 'evolution-go') {
             $instance = $config['evolution_go_instance_name'] ?? '';
             $apiKey   = $config['evolution_go_api_key'] ?? '';
+        } elseif ($vendor === 'httpsms') {
+            $instance = $config['httpsms_from_number'] ?? '';  // 'instance' holds from_number for httpsms
+            $apiKey   = $config['httpsms_api_key']    ?? '';
         } else {
             $instance = '';
             $apiKey   = '';
@@ -124,6 +127,13 @@ class WspSender
                 case 'evolution-go':
                     $baseUrl = $config['evolution_go_base_url'] ?? '';
                     $result = $this->sendViaEvolutionGo($baseUrl, $apiKey, $instance, $phone, $message, $logoUrl, $icsUrl, $config, $log);
+                    break;
+
+                case 'httpsms':
+                    // $instance holds the 'from' number for httpsms
+                    $fromNumber = $instance;
+                    $baseUrl    = rtrim($config['httpsms_base_url'] ?? 'https://sms.origen.ar', '/');
+                    $result = $this->sendViaHttpSms($baseUrl, $apiKey, $fromNumber, $phone, $message, $log);
                     break;
 
                 default:
@@ -692,6 +702,97 @@ class WspSender
         }
 
         return ['status' => $msgId ? 'success' : 'error', 'msgId' => $msgId, 'log' => implode("\n", $log)];
+    }
+
+    // -------------------------------------------------------------------------
+    // HttpSMS  (https://docs.httpsms.com)
+    // Convierte un teléfono Android en SMS gateway vía API REST.
+    // Auth: x-api-key header
+    // Send: POST {baseUrl}/v1/messages/send
+    // Payload: { "content": "...", "from": "+...", "to": "+..." }
+    // Response: { "data": { "id": "uuid", ... }, "status": "ok" }
+    // -------------------------------------------------------------------------
+    private function sendViaHttpSms(
+        string $baseUrl,    string $apiKey,  string $fromNumber,
+        string $phone,      string $message, array  &$log
+    ): array {
+        $result = ['status' => 'error', 'msgId' => null, 'log' => ''];
+
+        if (empty($apiKey)) {
+            $log[] = 'HttpSMS: Missing API key';
+            $result['log'] = implode("\n", $log);
+            return $result;
+        }
+        if (empty($fromNumber)) {
+            $log[] = 'HttpSMS: Missing from_number (the Android phone number)';
+            $result['log'] = implode("\n", $log);
+            return $result;
+        }
+
+        // Ensure E.164 format for recipient
+        $cleanPhone = preg_replace('/\D/', '', $phone);
+        $to = '+' . $cleanPhone;
+
+        // Ensure E.164 format for sender (may already have +)
+        $from = $fromNumber;
+        if (!str_starts_with($from, '+')) {
+            $from = '+' . preg_replace('/\D/', '', $from);
+        }
+
+        // SMS supports text only — trim to 918 chars (6 concatenated SMS messages)
+        $content = mb_substr($message, 0, 918);
+
+        $url = $baseUrl . '/v1/messages/send';
+        $log[] = "HttpSMS::send() — to={$to}, from={$from}, url={$url}";
+
+        try {
+            $resp = $this->http->post($url, [
+                'headers' => [
+                    'x-api-key'    => $apiKey,
+                    'Content-Type' => 'application/json',
+                    'Accept'       => 'application/json',
+                ],
+                'json' => [
+                    'content' => $content,
+                    'from'    => $from,
+                    'to'      => $to,
+                ],
+            ]);
+
+            $body = json_decode((string)$resp->getBody(), true);
+            $log[] = 'HttpSMS response: ' . json_encode($body);
+
+            // Response: { "data": { "id": "uuid", ... }, "status": "ok" }
+            $msgId = $body['data']['id'] ?? null;
+
+            if (!empty($msgId)) {
+                $log[] = "HttpSMS: sent OK. msgId={$msgId}";
+                $result['status'] = 'success';
+                $result['msgId']  = (string)$msgId;
+            } else {
+                $log[] = 'HttpSMS: send failed — no message ID in response. Body: ' . json_encode($body);
+                $result['status'] = 'error';
+            }
+        } catch (RequestException $e) {
+            $log[] = 'HttpSMS REQUEST ERROR: ' . $e->getMessage();
+            if ($e->hasResponse()) {
+                $response   = $e->getResponse();
+                $statusCode = $response->getStatusCode();
+                $body       = (string)$response->getBody();
+                $log[] = "Response: {$statusCode} - {$body}";
+
+                if ($statusCode === 401 || $statusCode === 403) {
+                    $result['status'] = 'UNAUTHORIZED';
+                } elseif ($statusCode === 404) {
+                    $result['status'] = 'NOT_FOUND';
+                }
+            }
+        } catch (\Throwable $e) {
+            $log[] = 'HttpSMS EXCEPTION: ' . $e->getMessage();
+        }
+
+        $result['log'] = implode("\n", $log);
+        return $result;
     }
 
     // -------------------------------------------------------------------------

@@ -262,6 +262,15 @@ class StatusNormalizer
                 }
                 break;
 
+            case 'httpsms':
+                // Payload: { "event_id": "...", "type": "message.phone.sent", "data": { "id": "...", "status": "sent", ... } }
+                $nativeStatus = $webhookData['data']['status'] ?? '';
+                if (empty($nativeStatus)) {
+                    // Fallback: usar el tipo de evento directamente
+                    $nativeStatus = $webhookData['type'] ?? '';
+                }
+                break;
+
             case 'twilio':
                 $nativeStatus = $webhookData['message_status'] ?? '';
                 break;

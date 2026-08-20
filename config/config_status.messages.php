@@ -183,6 +183,28 @@ return [
         ],
 
         /**
+         * HttpSMS
+         * https://docs.httpsms.com
+         * Eventos: message.phone.sent, message.phone.delivered, message.send.failed,
+         *          message.send.expired, message.phone.received
+         * El campo 'data.status' puede ser: pending, sent, delivered, failed, expired
+         */
+        'httpsms' => [
+            'pending'   => 'QUEUED',
+            'sent'      => 'SENT',
+            'delivered' => 'DELIVERED',
+            'failed'    => 'FAILED',
+            'expired'   => 'FAILED',
+            'received'  => 'DELIVERED',   // SMS entrante — no se usa para tracking saliente
+            // Tipos de evento como fallback (cuando no hay data.status)
+            'message.phone.sent'      => 'SENT',
+            'message.phone.delivered' => 'DELIVERED',
+            'message.send.failed'     => 'FAILED',
+            'message.send.expired'    => 'FAILED',
+            'message.phone.received'  => 'DELIVERED',
+        ],
+
+        /**
          * Estado por defecto si no se reconoce
          */
         'default' => [

@@ -408,6 +408,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                     elseif ($vendor === 'openwa') $vendorBadgeColor = 'bg-warning';
                     elseif ($vendor === 'wasenderapi') $vendorBadgeColor = 'bg-info';
                     elseif ($vendor === 'ultramsg') $vendorBadgeColor = 'bg-primary';
+                    elseif ($vendor === 'httpsms') $vendorBadgeColor = 'bg-dark';
                     ?>
                     <?php if (!empty($vendor)): ?>
                     <span class="badge <?php echo $vendorBadgeColor; ?> mt-1"><?php echo text($vendor); ?></span>
@@ -443,6 +444,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                                 <option value="wasenderapi">WaSenderAPI</option>
                                 <option value="openwa">OpenWA</option>
                                 <option value="evolution-go">Evolution-Go</option>
+                                <option value="httpsms">HttpSMS (SMS)</option>
                             </select>
                             <small class="text-muted"><?php echo xlt('Active vendor for sending WhatsApp messages'); ?></small>
                         </div>
@@ -576,6 +578,63 @@ while ($pRow = sqlFetchArray($provRes)) {
                                            value="<?php echo attr($GLOBALS['webroot']); ?>/webhook/evolution-go/webhook.php"
                                            onclick="this.select()">
                                     <small class="text-muted"><?php echo xlt('Copy this URL to your Evolution-Go instance webhook settings.'); ?></small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- HttpSMS Configuration -->
+                        <div id="httpsmsConfig" style="display:none;">
+                            <h6 class="text-dark"><i class="fas fa-sms me-1"></i><?php echo xlt('HttpSMS Credentials (SMS Gateway)'); ?></h6>
+                            <div class="alert alert-info py-2 mb-3" style="font-size:.85em;">
+                                <i class="fas fa-info-circle me-1"></i>
+                                <?php echo xlt('HttpSMS converts your Android phone into an SMS gateway. Configure the webhook URL in your HttpSMS dashboard.'); ?>
+                                <br><strong><?php echo xlt('Note:'); ?></strong> <?php echo xlt('SMS sends text only (no images, no calendar files).'); ?>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Server URL'); ?></label>
+                                    <input type="text" name="httpsms_base_url" id="cfgHttpsmsBaseUrl" class="form-control form-control-sm" autocomplete="off"
+                                           placeholder="e.g., https://sms.origen.ar" value="https://sms.origen.ar">
+                                    <small class="text-muted"><?php echo xlt('URL of your HttpSMS server instance'); ?></small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('From Number (Android phone)'); ?></label>
+                                    <input type="text" name="httpsms_from_number" id="cfgHttpsmsFromNumber" class="form-control form-control-sm" autocomplete="off"
+                                           placeholder="e.g., +5491155667788">
+                                    <small class="text-muted"><?php echo xlt('International format with + prefix'); ?></small>
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('API Key'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="httpsms_api_key" id="cfgHttpsmsApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleHttpsmsApiKey()" title="Show/Hide API Key">
+                                            <i class="fas fa-eye" id="httpsmsApiKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="httpsmsApiKeyHint" style="display:none;">Current API key is set</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Webhook Key'); ?> <small class="text-muted">(<?php echo xlt('optional'); ?>)</small></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="httpsms_signing_key" id="cfgHttpsmsSigningKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleHttpsmsSigningKey()" title="Show/Hide Webhook Key">
+                                            <i class="fas fa-eye" id="httpsmsSigningKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="httpsmsSigningKeyHint" style="display:none;">Current webhook key is set</small>
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label"><?php echo xlt('Webhook URL (configure in HttpSMS dashboard)'); ?></label>
+                                    <input type="text" class="form-control form-control-sm bg-light" readonly
+                                           value="<?php echo attr($GLOBALS['webroot']); ?>/webhook/httpsms/webhook.php"
+                                           onclick="this.select()">
+                                    <small class="text-muted"><?php echo xlt('Copy this URL to your HttpSMS dashboard → Settings → Webhook URL.'); ?></small>
                                 </div>
                             </div>
                         </div>
@@ -1792,6 +1851,8 @@ function loadFacilityConfig(facilityId) {
                 vendorBadge = '<span class="badge bg-warning ms-2 small">OpenWA Active</span>';
             } else if (activeVendor === 'evolution-go') {
                 vendorBadge = '<span class="badge bg-secondary ms-2 small">Evolution-Go Active</span>';
+            } else if (activeVendor === 'httpsms') {
+                vendorBadge = '<span class="badge bg-dark ms-2 small">HttpSMS Active</span>';
             }
             title.innerHTML += vendorBadge;
 
@@ -1923,6 +1984,38 @@ function loadFacilityConfig(facilityId) {
                 evoWebhookInput.value = '';
                 evoWebhookHint.style.display = 'none';
                 evoWebhookInput.required = false;
+            }
+
+            // HttpSMS credentials
+            document.getElementById('cfgHttpsmsBaseUrl').value       = c.httpsms_base_url    || 'https://sms.origen.ar';
+            document.getElementById('cfgHttpsmsFromNumber').value    = c.httpsms_from_number || '';
+
+            const httpsmsApiKeyInput = document.getElementById('cfgHttpsmsApiKey');
+            const httpsmsApiKeyHint  = document.getElementById('httpsmsApiKeyHint');
+            if (c.httpsms_api_key && c.httpsms_api_key.length > 0) {
+                httpsmsApiKeyInput.dataset.fullKey = c.httpsms_api_key;
+                httpsmsApiKeyInput.value = '••••••••' + c.httpsms_api_key.slice(-8);
+                httpsmsApiKeyHint.style.display = 'block';
+                httpsmsApiKeyInput.required = false;
+            } else {
+                delete httpsmsApiKeyInput.dataset.fullKey;
+                httpsmsApiKeyInput.value = '';
+                httpsmsApiKeyHint.style.display = 'none';
+                httpsmsApiKeyInput.required = false;
+            }
+
+            const httpsmsSigningKeyInput = document.getElementById('cfgHttpsmsSigningKey');
+            const httpsmsSigningKeyHint  = document.getElementById('httpsmsSigningKeyHint');
+            if (c.httpsms_signing_key && c.httpsms_signing_key.length > 0) {
+                httpsmsSigningKeyInput.dataset.fullKey = c.httpsms_signing_key;
+                httpsmsSigningKeyInput.value = '••••••••' + c.httpsms_signing_key.slice(-8);
+                httpsmsSigningKeyHint.style.display = 'block';
+                httpsmsSigningKeyInput.required = false;
+            } else {
+                delete httpsmsSigningKeyInput.dataset.fullKey;
+                httpsmsSigningKeyInput.value = '';
+                httpsmsSigningKeyHint.style.display = 'none';
+                httpsmsSigningKeyInput.required = false;
             }
 
             // Show/hide sections based on active vendor
@@ -2433,20 +2526,54 @@ function toggleEvoWebhook() {
     }
 }
 
+function toggleHttpsmsApiKey() {
+    const input = document.getElementById('cfgHttpsmsApiKey');
+    const icon  = document.getElementById('httpsmsApiKeyIcon');
+    if (input && icon) {
+        if (input.type === 'password') {
+            input.type = 'text';
+            input.value = input.dataset.fullKey || input.value;
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            if (input.dataset.fullKey) {
+                input.value = '••••••••' + input.dataset.fullKey.slice(-8);
+            }
+            icon.className = 'fas fa-eye';
+        }
+    }
+}
+
+function toggleHttpsmsSigningKey() {
+    const input = document.getElementById('cfgHttpsmsSigningKey');
+    const icon  = document.getElementById('httpsmsSigningKeyIcon');
+    if (input && icon) {
+        if (input.type === 'password') {
+            input.type = 'text';
+            input.value = input.dataset.fullKey || input.value;
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            if (input.dataset.fullKey) {
+                input.value = '••••••••' + input.dataset.fullKey.slice(-8);
+            }
+            icon.className = 'fas fa-eye';
+        }
+    }
+}
+
 /**
  * Show/hide sections based on selected active vendor
- * - UltraMsg: shows UltraMsg credentials section
- * - WaSenderAPI: shows WaSenderAPI credentials section
- * - OpenWA: shows OpenWA credentials section
  */
 function handleVendorChange() {
     const vendor = document.getElementById('cfgCurrentVendor').value;
     const ultramsgConfig = document.getElementById('ultramsgConfig');
     const wasenderConfig = document.getElementById('wasenderConfig');
-    const openwaConfig = document.getElementById('openwaConfig');
-    const evoConfig = document.getElementById('evolutionGoConfig');
+    const openwaConfig   = document.getElementById('openwaConfig');
+    const evoConfig      = document.getElementById('evolutionGoConfig');
+    const httpsmsConfig  = document.getElementById('httpsmsConfig');
 
-    const sections = [ultramsgConfig, wasenderConfig, openwaConfig, evoConfig];
+    const sections = [ultramsgConfig, wasenderConfig, openwaConfig, evoConfig, httpsmsConfig];
     sections.forEach(s => { if (s) s.style.display = 'none'; });
 
     if (vendor === 'ultramsg') {
@@ -2457,6 +2584,8 @@ function handleVendorChange() {
         if (openwaConfig) openwaConfig.style.display = 'block';
     } else if (vendor === 'evolution-go') {
         if (evoConfig) evoConfig.style.display = 'block';
+    } else if (vendor === 'httpsms') {
+        if (httpsmsConfig) httpsmsConfig.style.display = 'block';
     }
 }
 

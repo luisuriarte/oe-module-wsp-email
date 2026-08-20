@@ -100,6 +100,14 @@ $data['gateway_config_evolution-go'] = [
     'webhook_secret'  => resolveCredential('evolution_go_webhook_secret', $_POST, $current),
 ];
 
+// HttpSMS
+$data['gateway_config_httpsms'] = [
+    'base_url'      => !empty($_POST['httpsms_base_url'])    ? trim($_POST['httpsms_base_url'])    : ($current['httpsms_base_url']    ?? 'https://sms.origen.ar'),
+    'from_number'   => !empty($_POST['httpsms_from_number']) ? trim($_POST['httpsms_from_number']) : ($current['httpsms_from_number'] ?? ''),
+    'api_key'       => resolveCredential('httpsms_api_key',      $_POST, $current),
+    'signing_key'   => resolveCredential('httpsms_signing_key',  $_POST, $current),
+];
+
 // -- Handle File Uploads --
 $uploadDir = $GLOBALS['fileroot'] . '/public/images/wsp_email/';
 $types = ['logo_wsp', 'logo_email'];
@@ -136,7 +144,7 @@ if (!empty($uploadErrors)) {
 }
 
 // Validate vendor value
-$allowedVendors = ['wasenderapi', 'ultramsg', 'openwa', 'evolution-go'];
+$allowedVendors = ['wasenderapi', 'ultramsg', 'openwa', 'evolution-go', 'httpsms'];
 if (!in_array($data['current_vendor'], $allowedVendors, true)) {
     echo json_encode(['success' => false, 'error' => 'Invalid vendor']);
     exit;
