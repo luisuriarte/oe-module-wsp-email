@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
   `notify_hours_before` int(5)        NOT NULL DEFAULT 48        COMMENT 'Deprecated: Hours before appointment',
   `enabled_wsp`         tinyint(1)    NOT NULL DEFAULT 1         COMMENT 'WhatsApp Enable Flag',
   `enabled_email`       tinyint(1)    NOT NULL DEFAULT 1         COMMENT 'Email Enable Flag',
+  `enabled_sms`         tinyint(1)    NOT NULL DEFAULT 0         COMMENT 'SMS Enable Flag',
   `notify_cancelled`    tinyint(1)    NOT NULL DEFAULT 1         COMMENT 'Send cancellation notifications',
 
   -- Telehealth Settings (Jitsi/Meet)
@@ -137,6 +138,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_notification_schedule` (
   `send_on_booking` tinyint(1) NOT NULL DEFAULT 0       COMMENT 'Send Immediately on Booking',
   `enabled_wsp`     tinyint(1) NOT NULL DEFAULT 1       COMMENT 'WhatsApp Enable Flag',
   `enabled_email`   tinyint(1) NOT NULL DEFAULT 1       COMMENT 'Email Enable Flag',
+  `enabled_sms`     tinyint(1) NOT NULL DEFAULT 0       COMMENT 'SMS Enable Flag',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_facility_seq` (`facility_id`, `seq`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci

@@ -17,6 +17,7 @@ class FacilityConfig
      */
     public function getByFacilityId(int $facilityId): array
     {
+        $this->ensureSmsColumns();
         $sql = "SELECT wfc.*, f.name AS facility_name, f.street, f.city, f.state,
                        f.phone AS facility_phone, f.email AS facility_email,
                        f.website AS website_url, f.inactive,
@@ -92,8 +93,11 @@ class FacilityConfig
             'email_subject'            => $data['email_subject']            ?? null,
             'enabled_wsp'              => isset($data['enabled_wsp'])       ? (int)$data['enabled_wsp']   : 1,
             'enabled_email'            => isset($data['enabled_email'])     ? (int)$data['enabled_email'] : 1,
+            'enabled_sms'              => isset($data['enabled_sms'])       ? (int)$data['enabled_sms']   : 0,
             'notify_cancelled'         => isset($data['notify_cancelled'])  ? (int)$data['notify_cancelled'] : 0,
         ];
+
+        $this->ensureSmsColumns();
 
         if ($exists) {
             $setClauses = implode(', ', array_map(fn($k) => "`$k` = ?", array_keys($fields)));
@@ -287,6 +291,8 @@ class FacilityConfig
             return false;
         }
 
+        $this->ensureSmsColumns();
+
         // Delete existing schedule for this facility
         sqlStatement(
             "DELETE FROM wsp_email_notification_schedule WHERE facility_id = ?",
@@ -299,12 +305,13 @@ class FacilityConfig
             $sendOnBooking = (int)($slot['send_on_booking'] ?? 0);
             $enabledWsp    = (int)($slot['enabled_wsp']    ?? 1);
             $enabledEmail  = (int)($slot['enabled_email']  ?? 1);
+            $enabledSms    = (int)($slot['enabled_sms']    ?? 0);
 
             sqlStatement(
                 "INSERT INTO wsp_email_notification_schedule
-                     (facility_id, seq, hours_before, send_on_booking, enabled_wsp, enabled_email)
-                 VALUES (?, ?, ?, ?, ?, ?)",
-                [$facilityId, $seq, $hoursBefore, $sendOnBooking, $enabledWsp, $enabledEmail]
+                     (facility_id, seq, hours_before, send_on_booking, enabled_wsp, enabled_email, enabled_sms)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [$facilityId, $seq, $hoursBefore, $sendOnBooking, $enabledWsp, $enabledEmail, $enabledSms]
             );
         }
 
@@ -349,6 +356,62 @@ class FacilityConfig
             $rows[] = $row;
         }
         return $rows;
+    }
+
+    // =========================================================================
+    // Auto-Migrations: Ensure SMS Columns
+    // =========================================================================
+
+    private static bool $smsColumnsEnsured = false;
+
+    private function ensureSmsColumns(): void
+    {
+        if (self::$smsColumnsEnsured) {
+            return;
+        }
+        self::$smsColumnsEnsured = true;
+
+        // Check enabled_sms in wsp_email_facility_config
+        $col1 = sqlQuery(
+            "SELECT COLUMN_NAME
+             FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME   = 'wsp_email_facility_config'
+               AND COLUMN_NAME  = 'enabled_sms'"
+        );
+        if (empty($col1)) {
+            try {
+                sqlStatement(
+                    "ALTER TABLE `wsp_email_facility_config`
+                     ADD COLUMN `enabled_sms` tinyint(1) NOT NULL DEFAULT 0
+                     COMMENT 'SMS Enable Flag'
+                     AFTER `enabled_email`"
+                );
+            } catch (\Throwable $e) {
+                // Ignore if already exists
+            }
+        }
+
+        // Check enabled_sms in wsp_email_notification_schedule
+        $col2 = sqlQuery(
+            "SELECT COLUMN_NAME
+             FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME   = 'wsp_email_notification_schedule'
+               AND COLUMN_NAME  = 'enabled_sms'"
+        );
+        if (empty($col2)) {
+            try {
+                sqlStatement(
+                    "ALTER TABLE `wsp_email_notification_schedule`
+                     ADD COLUMN `enabled_sms` tinyint(1) NOT NULL DEFAULT 0
+                     COMMENT 'SMS Enable Flag'
+                     AFTER `enabled_email`"
+                );
+            } catch (\Throwable $e) {
+                // Ignore if already exists
+            }
+        }
     }
 
     // =========================================================================

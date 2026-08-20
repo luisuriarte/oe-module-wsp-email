@@ -65,9 +65,6 @@ class WspSender
         } elseif ($vendor === 'evolution-go') {
             $instance = $config['evolution_go_instance_name'] ?? '';
             $apiKey   = $config['evolution_go_api_key'] ?? '';
-        } elseif ($vendor === 'httpsms') {
-            $instance = $config['httpsms_from_number'] ?? '';  // 'instance' holds from_number for httpsms
-            $apiKey   = $config['httpsms_api_key']    ?? '';
         } else {
             $instance = '';
             $apiKey   = '';
@@ -129,17 +126,12 @@ class WspSender
                     $result = $this->sendViaEvolutionGo($baseUrl, $apiKey, $instance, $phone, $message, $logoUrl, $icsUrl, $config, $log);
                     break;
 
-                case 'httpsms':
-                    // $instance holds the 'from' number for httpsms
-                    $fromNumber = $instance;
-                    $baseUrl    = rtrim($config['httpsms_base_url'] ?? 'https://sms.origen.ar', '/');
-                    $result = $this->sendViaHttpSms($baseUrl, $apiKey, $fromNumber, $phone, $message, $log);
-                    break;
-
                 default:
                     $log[] = "Unknown vendor: $vendor";
                     break;
             }
+        } catch (\Throwable $e) {
+            $log[] = 'Exception: ' . $e->getMessage();
         } catch (\Throwable $e) {
             $log[] = 'Exception: ' . $e->getMessage();
         }
@@ -164,6 +156,57 @@ class WspSender
         }
 
         return $result;
+    }
+
+    /**
+     * Dispatches an SMS notification using HttpSMS.
+     *
+     * @param array $config   Facility configuration containing httpsms credentials
+     * @param array $patient  Patient + appointment data row
+     * @return array ['status' => 'success'|'error', 'msgId' => string|null, 'log' => string]
+     */
+    public function sendSms(array $config, array $patient): array
+    {
+        $log    = [];
+        $result = ['status' => 'error', 'msgId' => null, 'log' => ''];
+
+        $phone      = preg_replace('/\D/', '', $patient['phone_cell'] ?? '');
+        $apiKey     = $config['httpsms_api_key']     ?? '';
+        $fromNumber = $config['httpsms_from_number'] ?? '';
+        $baseUrl    = rtrim($config['httpsms_base_url'] ?? 'https://sms.origen.ar', '/');
+
+        $message = $patient['_message'] ?? '';
+        if (empty($message)) {
+            $facilityId = (int)($config['facility_id'] ?? $patient['pc_facility'] ?? 0);
+            $pcCatid    = (int)($patient['pc_catid'] ?? 0);
+            $pcStatus   = self::normalizeApptStatusForTemplate(
+                (string)($patient['tracker_status'] ?? ''),
+                (string)($patient['pc_apptstatus'] ?? '')
+            );
+            if (!empty($pcCatid)) {
+                $template = self::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'patient');
+                if (!empty($template)) {
+                    $message = self::buildMessage($template, $patient);
+                }
+            }
+        }
+
+        if (empty($phone) || strlen($phone) < 8 || empty($apiKey) || empty($fromNumber)) {
+            $result['log'] = 'Missing required SMS parameters (phone, api_key, or from_number).';
+            return $result;
+        }
+
+        $res = $this->sendViaHttpSms($baseUrl, $apiKey, $fromNumber, $phone, $message, $log);
+
+        // Write SMS log to sms_notify.log
+        $smsLogMessage = date('Y-m-d H:i:s') . " — " . $res['log'] . "\n" . str_repeat('-', 80) . "\n";
+        $smsLogFile = __DIR__ . '/../logs/sms_notify.log';
+        if (!is_dir(dirname($smsLogFile))) {
+            @mkdir(dirname($smsLogFile), 0755, true);
+        }
+        @file_put_contents($smsLogFile, $smsLogMessage, FILE_APPEND | LOCK_EX);
+
+        return $res;
     }
 
     // -------------------------------------------------------------------------

@@ -70,6 +70,16 @@ class NotificationService
     }
 
     /**
+     * Process all pending SMS notifications (called by cron).
+     *
+     * @param bool $dryRun  If true, log but do NOT actually send.
+     */
+    public function runSms(bool $dryRun = false): void
+    {
+        $this->runByType('SMS', $dryRun);
+    }
+
+    /**
      * Fires the on-booking notification for a newly created/edited appointment.
      * Call this from the calendar save hook (OpenEMR event) or from a post-save trigger.
      *
@@ -110,6 +120,11 @@ class NotificationService
                     $this->deliverEmail($patient, $config, $seq, false);
                 }
             }
+            if (!empty($slot['enabled_sms']) && !empty($config['enabled_sms'])) {
+                if (!$this->alreadySent('SMS', (int)$patient['pid'], (int)$patient['pc_eid'], $seq)) {
+                    $this->deliverSms($patient, $config, $seq, false);
+                }
+            }
         }
     }
 
@@ -130,13 +145,14 @@ class NotificationService
             }
             if ($type === 'WSP'   && empty($config['enabled_wsp']))   continue;
             if ($type === 'EMAIL' && empty($config['enabled_email'])) continue;
+            if ($type === 'SMS'   && empty($config['enabled_sms']))   continue;
 
             // Fetch the cron-triggered schedule slots for this facility
             $slots = $this->facilityConfig->getScheduledSlots($facilityId);
 
             if (empty($slots)) {
                 // Fallback: if no schedule configured, use a single default 48-hour slot
-                $slots = [['seq' => 1, 'hours_before' => 48, 'send_on_booking' => 0, 'enabled_wsp' => 1, 'enabled_email' => 1]];
+                $slots = [['seq' => 1, 'hours_before' => 48, 'send_on_booking' => 0, 'enabled_wsp' => 1, 'enabled_email' => 1, 'enabled_sms' => 1]];
             }
 
             // Check allowed sending window for this facility (day-aware)
@@ -181,6 +197,7 @@ class NotificationService
                 // Only process slots whose channel matches the current run type
                 if ($type === 'WSP'   && empty($slot['enabled_wsp']))   continue;
                 if ($type === 'EMAIL' && empty($slot['enabled_email'])) continue;
+                if ($type === 'SMS'   && empty($slot['enabled_sms']))   continue;
 
                 $patients = $this->getPatientsForSlot($facilityId, $type, $seq, $hoursBefore);
                 echo "  Facility #{$facilityId} | slot seq={$seq} ({$hoursBefore}h before) | {$type} | "
@@ -207,6 +224,8 @@ class NotificationService
                         }
 
                         $this->deliverWsp($patient, $config, $seq, true);
+                    } elseif ($type === 'SMS') {
+                        $this->deliverSms($patient, $config, $seq, true);
                     } else {
                         $this->deliverEmail($patient, $config, $seq, true);
                     }
@@ -427,6 +446,49 @@ class NotificationService
         $this->updateTracker($patient, 'EMAIL');
     }
 
+    private function deliverSms(array &$patient, array $config, int $seq, bool $updateCalFlag): void
+    {
+        // Resolve message template
+        $facilityId = (int)($config['facility_id'] ?? $patient['pc_facility'] ?? 0);
+        $pcCatid    = (int)($patient['pc_catid'] ?? 0);
+        $pcStatus   = WspSender::normalizeApptStatusForTemplate(
+            (string)($patient['tracker_status'] ?? ''),
+            (string)($patient['pc_apptstatus'] ?? '')
+        );
+        $template = '';
+        if (!empty($pcCatid)) {
+            $template = WspSender::resolveTemplate($facilityId, $pcCatid, $pcStatus, 'patient');
+        }
+        $patient['_message'] = WspSender::buildMessage($template, $patient);
+
+        try {
+            $phone = $patient['phone_cell'] ?? '';
+
+            // Rate limiting + delay
+            $this->rateLimiter->throttle($facilityId, 'httpsms', $phone);
+
+            $result    = $this->wspSender->sendSms($config, $patient);
+            $msgId     = $result['msgId'] ?? null;
+            $rawStatus = $result['status'] ?? 'error';
+
+            // Normalize status
+            $canonicalStatus = StatusNormalizer::normalize('httpsms', $rawStatus);
+            $statusPriority  = StatusNormalizer::getPriority($canonicalStatus);
+
+            $this->insertLog('SMS', $patient, $config, $msgId, $rawStatus, $seq, $canonicalStatus, $statusPriority, 'httpsms', $result);
+
+            if ($updateCalFlag) {
+                $this->markEventSent('SMS', (int)$patient['pid'], (int)$patient['pc_eid']);
+            }
+            $this->updateTracker($patient, 'SMS');
+        } catch (\Throwable $e) {
+            $errorMsg = $e->getMessage();
+            $errorLog = 'EXCEPTION in deliverSms: ' . $errorMsg . "\nTrace: " . $e->getTraceAsString();
+            $this->insertLog('SMS', $patient, $config, null, 'error', $seq, 'ERROR', 0, 'httpsms', ['error' => $errorMsg, 'log' => $errorLog]);
+            echo "    SMS ERROR: " . $errorMsg . "\n";
+        }
+    }
+
     private function resolveNotificationTemplate(int $facilityId, int $pcCatid, string $pcApptstatus, string $recipientType = 'patient'): string
     {
         // Try exact match first: facility_id + pc_catid + pc_apptstatus + recipient_type
@@ -479,7 +541,7 @@ class NotificationService
      */
     private function getPatientsForSlot(int $facilityId, string $type, int $seq, int $hoursBefore): array
     {
-        if ($type === 'WSP') {
+        if ($type === 'WSP' || $type === 'SMS') {
             $hipaaFilter = "AND pd.hipaa_allowsms = 'YES' AND pd.phone_cell <> ''";
         } else {
             $hipaaFilter = "AND pd.hipaa_allowemail = 'YES' AND pd.email <> ''";

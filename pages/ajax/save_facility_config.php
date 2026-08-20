@@ -51,6 +51,7 @@ $data = [
     'notify_hours_before' => (int)($_POST['notify_hours_before'] ?? 48),
     'enabled_wsp'         => (int)($_POST['enabled_wsp']         ?? 0),
     'enabled_email'       => (int)($_POST['enabled_email']       ?? 0),
+    'enabled_sms'         => (int)($_POST['enabled_sms']         ?? 0),
     'notify_cancelled'    => (int)($_POST['notify_cancelled']    ?? 0),
     'send_weekday_start'    => isset($_POST['send_weekday_start'])    ? (int)$_POST['send_weekday_start']    : 7,
     'send_weekday_end'      => isset($_POST['send_weekday_end'])      ? (int)$_POST['send_weekday_end']      : 21,
@@ -144,7 +145,7 @@ if (!empty($uploadErrors)) {
 }
 
 // Validate vendor value
-$allowedVendors = ['wasenderapi', 'ultramsg', 'openwa', 'evolution-go', 'httpsms'];
+$allowedVendors = ['wasenderapi', 'ultramsg', 'openwa', 'evolution-go'];
 if (!in_array($data['current_vendor'], $allowedVendors, true)) {
     echo json_encode(['success' => false, 'error' => 'Invalid vendor']);
     exit;

@@ -408,7 +408,6 @@ while ($pRow = sqlFetchArray($provRes)) {
                     elseif ($vendor === 'openwa') $vendorBadgeColor = 'bg-warning';
                     elseif ($vendor === 'wasenderapi') $vendorBadgeColor = 'bg-info';
                     elseif ($vendor === 'ultramsg') $vendorBadgeColor = 'bg-primary';
-                    elseif ($vendor === 'httpsms') $vendorBadgeColor = 'bg-dark';
                     ?>
                     <?php if (!empty($vendor)): ?>
                     <span class="badge <?php echo $vendorBadgeColor; ?> mt-1"><?php echo text($vendor); ?></span>
@@ -444,7 +443,6 @@ while ($pRow = sqlFetchArray($provRes)) {
                                 <option value="wasenderapi">WaSenderAPI</option>
                                 <option value="openwa">OpenWA</option>
                                 <option value="evolution-go">Evolution-Go</option>
-                                <option value="httpsms">HttpSMS (SMS)</option>
                             </select>
                             <small class="text-muted"><?php echo xlt('Active vendor for sending WhatsApp messages'); ?></small>
                         </div>
@@ -584,63 +582,6 @@ while ($pRow = sqlFetchArray($provRes)) {
 
                         <hr>
 
-                        <!-- HttpSMS Configuration -->
-                        <div id="httpsmsConfig" style="display:none;">
-                            <h6 class="text-dark"><i class="fas fa-sms me-1"></i><?php echo xlt('HttpSMS Credentials (SMS Gateway)'); ?></h6>
-                            <div class="alert alert-info py-2 mb-3" style="font-size:.85em;">
-                                <i class="fas fa-info-circle me-1"></i>
-                                <?php echo xlt('HttpSMS converts your Android phone into an SMS gateway. Configure the webhook URL in your HttpSMS dashboard.'); ?>
-                                <br><strong><?php echo xlt('Note:'); ?></strong> <?php echo xlt('SMS sends text only (no images, no calendar files).'); ?>
-                            </div>
-                            <div class="row g-2 mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label"><?php echo xlt('Server URL'); ?></label>
-                                    <input type="text" name="httpsms_base_url" id="cfgHttpsmsBaseUrl" class="form-control form-control-sm" autocomplete="off"
-                                           placeholder="e.g., https://sms.origen.ar" value="https://sms.origen.ar">
-                                    <small class="text-muted"><?php echo xlt('URL of your HttpSMS server instance'); ?></small>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label"><?php echo xlt('From Number (Android phone)'); ?></label>
-                                    <input type="text" name="httpsms_from_number" id="cfgHttpsmsFromNumber" class="form-control form-control-sm" autocomplete="off"
-                                           placeholder="e.g., +5491155667788">
-                                    <small class="text-muted"><?php echo xlt('International format with + prefix'); ?></small>
-                                </div>
-                            </div>
-                            <div class="row g-2 mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label"><?php echo xlt('API Key'); ?></label>
-                                    <div class="input-group input-group-sm">
-                                        <input type="password" name="httpsms_api_key" id="cfgHttpsmsApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
-                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleHttpsmsApiKey()" title="Show/Hide API Key">
-                                            <i class="fas fa-eye" id="httpsmsApiKeyIcon"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-muted" id="httpsmsApiKeyHint" style="display:none;">Current API key is set</small>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label"><?php echo xlt('Webhook Key'); ?> <small class="text-muted">(<?php echo xlt('optional'); ?>)</small></label>
-                                    <div class="input-group input-group-sm">
-                                        <input type="password" name="httpsms_signing_key" id="cfgHttpsmsSigningKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
-                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleHttpsmsSigningKey()" title="Show/Hide Webhook Key">
-                                            <i class="fas fa-eye" id="httpsmsSigningKeyIcon"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-muted" id="httpsmsSigningKeyHint" style="display:none;">Current webhook key is set</small>
-                                </div>
-                            </div>
-                            <div class="row g-2 mb-3">
-                                <div class="col-md-12">
-                                    <label class="form-label"><?php echo xlt('Webhook URL (configure in HttpSMS dashboard)'); ?></label>
-                                    <input type="text" class="form-control form-control-sm bg-light" readonly
-                                           value="<?php echo attr($GLOBALS['webroot']); ?>/webhook/httpsms/webhook.php"
-                                           onclick="this.select()">
-                                    <small class="text-muted"><?php echo xlt('Copy this URL to your HttpSMS dashboard → Settings → Webhook URL.'); ?></small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr>
-
                         <!-- Logos Section -->
                         <h6 class="text-primary"><?php echo xlt('Email'); ?></h6>
                         <div class="row g-2 mb-3">
@@ -697,7 +638,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                         <hr>
                         <h6><?php echo xlt('Channel Enable/Disable'); ?></h6>
                          <div class="row g-2 mb-3">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="d-flex align-items-center gap-2">
                                     <label class="custom-checkbox">
                                         <input type="checkbox" name="enabled_wsp" id="cfgEnabledWsp" value="1" checked>
@@ -706,7 +647,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                                     <label class="form-label mb-0" for="cfgEnabledWsp"><?php echo xlt('WhatsApp enabled'); ?></label>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="d-flex align-items-center gap-2">
                                     <label class="custom-checkbox">
                                         <input type="checkbox" name="enabled_email" id="cfgEnabledEmail" value="1" checked>
@@ -715,7 +656,16 @@ while ($pRow = sqlFetchArray($provRes)) {
                                     <label class="form-label mb-0" for="cfgEnabledEmail"><?php echo xlt('Email enabled'); ?></label>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <div class="d-flex align-items-center gap-2">
+                                    <label class="custom-checkbox">
+                                        <input type="checkbox" name="enabled_sms" id="cfgEnabledSms" value="1">
+                                        <span class="slider"></span>
+                                    </label>
+                                    <label class="form-label mb-0" for="cfgEnabledSms"><?php echo xlt('SMS enabled'); ?></label>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
                                 <div class="d-flex align-items-center gap-2">
                                     <label class="custom-checkbox">
                                         <input type="checkbox" name="notify_cancelled" id="cfgNotifyCancelled" value="1">
@@ -853,6 +803,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                                     <th><?php echo xlt('Hours before appt.'); ?></th>
                                     <th style="width:70px"><?php echo xlt('Via WSP'); ?></th>
                                     <th style="width:70px"><?php echo xlt('Via Email'); ?></th>
+                                    <th style="width:70px"><?php echo xlt('Via SMS'); ?></th>
                                     <th style="width:40px"></th>
                                 </tr>
                             </thead>
@@ -881,6 +832,70 @@ while ($pRow = sqlFetchArray($provRes)) {
                             </span>
                         </div>
                     </div><!-- /facility-subtab-config -->
+
+                    <!-- ================================================
+                         FACILITY SUB-TAB: SMS (HttpSMS)
+                    ================================================= -->
+                    <div id="facility-subtab-sms" class="d-none">
+                        <h6 class="text-dark mb-3"><i class="fas fa-sms me-2"></i><?php echo xlt('HttpSMS Gateway (SMS Configuration)'); ?></h6>
+                        <div class="alert alert-info py-2 mb-3" style="font-size:.85em;">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <?php echo xlt('HttpSMS converts your Android phone into an SMS gateway. Configure the webhook URL in your HttpSMS dashboard.'); ?>
+                            <br><strong><?php echo xlt('Note:'); ?></strong> <?php echo xlt('SMS sends text only (no images, no calendar files).'); ?>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label"><?php echo xlt('Server URL'); ?></label>
+                                <input type="text" name="httpsms_base_url" id="cfgHttpsmsBaseUrl" class="form-control form-control-sm" autocomplete="off"
+                                       placeholder="e.g., https://sms.origen.ar" value="https://sms.origen.ar">
+                                <small class="text-muted"><?php echo xlt('URL of your HttpSMS server instance'); ?></small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label"><?php echo xlt('From Number (Android phone)'); ?></label>
+                                <input type="text" name="httpsms_from_number" id="cfgHttpsmsFromNumber" class="form-control form-control-sm" autocomplete="off"
+                                       placeholder="e.g., +5491155667788">
+                                <small class="text-muted"><?php echo xlt('International format with + prefix'); ?></small>
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label"><?php echo xlt('API Key'); ?></label>
+                                <div class="input-group input-group-sm">
+                                    <input type="password" name="httpsms_api_key" id="cfgHttpsmsApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="toggleHttpsmsApiKey()" title="Show/Hide API Key">
+                                        <i class="fas fa-eye" id="httpsmsApiKeyIcon"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted" id="httpsmsApiKeyHint" style="display:none;">Current API key is set</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label"><?php echo xlt('Webhook Key'); ?> <small class="text-muted">(<?php echo xlt('optional'); ?>)</small></label>
+                                <div class="input-group input-group-sm">
+                                    <input type="password" name="httpsms_signing_key" id="cfgHttpsmsSigningKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="toggleHttpsmsSigningKey()" title="Show/Hide Webhook Key">
+                                        <i class="fas fa-eye" id="httpsmsSigningKeyIcon"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted" id="httpsmsSigningKeyHint" style="display:none;">Current webhook key is set</small>
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-12">
+                                <label class="form-label"><?php echo xlt('Webhook URL (configure in HttpSMS dashboard)'); ?></label>
+                                <input type="text" class="form-control form-control-sm bg-light" readonly
+                                       value="<?php echo attr($GLOBALS['webroot']); ?>/webhook/httpsms/webhook.php"
+                                       onclick="this.select()">
+                                <small class="text-muted"><?php echo xlt('Copy this URL to your HttpSMS dashboard → Settings → Webhook URL.'); ?></small>
+                            </div>
+                        </div>
+
+                        <hr>
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="submit" class="btn btn-success btn-save">
+                                <i class="fas fa-save me-1"></i><?php echo xlt('Save Configuration'); ?>
+                            </button>
+                        </div>
+                    </div><!-- /facility-subtab-sms -->
 
                     <!-- ================================================
                          FACILITY SUB-TAB: RECALLS
@@ -2051,6 +2066,7 @@ function loadFacilityConfig(facilityId) {
             initFacilityMap(c.latitude || -34.6037, c.longitude || -58.3816);
             document.getElementById('cfgEnabledWsp').checked    = parseInt(c.enabled_wsp   ?? 1) === 1;
             document.getElementById('cfgEnabledEmail').checked  = parseInt(c.enabled_email ?? 1) === 1;
+            document.getElementById('cfgEnabledSms').checked    = parseInt(c.enabled_sms   ?? 0) === 1;
             document.getElementById('cfgNotifyCancelled').checked = parseInt(c.notify_cancelled ?? 0) === 1;
 
             // Sending Window
@@ -2077,7 +2093,7 @@ function loadFacilityConfig(facilityId) {
                 slots.forEach(s => appendScheduleRow(s));
             } else {
                 // Default: one slot, 48h before, no on-booking
-                appendScheduleRow({ seq: 1, hours_before: 48, send_on_booking: 0, enabled_wsp: 1, enabled_email: 1 });
+                appendScheduleRow({ seq: 1, hours_before: 48, send_on_booking: 0, enabled_wsp: 1, enabled_email: 1, enabled_sms: 0 });
             }
 
             // Map interactions
@@ -2125,6 +2141,12 @@ function wireFacilitySubTabs(facilityId, isInactive) {
             </a>
         </li>
         <li class="nav-item">
+            <a href="#" id="subTabBtnSms" class="nav-link"
+               onclick="switchFacilitySubTab('sms'); return false;">
+                <i class="fas fa-sms me-1"></i><?php echo js_escape(xlt('SMS')); ?>
+            </a>
+        </li>
+        <li class="nav-item">
             <a href="#" id="subTabBtnRecalls" class="nav-link"
                onclick="switchFacilitySubTab('recalls'); return false;">
                 <i class="fas fa-redo-alt me-1"></i><?php echo js_escape(xlt('Recalls')); ?>
@@ -2137,25 +2159,27 @@ function wireFacilitySubTabs(facilityId, isInactive) {
 }
 
 /**
- * Switches between the Config and Recalls sub-tabs inside the facility panel.
+ * Switches between the Config, SMS and Recalls sub-tabs inside the facility panel.
  */
 function switchFacilitySubTab(tab) {
     const configContent  = document.getElementById('facility-subtab-config');
+    const smsContent     = document.getElementById('facility-subtab-sms');
     const recallsContent = document.getElementById('facility-subtab-recalls');
     const btnConfig  = document.getElementById('subTabBtnConfig');
+    const btnSms     = document.getElementById('subTabBtnSms');
     const btnRecalls = document.getElementById('subTabBtnRecalls');
 
-    if (!configContent || !recallsContent) return;
+    [configContent, smsContent, recallsContent].forEach(c => c?.classList.add('d-none'));
+    [btnConfig, btnSms, btnRecalls].forEach(b => b?.classList.remove('active'));
 
     if (tab === 'config') {
-        configContent.classList.remove('d-none');
-        recallsContent.classList.add('d-none');
+        configContent?.classList.remove('d-none');
         btnConfig?.classList.add('active');
-        btnRecalls?.classList.remove('active');
-    } else {
-        configContent.classList.add('d-none');
-        recallsContent.classList.remove('d-none');
-        btnConfig?.classList.remove('active');
+    } else if (tab === 'sms') {
+        smsContent?.classList.remove('d-none');
+        btnSms?.classList.add('active');
+    } else if (tab === 'recalls') {
+        recallsContent?.classList.remove('d-none');
         btnRecalls?.classList.add('active');
 
         // Lazy-load recall config when tab is first opened
@@ -2328,6 +2352,7 @@ function appendScheduleRow(slot) {
     const sob = parseInt(slot.send_on_booking ?? 0) === 1;
     const wsp = parseInt(slot.enabled_wsp     ?? 1) === 1;
     const em  = parseInt(slot.enabled_email   ?? 1) === 1;
+    const sms = parseInt(slot.enabled_sms     ?? 0) === 1;
     const h   = slot.hours_before ?? 48;
 
     const tr = document.createElement('tr');
@@ -2359,6 +2384,12 @@ function appendScheduleRow(slot) {
             </label>
         </td>
         <td class="text-center">
+            <label class="custom-checkbox">
+                <input type="checkbox" name="schedule[${n}][enabled_sms]" value="1" ${sms ? 'checked' : ''}>
+                <span class="slider"></span>
+            </label>
+        </td>
+        <td class="text-center">
             <button type="button" class="btn btn-xs btn-outline-danger" onclick="this.closest('tr').remove(); renumberSchedule();">
                 <i class="fas fa-times"></i>
             </button>
@@ -2367,7 +2398,7 @@ function appendScheduleRow(slot) {
 }
 
 function addScheduleRow() {
-    appendScheduleRow({ seq: scheduleSeq + 1, hours_before: 48, send_on_booking: 0, enabled_wsp: 1, enabled_email: 1 });
+    appendScheduleRow({ seq: scheduleSeq + 1, hours_before: 48, send_on_booking: 0, enabled_wsp: 1, enabled_email: 1, enabled_sms: 0 });
 }
 
 function toggleHoursCell(checkbox) {
@@ -2571,9 +2602,8 @@ function handleVendorChange() {
     const wasenderConfig = document.getElementById('wasenderConfig');
     const openwaConfig   = document.getElementById('openwaConfig');
     const evoConfig      = document.getElementById('evolutionGoConfig');
-    const httpsmsConfig  = document.getElementById('httpsmsConfig');
 
-    const sections = [ultramsgConfig, wasenderConfig, openwaConfig, evoConfig, httpsmsConfig];
+    const sections = [ultramsgConfig, wasenderConfig, openwaConfig, evoConfig];
     sections.forEach(s => { if (s) s.style.display = 'none'; });
 
     if (vendor === 'ultramsg') {
@@ -2584,8 +2614,6 @@ function handleVendorChange() {
         if (openwaConfig) openwaConfig.style.display = 'block';
     } else if (vendor === 'evolution-go') {
         if (evoConfig) evoConfig.style.display = 'block';
-    } else if (vendor === 'httpsms') {
-        if (httpsmsConfig) httpsmsConfig.style.display = 'block';
     }
 }
 
@@ -2635,6 +2663,7 @@ document.getElementById('facilityConfigForm')?.addEventListener('submit', functi
     const fd = new FormData(this);
     fd.set('enabled_wsp',   document.getElementById('cfgEnabledWsp').checked   ? 1 : 0);
     fd.set('enabled_email', document.getElementById('cfgEnabledEmail').checked ? 1 : 0);
+    fd.set('enabled_sms',   document.getElementById('cfgEnabledSms').checked   ? 1 : 0);
     fd.set('notify_cancelled', document.getElementById('cfgNotifyCancelled').checked ? 1 : 0);
     fd.set('send_saturday_enabled', document.getElementById('cfgSendSaturdayEnabled').checked ? 1 : 0);
     fd.set('send_sunday_enabled',   document.getElementById('cfgSendSundayEnabled').checked ? 1 : 0);
@@ -2646,7 +2675,8 @@ document.getElementById('facilityConfigForm')?.addEventListener('submit', functi
         const h   = parseInt(tr.querySelector('.hours-input')?.value || 48);
         const wsp = tr.querySelector('input[name$="[enabled_wsp]"]')?.checked ? 1 : 0;
         const em  = tr.querySelector('input[name$="[enabled_email]"]')?.checked ? 1 : 0;
-        scheduleRows.push({ seq: i + 1, hours_before: h, send_on_booking: sob, enabled_wsp: wsp, enabled_email: em });
+        const sms = tr.querySelector('input[name$="[enabled_sms]"]')?.checked ? 1 : 0;
+        scheduleRows.push({ seq: i + 1, hours_before: h, send_on_booking: sob, enabled_wsp: wsp, enabled_email: em, enabled_sms: sms });
     });
     fd.set('schedule_json', JSON.stringify(scheduleRows));
 
