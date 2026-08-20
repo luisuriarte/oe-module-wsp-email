@@ -44,6 +44,11 @@ $totals    = $notifLog->getSummaryTotals($weekAgo, $today);
 
 $moduleRoot = $GLOBALS['webroot'] . '/interface/modules/custom_modules/oe-module-wsp-email';
 
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+$scheme = $isHttps ? 'https' : 'http';
+$host = $_SERVER['HTTP_HOST'] ?? 'hcd.origen.ar';
+$serverOrigin = "{$scheme}://{$host}";
+
 // Fetch providers for the recall entry modal
 $providers = [];
 $provRes = sqlStatement("SELECT id, lname, fname, suffix FROM users WHERE authorized = 1 AND active = 1 ORDER BY lname, fname");
@@ -431,178 +436,23 @@ while ($pRow = sqlFetchArray($provRes)) {
                         </div>
 
                         <div id="facility-subtab-config">
-
-                        <!-- Vendor settings -->
-                        <h6 class="text-success"><?php echo xlt('WhatsApp Gateway'); ?></h6>
-
-                        <!-- Active Vendor Selector -->
-                        <div class="mb-3">
-                            <label class="form-label"><?php echo xlt('Select Vendor'); ?></label>
-                            <select name="current_vendor" id="cfgCurrentVendor" class="form-select form-select-sm" onchange="handleVendorChange()">
-                                <option value="ultramsg">UltraMsg</option>
-                                <option value="wasenderapi">WaSenderAPI</option>
-                                <option value="openwa">OpenWA</option>
-                                <option value="evolution-go">Evolution-Go</option>
-                            </select>
-                            <small class="text-muted"><?php echo xlt('Active vendor for sending WhatsApp messages'); ?></small>
-                        </div>
-
-                        <hr>
-
-                        <!-- UltraMsg Configuration -->
-                        <div id="ultramsgConfig">
-                            <h6 class="text-primary"><?php echo xlt('UltraMsg Credentials'); ?></h6>
-                            <div class="row g-2 mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label"><?php echo xlt('Instance ID'); ?></label>
-                                    <input type="text" name="ultramsg_instance" id="cfgUltraInstance" class="form-control form-control-sm" autocomplete="off" placeholder="e.g., instance41076">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label"><?php echo xlt('API Token'); ?></label>
-                                    <div class="input-group input-group-sm">
-                                        <input type="password" name="ultramsg_api_key" id="cfgUltraApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
-                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleUltraApiKey()" title="Show/Hide API Key">
-                                            <i class="fas fa-eye" id="ultraApiKeyIcon"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-muted" id="ultraApiKeyHint" style="display:none;">Current API key is set</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr>
-
-                        <!-- WaSenderAPI Configuration -->
-                        <div id="wasenderConfig">
-                            <h6 class="text-info"><?php echo xlt('WaSenderAPI Credentials'); ?></h6>
-                            <div class="row g-2 mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label"><?php echo xlt('API Key / Token'); ?></label>
-                                    <div class="input-group input-group-sm">
-                                        <input type="password" name="wasenderapi_api_key" id="cfgWaApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
-                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleWaApiKey()" title="Show/Hide API Key">
-                                            <i class="fas fa-eye" id="waApiKeyIcon"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-muted" id="waApiKeyHint" style="display:none;">Current API key is set</small>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label"><?php echo xlt('Webhook Secret'); ?></label>
-                                    <div class="input-group input-group-sm">
-                                        <input type="password" name="wasenderapi_webhook_secret" id="cfgWaWebhook" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
-                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleWaWebhook()" title="Show/Hide Webhook Secret">
-                                            <i class="fas fa-eye" id="waWebhookIcon"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-muted" id="waWebhookHint" style="display:none;">Current webhook secret is set</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr>
-
-                        <!-- OpenWA Configuration -->
-                        <div id="openwaConfig" style="display:none;">
-                            <h6 class="text-warning"><?php echo xlt('OpenWA Credentials'); ?></h6>
-                            <div class="row g-2 mb-3">
-                                <div class="col-md-4">
-                                    <label class="form-label"><?php echo xlt('Session ID (Instance)'); ?></label>
-                                    <input type="text" name="openwa_instance" id="cfgOwaInstance" class="form-control form-control-sm" autocomplete="off" placeholder="e.g., session1">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label"><?php echo xlt('API Key'); ?></label>
-                                    <div class="input-group input-group-sm">
-                                        <input type="password" name="openwa_api_key" id="cfgOwaApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
-                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleOwaApiKey()" title="Show/Hide API Key">
-                                            <i class="fas fa-eye" id="owaApiKeyIcon"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-muted" id="owaApiKeyHint" style="display:none;">Current API key is set</small>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label"><?php echo xlt('Webhook Secret'); ?></label>
-                                    <div class="input-group input-group-sm">
-                                        <input type="password" name="openwa_webhook_secret" id="cfgOwaWebhook" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
-                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleOwaWebhook()" title="Show/Hide Webhook Secret">
-                                            <i class="fas fa-eye" id="owaWebhookIcon"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-muted" id="owaWebhookHint" style="display:none;">Current webhook secret is set</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr>
-
-                        <!-- Evolution-Go Configuration -->
-                        <div id="evolutionGoConfig" style="display:none;">
-                            <h6 class="text-secondary"><?php echo xlt('Evolution-Go Credentials'); ?></h6>
-                            <div class="row g-2 mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label"><?php echo xlt('Base URL'); ?></label>
-                                    <input type="text" name="evolution_go_base_url" id="cfgEvoBaseUrl" class="form-control form-control-sm" autocomplete="off" placeholder="e.g., https://api.evolution-go.com">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label"><?php echo xlt('Instance Name'); ?></label>
-                                    <input type="text" name="evolution_go_instance_name" id="cfgEvoInstanceName" class="form-control form-control-sm" autocomplete="off" placeholder="e.g., my-instance">
-                                </div>
-                            </div>
-                            <div class="row g-2 mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label"><?php echo xlt('API Key'); ?></label>
-                                    <div class="input-group input-group-sm">
-                                        <input type="password" name="evolution_go_api_key" id="cfgEvoApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
-                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleEvoApiKey()" title="Show/Hide API Key">
-                                            <i class="fas fa-eye" id="evoApiKeyIcon"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-muted" id="evoApiKeyHint" style="display:none;">Current API key is set</small>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label"><?php echo xlt('Webhook Secret'); ?></label>
-                                    <div class="input-group input-group-sm">
-                                        <input type="password" name="evolution_go_webhook_secret" id="cfgEvoWebhook" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
-                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleEvoWebhook()" title="Show/Hide Webhook Secret">
-                                            <i class="fas fa-eye" id="evoWebhookIcon"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-muted" id="evoWebhookHint" style="display:none;">Current webhook secret is set</small>
-                                </div>
-                            </div>
-                            <div class="row g-2 mb-3">
-                                <div class="col-md-12">
-                                    <label class="form-label"><?php echo xlt('Webhook URL (configure in Evolution-Go dashboard)'); ?></label>
-                                    <input type="text" class="form-control form-control-sm bg-light" readonly
-                                           value="<?php echo attr($GLOBALS['webroot']); ?>/webhook/evolution-go/webhook.php"
-                                           onclick="this.select()">
-                                    <small class="text-muted"><?php echo xlt('Copy this URL to your Evolution-Go instance webhook settings.'); ?></small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr>
+                        <h6 class="text-secondary mb-3"><i class="fas fa-cog me-2"></i><?php echo xlt('General Configuration'); ?></h6>
 
                         <!-- Logos Section -->
-                        <h6 class="text-primary"><?php echo xlt('Email'); ?></h6>
+                        <h6 class="text-primary"><?php echo xlt('Email & WSP Logos'); ?></h6>
                         <div class="row g-2 mb-3">
-                            <div class="col-md-12" id="logoEmailContainer">
+                            <div class="col-md-6" id="logoEmailContainer">
                                 <label class="form-label"><?php echo xlt('Email Logo'); ?> <small class="text-muted">(Logo Actual: <span id="currentLogoEmailName">None</span>)</small></label>
                                 <input type="file" name="logo_email" id="cfgLogoEmail" class="form-control form-control-sm" accept="image/*">
                                 <div id="previewEmail" class="mt-2" style="max-height: 100px; display: none;"></div>
                             </div>
-                            <div class="col-md-12 text-muted small">
-                                <i class="fas fa-info-circle me-1"></i><?php echo xlt('Logos will be saved in images/logo_wsp and images/logo_email/'); ?>
-                            </div>
-                        </div>
-
-                        <hr>
-
-                        <!-- WSP Logo (separate row) -->
-                        <div class="row g-2 mb-3">
                             <div class="col-md-6" id="logoWspContainer">
                                 <label class="form-label"><?php echo xlt('WSP Logo'); ?> <small class="text-muted">(Logo Actual: <span id="currentLogoWspName">None</span>)</small></label>
                                 <input type="file" name="logo_wsp" id="cfgLogoWsp" class="form-control form-control-sm" accept="image/*">
                                 <div id="previewWsp" class="mt-2" style="max-height: 100px; display: none;"></div>
+                            </div>
+                            <div class="col-md-12 text-muted small mt-1">
+                                <i class="fas fa-info-circle me-1"></i><?php echo xlt('Logos will be saved in images/logo_wsp and images/logo_email/'); ?>
                             </div>
                         </div>
 
@@ -834,6 +684,159 @@ while ($pRow = sqlFetchArray($provRes)) {
                     </div><!-- /facility-subtab-config -->
 
                     <!-- ================================================
+                         FACILITY SUB-TAB: WSP (WhatsApp Gateways)
+                    ================================================= -->
+                    <div id="facility-subtab-wsp" class="d-none">
+                        <h6 class="text-success mb-3"><i class="fab fa-whatsapp me-2"></i><?php echo xlt('WhatsApp Gateway Configuration'); ?></h6>
+
+                        <!-- Active Vendor Selector -->
+                        <div class="mb-3">
+                            <label class="form-label"><?php echo xlt('Select Active WhatsApp Vendor'); ?></label>
+                            <select name="current_vendor" id="cfgCurrentVendor" class="form-select form-select-sm" onchange="handleVendorChange()">
+                                <option value="ultramsg">UltraMsg</option>
+                                <option value="wasenderapi">WaSenderAPI</option>
+                                <option value="openwa">OpenWA</option>
+                                <option value="evolution-go">Evolution-Go</option>
+                            </select>
+                            <small class="text-muted"><?php echo xlt('Active vendor for sending WhatsApp messages'); ?></small>
+                        </div>
+
+                        <hr>
+
+                        <!-- UltraMsg Configuration -->
+                        <div id="ultramsgConfig">
+                            <h6 class="text-primary"><?php echo xlt('UltraMsg Credentials'); ?></h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Instance ID'); ?></label>
+                                    <input type="text" name="ultramsg_instance" id="cfgUltraInstance" class="form-control form-control-sm" autocomplete="off" placeholder="e.g., instance41076">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('API Token'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="ultramsg_api_key" id="cfgUltraApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleUltraApiKey()" title="Show/Hide API Key">
+                                            <i class="fas fa-eye" id="ultraApiKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="ultraApiKeyHint" style="display:none;">Current API key is set</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- WaSenderAPI Configuration -->
+                        <div id="wasenderConfig">
+                            <h6 class="text-info"><?php echo xlt('WaSenderAPI Credentials'); ?></h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('API Key / Token'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="wasenderapi_api_key" id="cfgWaApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleWaApiKey()" title="Show/Hide API Key">
+                                            <i class="fas fa-eye" id="waApiKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="waApiKeyHint" style="display:none;">Current API key is set</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Webhook Secret'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="wasenderapi_webhook_secret" id="cfgWaWebhook" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleWaWebhook()" title="Show/Hide Webhook Secret">
+                                            <i class="fas fa-eye" id="waWebhookIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="waWebhookHint" style="display:none;">Current webhook secret is set</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- OpenWA Configuration -->
+                        <div id="openwaConfig" style="display:none;">
+                            <h6 class="text-warning"><?php echo xlt('OpenWA Credentials'); ?></h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label"><?php echo xlt('Session ID (Instance)'); ?></label>
+                                    <input type="text" name="openwa_instance" id="cfgOwaInstance" class="form-control form-control-sm" autocomplete="off" placeholder="e.g., session1">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label"><?php echo xlt('API Key'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="openwa_api_key" id="cfgOwaApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleOwaApiKey()" title="Show/Hide API Key">
+                                            <i class="fas fa-eye" id="owaApiKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="owaApiKeyHint" style="display:none;">Current API key is set</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label"><?php echo xlt('Webhook Secret'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="openwa_webhook_secret" id="cfgOwaWebhook" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleOwaWebhook()" title="Show/Hide Webhook Secret">
+                                            <i class="fas fa-eye" id="owaWebhookIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="owaWebhookHint" style="display:none;">Current webhook secret is set</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Evolution-Go Configuration -->
+                        <div id="evolutionGoConfig" style="display:none;">
+                            <h6 class="text-secondary"><?php echo xlt('Evolution-Go Credentials'); ?></h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Base URL'); ?></label>
+                                    <input type="text" name="evolution_go_base_url" id="cfgEvoBaseUrl" class="form-control form-control-sm" autocomplete="off" placeholder="e.g., https://api.evolution-go.com">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Instance Name'); ?></label>
+                                    <input type="text" name="evolution_go_instance_name" id="cfgEvoInstanceName" class="form-control form-control-sm" autocomplete="off" placeholder="e.g., my-instance">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('API Key'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="evolution_go_api_key" id="cfgEvoApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleEvoApiKey()" title="Show/Hide API Key">
+                                            <i class="fas fa-eye" id="evoApiKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="evoApiKeyHint" style="display:none;">Current API key is set</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Webhook Secret'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="evolution_go_webhook_secret" id="cfgEvoWebhook" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleEvoWebhook()" title="Show/Hide Webhook Secret">
+                                            <i class="fas fa-eye" id="evoWebhookIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="evoWebhookHint" style="display:none;">Current webhook secret is set</small>
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label"><?php echo xlt('Webhook URL (configure in Evolution-Go dashboard)'); ?></label>
+                                    <input type="text" class="form-control form-control-sm bg-light" readonly
+                                           value="<?php echo attr($serverOrigin); ?>/webhook/evolution-go/webhook.php"
+                                           onclick="this.select()">
+                                    <small class="text-muted"><?php echo xlt('Copy this URL to your Evolution-Go instance webhook settings.'); ?></small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="submit" class="btn btn-success btn-save">
+                                <i class="fas fa-save me-1"></i><?php echo xlt('Save Configuration'); ?>
+                            </button>
+                        </div>
+                    </div><!-- /facility-subtab-wsp -->
+
+                    <!-- ================================================
                          FACILITY SUB-TAB: SMS (HttpSMS)
                     ================================================= -->
                     <div id="facility-subtab-sms" class="d-none">
@@ -882,8 +885,8 @@ while ($pRow = sqlFetchArray($provRes)) {
                         <div class="row g-2 mb-3">
                             <div class="col-md-12">
                                 <label class="form-label"><?php echo xlt('Webhook URL (configure in HttpSMS dashboard)'); ?></label>
-                                <input type="text" class="form-control form-control-sm bg-light" readonly
-                                       value="<?php echo attr($GLOBALS['webroot']); ?>/webhook/httpsms/webhook.php"
+                                <input type="text" id="cfgHttpsmsWebhookUrl" class="form-control form-control-sm bg-light" readonly
+                                       value="<?php echo attr($serverOrigin); ?>/webhook/httpsms/webhook.php"
                                        onclick="this.select()">
                                 <small class="text-muted"><?php echo xlt('Copy this URL to your HttpSMS dashboard → Settings → Webhook URL.'); ?></small>
                             </div>
@@ -920,6 +923,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                                         <th><?php echo xlt('Days before recall date'); ?></th>
                                         <th style="width:80px"><?php echo xlt('Via WSP'); ?></th>
                                         <th style="width:80px"><?php echo xlt('Via Email'); ?></th>
+                                        <th style="width:80px"><?php echo xlt('Via SMS'); ?></th>
                                         <th style="width:80px"><?php echo xlt('Active'); ?></th>
                                         <th style="width:40px"></th>
                                     </tr>
@@ -2141,6 +2145,12 @@ function wireFacilitySubTabs(facilityId, isInactive) {
             </a>
         </li>
         <li class="nav-item">
+            <a href="#" id="subTabBtnWsp" class="nav-link"
+               onclick="switchFacilitySubTab('wsp'); return false;">
+                <i class="fab fa-whatsapp me-1"></i><?php echo js_escape(xlt('WSP')); ?>
+            </a>
+        </li>
+        <li class="nav-item">
             <a href="#" id="subTabBtnSms" class="nav-link"
                onclick="switchFacilitySubTab('sms'); return false;">
                 <i class="fas fa-sms me-1"></i><?php echo js_escape(xlt('SMS')); ?>
@@ -2149,7 +2159,7 @@ function wireFacilitySubTabs(facilityId, isInactive) {
         <li class="nav-item">
             <a href="#" id="subTabBtnRecalls" class="nav-link"
                onclick="switchFacilitySubTab('recalls'); return false;">
-                <i class="fas fa-redo-alt me-1"></i><?php echo js_escape(xlt('Recalls')); ?>
+                <i class="fas fa-redo-alt me-1"></i><?php echo js_escape(xlt('Revocatorias')); ?>
             </a>
         </li>`;
     form.parentNode.insertBefore(nav, form);
@@ -2159,22 +2169,30 @@ function wireFacilitySubTabs(facilityId, isInactive) {
 }
 
 /**
- * Switches between the Config, SMS and Recalls sub-tabs inside the facility panel.
+ * Switches between the Config, WSP, SMS and Recalls sub-tabs inside the facility panel.
  */
 function switchFacilitySubTab(tab) {
     const configContent  = document.getElementById('facility-subtab-config');
+    const wspContent     = document.getElementById('facility-subtab-wsp');
     const smsContent     = document.getElementById('facility-subtab-sms');
     const recallsContent = document.getElementById('facility-subtab-recalls');
     const btnConfig  = document.getElementById('subTabBtnConfig');
+    const btnWsp     = document.getElementById('subTabBtnWsp');
     const btnSms     = document.getElementById('subTabBtnSms');
     const btnRecalls = document.getElementById('subTabBtnRecalls');
 
-    [configContent, smsContent, recallsContent].forEach(c => c?.classList.add('d-none'));
-    [btnConfig, btnSms, btnRecalls].forEach(b => b?.classList.remove('active'));
+    [configContent, wspContent, smsContent, recallsContent].forEach(c => c?.classList.add('d-none'));
+    [btnConfig, btnWsp, btnSms, btnRecalls].forEach(b => b?.classList.remove('active'));
 
     if (tab === 'config') {
         configContent?.classList.remove('d-none');
         btnConfig?.classList.add('active');
+        if (typeof facilityMap !== 'undefined' && facilityMap) {
+            setTimeout(() => { facilityMap.invalidateSize(); }, 200);
+        }
+    } else if (tab === 'wsp') {
+        wspContent?.classList.remove('d-none');
+        btnWsp?.classList.add('active');
     } else if (tab === 'sms') {
         smsContent?.classList.remove('d-none');
         btnSms?.classList.add('active');
@@ -2208,7 +2226,7 @@ function loadRecallConfig(facilityId) {
             if (slots.length) {
                 slots.forEach(s => appendRecallScheduleRow(s));
             } else {
-                appendRecallScheduleRow({ seq: 1, days_before: 7, enabled_wsp: 1, enabled_email: 1, enabled: 1 });
+                appendRecallScheduleRow({ seq: 1, days_before: 7, enabled_wsp: 1, enabled_email: 1, enabled_sms: 1, enabled: 1 });
             }
         })
         .catch(e => console.error('Recall schedule load error', e));
@@ -2232,6 +2250,7 @@ function appendRecallScheduleRow(slot) {
     const d   = slot.days_before  ?? 7;
     const wsp = parseInt(slot.enabled_wsp   ?? 1) === 1;
     const em  = parseInt(slot.enabled_email ?? 1) === 1;
+    const sms = parseInt(slot.enabled_sms   ?? 1) === 1;
     const en  = parseInt(slot.enabled       ?? 1) === 1;
 
     const tr = document.createElement('tr');
@@ -2256,6 +2275,12 @@ function appendRecallScheduleRow(slot) {
         </td>
         <td class="text-center">
             <label class="custom-checkbox">
+                <input type="checkbox" name="recall_sched[${n}][enabled_sms]" value="1" ${sms ? 'checked' : ''}>
+                <span class="slider"></span>
+            </label>
+        </td>
+        <td class="text-center">
+            <label class="custom-checkbox">
                 <input type="checkbox" name="recall_sched[${n}][enabled]" value="1" ${en ? 'checked' : ''}>
                 <span class="slider"></span>
             </label>
@@ -2270,7 +2295,7 @@ function appendRecallScheduleRow(slot) {
 }
 
 function addRecallScheduleRow() {
-    appendRecallScheduleRow({ seq: recallSchedSeq + 1, days_before: 7, enabled_wsp: 1, enabled_email: 1, enabled: 1 });
+    appendRecallScheduleRow({ seq: recallSchedSeq + 1, days_before: 7, enabled_wsp: 1, enabled_email: 1, enabled_sms: 1, enabled: 1 });
 }
 
 function renumberRecallSchedule() {
@@ -2294,8 +2319,9 @@ function saveRecallConfig() {
         const days    = parseInt(tr.querySelector(`input[name="recall_sched[${tr.dataset.seq}][days_before]"]`)?.value ?? 7);
         const wsp     = tr.querySelector(`input[name="recall_sched[${tr.dataset.seq}][enabled_wsp]"]`)?.checked ? 1 : 0;
         const email   = tr.querySelector(`input[name="recall_sched[${tr.dataset.seq}][enabled_email]"]`)?.checked ? 1 : 0;
+        const sms     = tr.querySelector(`input[name="recall_sched[${tr.dataset.seq}][enabled_sms]"]`)?.checked ? 1 : 0;
         const enabled = tr.querySelector(`input[name="recall_sched[${tr.dataset.seq}][enabled]"]`)?.checked ? 1 : 0;
-        slots.push({ seq, days_before: days, enabled_wsp: wsp, enabled_email: email, enabled });
+        slots.push({ seq, days_before: days, enabled_wsp: wsp, enabled_email: email, enabled_sms: sms, enabled });
     });
 
     const saveBtn = document.querySelector('button[onclick="saveRecallConfig()"]');
@@ -2619,6 +2645,14 @@ function handleVendorChange() {
 
 // Add event listener for vendor change (only when user manually changes)
 document.addEventListener('DOMContentLoaded', function() {
+    // Dynamically set absolute webhook URLs based on current browser origin
+    if (window.location.origin) {
+        const httpsmsWebhookInput = document.getElementById('cfgHttpsmsWebhookUrl');
+        if (httpsmsWebhookInput) {
+            httpsmsWebhookInput.value = `${window.location.origin}/webhook/httpsms/webhook.php`;
+        }
+    }
+
     const vendorSelect = document.getElementById('cfgCurrentVendor');
     if (vendorSelect) {
         vendorSelect.addEventListener('change', handleVendorChange);

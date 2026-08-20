@@ -439,6 +439,7 @@ class FacilityConfig
                 `days_before`   int(5)       NOT NULL DEFAULT 7         COMMENT 'Dias antes de r_eventDate',
                 `enabled_wsp`   tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'WhatsApp habilitado',
                 `enabled_email` tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Email habilitado',
+                `enabled_sms`   tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'SMS habilitado',
                 `enabled`       tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Secuencia activa',
                 `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
                 `updated_at`    datetime     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -446,6 +447,25 @@ class FacilityConfig
                 UNIQUE KEY `uq_facility_seq` (`facility_id`, `seq`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
         );
+
+        // Auto-migrate: check if enabled_sms column exists on wsp_email_recall_schedule
+        $smsCol = sqlQuery(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME   = 'wsp_email_recall_schedule'
+               AND COLUMN_NAME  = 'enabled_sms'"
+        );
+        if (empty($smsCol)) {
+            try {
+                sqlStatement(
+                    "ALTER TABLE `wsp_email_recall_schedule`
+                     ADD COLUMN `enabled_sms` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'SMS habilitado'
+                     AFTER `enabled_email`"
+                );
+            } catch (\Throwable $e) {
+                // Ignore if already added
+            }
+        }
     }
 
     /**
@@ -549,13 +569,14 @@ class FacilityConfig
             $daysBefore   = (int)($slot['days_before']  ?? 7);
             $enabledWsp   = (int)($slot['enabled_wsp']  ?? 1);
             $enabledEmail = (int)($slot['enabled_email'] ?? 1);
+            $enabledSms   = (int)($slot['enabled_sms']   ?? 1);
             $enabled      = (int)($slot['enabled']       ?? 1);
 
             sqlStatement(
                 "INSERT INTO wsp_email_recall_schedule
-                     (facility_id, seq, days_before, enabled_wsp, enabled_email, enabled)
-                 VALUES (?, ?, ?, ?, ?, ?)",
-                [$facilityId, $seq, $daysBefore, $enabledWsp, $enabledEmail, $enabled]
+                     (facility_id, seq, days_before, enabled_wsp, enabled_email, enabled_sms, enabled)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [$facilityId, $seq, $daysBefore, $enabledWsp, $enabledEmail, $enabledSms, $enabled]
             );
         }
 

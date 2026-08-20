@@ -40,7 +40,7 @@ try {
         `facility_id`   int(11)      NOT NULL,
         `pid`           int(11)      NOT NULL,
         `seq`           tinyint(3)   NOT NULL,
-        `channel`       enum('WSP','Email','Both') NOT NULL DEFAULT 'WSP',
+        `channel`       enum('WSP','Email','SMS','All') NOT NULL DEFAULT 'WSP',
         `log_id`        int(11)      DEFAULT NULL,
         `status`        enum('PENDING','SENT','FAILED','SKIPPED') NOT NULL DEFAULT 'PENDING',
         `skip_reason`   varchar(100) DEFAULT NULL,

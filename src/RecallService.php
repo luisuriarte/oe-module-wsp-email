@@ -59,12 +59,21 @@ class RecallService
     }
 
     /**
-     * Process both WSP and Email recall notifications.
+     * Process all pending recall SMS notifications (called by cron).
+     */
+    public function runSms(bool $dryRun = false, bool $forceSend = false): void
+    {
+        $this->runByType('SMS', $dryRun, $forceSend);
+    }
+
+    /**
+     * Process WSP, Email and SMS recall notifications.
      */
     public function runAll(bool $dryRun = false, bool $forceSend = false): void
     {
         $this->runByType('WSP',   $dryRun, $forceSend);
         $this->runByType('EMAIL', $dryRun, $forceSend);
+        $this->runByType('SMS',   $dryRun, $forceSend);
     }
 
     // =========================================================================
@@ -84,6 +93,7 @@ class RecallService
             }
             if ($type === 'WSP'   && empty($config['enabled_wsp']))   continue;
             if ($type === 'EMAIL' && empty($config['enabled_email'])) continue;
+            if ($type === 'SMS'   && empty($config['enabled_sms']))   continue;
 
             if ($forceSend) {
                 echo "  Recalls Facility #{$facilityId} | Force-send mode: bypassing time/day window.\n";
@@ -138,6 +148,7 @@ class RecallService
                 }
                 if ($type === 'WSP'   && empty($seq['enabled_wsp']))   continue;
                 if ($type === 'EMAIL' && empty($seq['enabled_email'])) continue;
+                if ($type === 'SMS'   && empty($seq['enabled_sms']))   continue;
 
                 $recalls = $this->getPendingRecalls($facilityId, $type, $seqNum, $daysBefore, $forceSend);
                 echo "  Recalls Facility #{$facilityId} | seq={$seqNum} ({$daysBefore} days before) "
@@ -153,7 +164,7 @@ class RecallService
                     // For seq > 1, skip if patient already has a future appointment
                     if ($seqNum > 1 && $this->hasFutureAppointment((int)$recall['pid'])) {
                         echo "    [APPOINTMENT_BOOKED] Patient already has a future appointment. Skipping.\n";
-                        $logChannel = ($type === 'WSP') ? 'WSP' : 'Email';
+                        $logChannel = ($type === 'WSP') ? 'WSP' : (($type === 'SMS') ? 'SMS' : 'Email');
                         $this->insertRecallLog($recall, $config, $seqNum, $logChannel, 'SKIPPED', null, null, 'SKIPPED', 0, 'APPOINTMENT_BOOKED');
                         continue;
                     }
@@ -174,6 +185,15 @@ class RecallService
                         }
 
                         $this->deliverRecallWsp($recall, $config, $seqNum);
+                    } elseif ($type === 'SMS') {
+                        $phone = $recall['phone_cell'] ?? '';
+                        if ($this->blacklist->isBlacklisted($phone, $facilityId, 'httpsms')) {
+                            echo "    [BLACKLIST] Skipping phone={$phone}\n";
+                            $this->insertRecallLog($recall, $config, $seqNum, 'SMS', 'SKIPPED', null, null, 'SKIPPED', 0, 'blacklist');
+                            continue;
+                        }
+
+                        $this->deliverRecallSms($recall, $config, $seqNum);
                     } else {
                         $this->deliverRecallEmail($recall, $config, $seqNum);
                     }
@@ -283,6 +303,44 @@ class RecallService
         }
     }
 
+    private function deliverRecallSms(array &$recall, array $config, int $seq): void
+    {
+        $facilityId = (int)($config['facility_id'] ?? $recall['r_facility'] ?? 0);
+        $template   = $this->resolveRecallTemplate($facilityId);
+        $recall['_message'] = $this->buildRecallMessage($template, $recall, $config);
+
+        $phone = $recall['phone_cell'] ?? '';
+
+        try {
+            $this->rateLimiter->throttle($facilityId, 'httpsms', $phone);
+
+            $pseudoPatient = $this->buildPseudoPatient($recall, $config);
+
+            $result    = $this->wspSender->sendSms($config, $pseudoPatient);
+            $msgId     = $result['msgId'] ?? null;
+            $rawStatus = $result['status'] ?? 'error';
+
+            $this->blacklist->processResult($phone, $facilityId, 'httpsms', $result);
+
+            $canonicalStatus = StatusNormalizer::normalize('httpsms', $rawStatus);
+            $statusPriority  = StatusNormalizer::getPriority($canonicalStatus);
+
+            $this->insertRecallLog(
+                $recall, $config, $seq, 'SMS', 'SENT',
+                $msgId, $rawStatus, $canonicalStatus, $statusPriority
+            );
+
+            echo "    SMS recall sent to {$phone}: {$rawStatus}\n";
+        } catch (\Throwable $e) {
+            $errorMsg = $e->getMessage();
+            $this->insertRecallLog(
+                $recall, $config, $seq, 'SMS', 'FAILED',
+                null, 'error', 'ERROR', 0, null, $errorMsg
+            );
+            echo "    ERROR SMS recall: {$errorMsg}\n";
+        }
+    }
+
     // =========================================================================
     // Database helpers
     // =========================================================================
@@ -303,10 +361,13 @@ class RecallService
     public function getPendingRecalls(int $facilityId, string $type, int $seq, int $daysBefore, bool $forceSend = false): array
     {
         if ($type === 'WSP') {
-            $hipaaFilter = "AND hipaa_allowsms = 'YES' AND phone_cell <> ''";
+            $hipaaFilter = "AND pd.hipaa_allowsms = 'YES' AND pd.phone_cell <> ''";
             $channelFilter = 'WSP';
+        } elseif ($type === 'SMS') {
+            $hipaaFilter = "AND pd.hipaa_allowsms = 'YES' AND pd.phone_cell <> ''";
+            $channelFilter = 'SMS';
         } else {
-            $hipaaFilter = "AND hipaa_allowemail = 'YES' AND email <> ''";
+            $hipaaFilter = "AND pd.hipaa_allowemail = 'YES' AND pd.email <> ''";
             $channelFilter = 'Email';
         }
 
@@ -604,6 +665,20 @@ class RecallService
                 }
             }
 
+            if ($channel === 'all' || $channel === 'sms') {
+                if (!empty($config['enabled_sms'])) {
+                    $smsTemplate = $template['wsp_message'] ?? '';
+                    if (!empty($smsTemplate)) {
+                        $row['_message'] = $this->buildRecallMessage($smsTemplate, $row, $config);
+                        $this->deliverRecallSms($row, $config, $seq);
+                    } else {
+                        echo "    SKIP SMS recall_id={$recallId}: no SMS template\n";
+                    }
+                } else {
+                    echo "    SKIP SMS recall_id={$recallId}: SMS disabled for facility\n";
+                }
+            }
+
             if ($channel === 'all' || $channel === 'email') {
                 if (!empty($config['enabled_email'])) {
                     $emailSubject = $template['email_subject'] ?? '';
@@ -663,7 +738,20 @@ class RecallService
         $patientInfo = trim(($recall['title'] ?? '') . ' ' . ($recall['fname'] ?? '') . ' ' . ($recall['lname'] ?? ''))
                      . '|||' . ($recall['phone_cell'] ?? '')
                      . '|||' . ($recall['email'] ?? '');
-        $gatewayType = ($channel === 'WSP') ? $vendor : 'email';
+        $channelUpper = strtoupper($channel);
+        if ($channelUpper === 'WSP') {
+            $gatewayType = $vendor;
+            $typeLog     = 'WSP';
+            $channelEnum = 'WSP';
+        } elseif ($channelUpper === 'SMS') {
+            $gatewayType = 'httpsms';
+            $typeLog     = 'SMS';
+            $channelEnum = 'SMS';
+        } else {
+            $gatewayType = 'email';
+            $typeLog     = 'EMAIL';
+            $channelEnum = 'Email';
+        }
         $message     = $recall['_message'] ?? '';
 
         $logSql = "INSERT INTO notification_log
@@ -679,7 +767,7 @@ class RecallService
             $message,
             $config['facility_email'] ?? '',
             $config['email_subject']  ?? '',
-            strtoupper($channel === 'Email' ? 'EMAIL' : 'WSP'),
+            $typeLog,
             $patientInfo,
             $gatewayType,
             $msgId,
@@ -696,8 +784,7 @@ class RecallService
         $logId = (int)sqlGetLastInsertId();
 
         // Then: write / update wsp_email_recall
-        $channelEnum = ($channel === 'WSP') ? 'WSP' : 'Email';
-        $sentAt      = ($status === 'SENT') ? date('Y-m-d H:i:s') : null;
+        $sentAt = ($status === 'SENT') ? date('Y-m-d H:i:s') : null;
 
         sqlStatement(
             "INSERT INTO wsp_email_recall

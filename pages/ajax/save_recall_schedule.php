@@ -56,6 +56,7 @@ try {
         `days_before`   int(5)       NOT NULL DEFAULT 7         COMMENT 'Días antes de r_eventDate para enviar',
         `enabled_wsp`   tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'WhatsApp habilitado',
         `enabled_email` tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Email habilitado',
+        `enabled_sms`   tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'SMS habilitado',
         `enabled`       tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Secuencia activa',
         `created_at`    datetime     DEFAULT CURRENT_TIMESTAMP,
         `updated_at`    datetime     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -77,8 +78,9 @@ try {
             'seq'           => $seq,
             'days_before'   => $daysBefore,
             'enabled_wsp'   => (int)($slot['enabled_wsp']   ?? 1),
-            'enabled_email' => (int)($slot['enabled_email']  ?? 1),
-            'enabled'       => (int)($slot['enabled']        ?? 1),
+            'enabled_email' => (int)($slot['enabled_email'] ?? 1),
+            'enabled_sms'   => (int)($slot['enabled_sms']   ?? 1),
+            'enabled'       => (int)($slot['enabled']       ?? 1),
         ];
     }
 

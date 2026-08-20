@@ -243,6 +243,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_recall_schedule` (
   `days_before`   int(5)       NOT NULL DEFAULT 7         COMMENT 'Days before event_date to send',
   `enabled_wsp`   tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'WhatsApp enabled',
   `enabled_email` tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Email enabled',
+  `enabled_sms`   tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'SMS enabled',
   `enabled`       tinyint(1)   NOT NULL DEFAULT 1         COMMENT 'Sequence active flag',
   `created_at`    timestamp    DEFAULT CURRENT_TIMESTAMP,
   `updated_at`    timestamp    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -253,7 +254,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_recall_schedule` (
 
 -- ---------------------------------------------------------------------------
 -- 11. Recall Notification Log
--- Tracks each recall+sequence send attempt (WSP / Email / Both)
+-- Tracks each recall+sequence send attempt (WSP / Email / SMS / All)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `wsp_email_recall` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -261,7 +262,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_recall` (
   `facility_id` int(11) NOT NULL,
   `pid` int(11) NOT NULL,
   `seq` tinyint(3) NOT NULL,
-  `channel` enum('WSP','Email','Both') NOT NULL DEFAULT 'WSP',
+  `channel` enum('WSP','Email','SMS','All') NOT NULL DEFAULT 'WSP',
   `log_id` int(11) DEFAULT NULL,
   `status` enum('PENDING','SENT','FAILED','SKIPPED') NOT NULL DEFAULT 'PENDING',
   `skip_reason` varchar(100) DEFAULT NULL,

@@ -69,6 +69,8 @@ try {
             $service->runWsp($dryRun, $forceSend);
         } elseif ($channel === 'email') {
             $service->runEmail($dryRun, $forceSend);
+        } elseif ($channel === 'sms') {
+            $service->runSms($dryRun, $forceSend);
         } else {
             $service->runAll($dryRun, $forceSend);
         }
