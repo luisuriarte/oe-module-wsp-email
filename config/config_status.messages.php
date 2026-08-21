@@ -227,9 +227,14 @@ return [
 
             // ACK Names
             'ack'           => 'SENT',
+            'ack_server'    => 'SENT',
             'ack_sent'      => 'SENT',
+            'ack_device'    => 'DELIVERED',
             'ack_delivered' => 'DELIVERED',
             'ack_read'      => 'READ',
+            'ack_played'    => 'READ',
+            'ack_pending'   => 'QUEUED',
+            'ack_error'     => 'FAILED',
 
             // ACK numeric codes
             '0'  => 'FAILED',
