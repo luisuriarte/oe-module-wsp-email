@@ -65,6 +65,9 @@ class WspSender
         } elseif ($vendor === 'evolution-go') {
             $instance = $config['evolution_go_instance_name'] ?? '';
             $apiKey   = $config['evolution_go_api_key'] ?? '';
+        } elseif ($vendor === 'waha') {
+            $instance = $config['waha_session'] ?? $config['waha_instance'] ?? 'default';
+            $apiKey   = $config['waha_api_key'] ?? '';
         } else {
             $instance = '';
             $apiKey   = '';
@@ -124,6 +127,11 @@ class WspSender
                 case 'evolution-go':
                     $baseUrl = $config['evolution_go_base_url'] ?? '';
                     $result = $this->sendViaEvolutionGo($baseUrl, $apiKey, $instance, $phone, $message, $logoUrl, $icsUrl, $config, $log);
+                    break;
+
+                case 'waha':
+                    $baseUrl = !empty($config['waha_base_url']) ? $config['waha_base_url'] : 'https://waha.origen.ar';
+                    $result = $this->sendViaWaha($baseUrl, $instance, $apiKey, $phone, $message, $logoUrl, $icsUrl, $config, $log);
                     break;
 
                 default:
@@ -748,6 +756,168 @@ class WspSender
     }
 
     // -------------------------------------------------------------------------
+    // WAHA (WhatsApp HTTP API)  (https://waha.devlike.pro)
+    // REST API with session-based messaging
+    // Auth: apiKey in X-Api-Key header (and Authorization: Bearer <key>)
+    // Send text: POST {baseUrl}/api/sendText
+    // Send image: POST {baseUrl}/api/sendImage
+    // Send file: POST {baseUrl}/api/sendFile
+    // Docs: https://waha.devlike.pro/docs/how-to/send-messages/
+    // -------------------------------------------------------------------------
+    private function sendViaWaha(
+        string $baseUrl,    string $session,  string $apiKey,
+        string $phone,      string $message,  string $logoUrl, string $icsUrl,
+        array  $config,     array  &$log
+    ): array {
+        $result = ['status' => 'error', 'msgId' => null, 'log' => ''];
+        $baseUrl = !empty($baseUrl) ? $baseUrl : 'https://waha.origen.ar';
+
+        $sessionName = !empty($session) ? $session : 'default';
+        $cleanPhone  = preg_replace('/\D/', '', $phone);
+        $chatId      = "{$cleanPhone}@c.us";
+
+        $headers = [
+            'Content-Type' => 'application/json',
+            'Accept'       => 'application/json',
+        ];
+        if (!empty($apiKey)) {
+            $headers['X-Api-Key']     = $apiKey;
+            $headers['Authorization'] = "Bearer {$apiKey}";
+        }
+
+        $baseUrl  = rtrim($baseUrl, '/');
+        $textUrl  = "{$baseUrl}/api/sendText";
+        $imageUrl = "{$baseUrl}/api/sendImage";
+        $fileUrl  = "{$baseUrl}/api/sendFile";
+        $msgId    = null;
+
+        try {
+            // Helper: POST with safe error handling
+            $safePost = function (string $url, array $payload, string $label) use ($headers, &$log): ?array {
+                try {
+                    $resp = $this->http->post($url, ['headers' => $headers, 'json' => $payload, 'timeout' => 30]);
+                    $body = json_decode((string)$resp->getBody(), true);
+                    $log[] = "WAHA ($label): " . $resp->getBody();
+                    return $body;
+                } catch (RequestException $e) {
+                    $log[] = "WAHA ($label) error: " . $e->getMessage();
+                    if ($e->hasResponse()) {
+                        $response = $e->getResponse();
+                        $statusCode = $response->getStatusCode();
+                        $body = (string)$response->getBody();
+                        $log[] = "Response: $statusCode - " . $body;
+
+                        if ($statusCode === 401 || $statusCode === 403) {
+                            throw new \Exception('UNAUTHORIZED: ' . $body);
+                        }
+                        if ($statusCode === 404) {
+                            throw new \Exception('NOT_FOUND: Session or endpoint not found');
+                        }
+                    }
+                    return null;
+                } catch (\Throwable $e) {
+                    $log[] = "WAHA ($label) unexpected error: " . $e->getMessage();
+                    if (strpos($e->getMessage(), 'UNAUTHORIZED') === 0 || strpos($e->getMessage(), 'NOT_FOUND') === 0) {
+                        throw $e;
+                    }
+                    return null;
+                }
+            };
+
+            // Helper: extract message ID from WAHA response
+            $extractMsgId = function (array $body): ?string {
+                return $body['id']
+                    ?? $body['messageId']
+                    ?? $body['data']['id']
+                    ?? $body['data']['messageId']
+                    ?? $body['key']['id']
+                    ?? null;
+            };
+
+            // Build text with optional map link
+            $textWithMap = $message;
+            if (!empty($config['latitude']) && !empty($config['longitude'])) {
+                $lat = (float)$config['latitude'];
+                $lon = (float)$config['longitude'];
+                $mapLink = "https://www.google.com/maps/search/?api=1&query={$lat},{$lon}";
+                $textWithMap .= "\n\n📍 " . $mapLink;
+            }
+
+            // 1. Send image with caption — fallback to plain text if image fails
+            if (!empty($logoUrl)) {
+                $imagePayload = [
+                    'session' => $sessionName,
+                    'chatId'  => $chatId,
+                    'file'    => [
+                        'url' => $logoUrl,
+                    ],
+                    'caption' => mb_substr($textWithMap, 0, 1024),
+                ];
+                $imageBody = $safePost($imageUrl, $imagePayload, 'image');
+                if ($imageBody) {
+                    $msgId = $extractMsgId($imageBody) ?? $msgId;
+                } else {
+                    $log[] = 'WAHA: image failed, falling back to sendText';
+                    $textBody = $safePost($textUrl, [
+                        'session' => $sessionName,
+                        'chatId'  => $chatId,
+                        'text'    => mb_substr($textWithMap, 0, 4096),
+                    ], 'text (fallback)');
+                    if ($textBody) {
+                        $msgId = $extractMsgId($textBody) ?? $msgId;
+                    }
+                }
+            } else {
+                // No logo — send plain text
+                $textBody = $safePost($textUrl, [
+                    'session' => $sessionName,
+                    'chatId'  => $chatId,
+                    'text'    => mb_substr($textWithMap, 0, 4096),
+                ], 'text');
+                if ($textBody) {
+                    $msgId = $extractMsgId($textBody) ?? $msgId;
+                }
+            }
+
+            // 2. Try sending .ics document (optional)
+            if (!empty($icsUrl)) {
+                $filePayload = [
+                    'session' => $sessionName,
+                    'chatId'  => $chatId,
+                    'file'    => [
+                        'url'      => $icsUrl,
+                        'filename' => 'calendario.ics',
+                    ],
+                    'caption'  => mb_substr(LocalizationHelper::appointmentAttachmentCaption(
+                        (string)($config['facility_name'] ?? '')
+                    ), 0, 1024),
+                ];
+                $docBody = $safePost($fileUrl, $filePayload, '.ics');
+                if ($docBody) {
+                    $msgId = $extractMsgId($docBody) ?? $msgId;
+                }
+            }
+        } catch (RequestException $e) {
+            $log[] = 'WAHA REQUEST ERROR: ' . $e->getMessage();
+            $result['log'] = implode("\n", $log);
+            return $result;
+        } catch (\Throwable $e) {
+            $log[] = 'WAHA EXCEPTION: ' . $e->getMessage();
+            $status = 'error';
+            if (strpos($e->getMessage(), 'UNAUTHORIZED') === 0) {
+                $status = 'UNAUTHORIZED';
+            } elseif (strpos($e->getMessage(), 'NOT_FOUND') === 0) {
+                $status = 'NOT_FOUND';
+            }
+            $result['status'] = $status;
+            $result['log'] = implode("\n", $log);
+            return $result;
+        }
+
+        return ['status' => $msgId ? 'success' : 'error', 'msgId' => $msgId, 'log' => implode("\n", $log)];
+    }
+
+    // -------------------------------------------------------------------------
     // HttpSMS  (https://docs.httpsms.com)
     // Convierte un teléfono Android en SMS gateway vía API REST.
     // Auth: x-api-key header
@@ -925,11 +1095,81 @@ class WspSender
         }
     }
 
+    /**
+     * Checks whether a phone number exists on WhatsApp via WAHA's check-exists endpoint.
+     *
+     * @param string $baseUrl  WAHA base URL (e.g. http://localhost:3000)
+     * @param string $session  WAHA session name (default 'default')
+     * @param string $apiKey   WAHA API key
+     * @param string $phone    Phone number
+     *
+     * @return string 'exists' | 'not_found' | 'service_unavailable'
+     */
+    public function checkWahaContact(string $baseUrl, string $session, string $apiKey, string $phone): string
+    {
+        if (empty($baseUrl) || empty($phone)) {
+            error_log('WspSender::checkWahaContact — missing baseUrl or phone; returning service_unavailable');
+            return 'service_unavailable';
+        }
+
+        $sessionName = !empty($session) ? $session : 'default';
+        $cleanPhone  = preg_replace('/\D/', '', $phone);
+        $baseUrl     = rtrim($baseUrl, '/');
+        $url         = "{$baseUrl}/api/contacts/check-exists?phone={$cleanPhone}&session={$sessionName}";
+
+        $headers = [
+            'Accept' => 'application/json',
+        ];
+        if (!empty($apiKey)) {
+            $headers['X-Api-Key']     = $apiKey;
+            $headers['Authorization'] = "Bearer {$apiKey}";
+        }
+
+        try {
+            $resp = $this->http->get($url, [
+                'headers' => $headers,
+                'timeout' => 15,
+            ]);
+
+            $httpCode = $resp->getStatusCode();
+            $body     = json_decode((string)$resp->getBody(), true);
+
+            error_log("WspSender::checkWahaContact — phone={$cleanPhone} http={$httpCode} body=" . json_encode($body));
+
+            if ($httpCode === 503) {
+                return 'service_unavailable';
+            }
+
+            // WAHA returns { "numberExists": true|false, "chatId": "..." } or { "exists": true|false }
+            $exists = $body['numberExists'] ?? $body['exists'] ?? $body['registered'] ?? null;
+
+            if ($exists === true || $exists === 1 || $exists === '1' || strtolower((string)$exists) === 'true') {
+                return 'exists';
+            }
+
+            if ($exists === false || $exists === 0 || $exists === '0' || strtolower((string)$exists) === 'false') {
+                return 'not_found';
+            }
+
+            return 'service_unavailable';
+        } catch (RequestException $e) {
+            $httpCode = 0;
+            if ($e->hasResponse()) {
+                $httpCode = $e->getResponse()->getStatusCode();
+            }
+            error_log("WspSender::checkWahaContact — RequestException http={$httpCode}: " . $e->getMessage());
+            return 'service_unavailable';
+        } catch (\Throwable $e) {
+            error_log('WspSender::checkWahaContact — Throwable: ' . $e->getMessage());
+            return 'service_unavailable';
+        }
+    }
+
     public function syncStatus(array $config, string $msgId): array
     {
         $vendor   = strtolower($config['sms_gateway_type'] ?? $config['current_vendor'] ?? $config['vendor'] ?? '');
-        $apiKey   = $config['openwa_api_key'] ?? $config['vendor_api_key'] ?? $config['ultramsg_api_key'] ?? '';
-        $instance = $config['openwa_instance'] ?? $config['vendor_instance'] ?? $config['ultramsg_instance'] ?? '';
+        $apiKey   = $config['waha_api_key'] ?? $config['openwa_api_key'] ?? $config['vendor_api_key'] ?? $config['ultramsg_api_key'] ?? '';
+        $instance = $config['waha_session'] ?? $config['waha_instance'] ?? $config['openwa_instance'] ?? $config['vendor_instance'] ?? $config['ultramsg_instance'] ?? '';
 
         if ($vendor === 'ultramsg') {
             try {
@@ -1009,6 +1249,33 @@ class WspSender
                     }
                 } catch (\Exception $e) {
                     error_log("WspSender::syncStatus openwa error: " . $e->getMessage());
+                    return ['status' => 'error', 'error' => $e->getMessage()];
+                }
+            }
+        }
+
+        if ($vendor === 'waha' || !empty($config['waha_base_url'])) {
+            $baseUrl   = rtrim($config['waha_base_url'] ?? '', '/');
+            $sessionId = !empty($config['waha_session']) ? $config['waha_session'] : (!empty($config['waha_instance']) ? $config['waha_instance'] : 'default');
+            $apiKey    = $config['waha_api_key'] ?? $apiKey;
+            if (!empty($baseUrl) && !empty($msgId)) {
+                try {
+                    $url = "{$baseUrl}/api/messages?messageId=" . rawurlencode($msgId) . "&session=" . rawurlencode($sessionId);
+                    $headers = ['Accept' => 'application/json'];
+                    if (!empty($apiKey)) {
+                        $headers['X-Api-Key'] = $apiKey;
+                    }
+                    $resp = $this->http->get($url, ['headers' => $headers, 'timeout' => 15]);
+                    $body = json_decode((string)$resp->getBody(), true);
+                    if (!empty($body)) {
+                        $msg = is_array($body) && isset($body[0]) ? $body[0] : $body;
+                        $status = $msg['ackName'] ?? (isset($msg['ack']) ? (string)$msg['ack'] : ($msg['status'] ?? null));
+                        if ($status !== null) {
+                            return ['status' => (string)$status, 'raw' => $body];
+                        }
+                    }
+                } catch (\Exception $e) {
+                    error_log("WspSender::syncStatus waha error: " . $e->getMessage());
                     return ['status' => 'error', 'error' => $e->getMessage()];
                 }
             }

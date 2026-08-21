@@ -271,6 +271,24 @@ class StatusNormalizer
                 }
                 break;
 
+            case 'waha':
+                $event = $webhookData['event'] ?? '';
+                $payload = $webhookData['payload'] ?? $webhookData['data'] ?? [];
+                if ($event === 'message.ack') {
+                    $nativeStatus = (string)($payload['ackName'] ?? (isset($payload['ack']) ? $payload['ack'] : ($payload['status'] ?? 'ack')));
+                } elseif ($event === 'message.status') {
+                    $nativeStatus = (string)($payload['status'] ?? $payload['ackName'] ?? 'status');
+                } elseif ($event === 'message.revoked') {
+                    $nativeStatus = 'revoked';
+                } elseif ($event === 'message.sent') {
+                    $nativeStatus = 'sent';
+                } elseif ($event === 'message.failed') {
+                    $nativeStatus = 'failed';
+                } else {
+                    $nativeStatus = (string)($payload['status'] ?? $payload['ackName'] ?? (isset($payload['ack']) ? $payload['ack'] : ($webhookData['status'] ?? $event)));
+                }
+                break;
+
             case 'twilio':
                 $nativeStatus = $webhookData['message_status'] ?? '';
                 break;

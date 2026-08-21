@@ -113,10 +113,10 @@ try {
     writeDebugLog("wsp_message=" . (empty($config['wsp_message']) ? 'EMPTY' : 'SET (' . strlen($config['wsp_message']) . ' chars)'));
 
     // Log gateway-specific API key presence
-    foreach (['ultramsg_api_key', 'wasenderapi_api_key', 'openwa_api_key', 'evolution_go_api_key'] as $key) {
+    foreach (['ultramsg_api_key', 'wasenderapi_api_key', 'openwa_api_key', 'evolution_go_api_key', 'waha_api_key'] as $key) {
         writeDebugLog("  $key=" . (empty($config[$key]) ? 'EMPTY' : 'SET'));
     }
-    foreach (['ultramsg_instance', 'openwa_instance', 'evolution_go_instance_name'] as $key) {
+    foreach (['ultramsg_instance', 'openwa_instance', 'evolution_go_instance_name', 'waha_session', 'waha_instance', 'waha_base_url'] as $key) {
         writeDebugLog("  $key=" . (empty($config[$key]) ? 'EMPTY' : 'SET'));
     }
 

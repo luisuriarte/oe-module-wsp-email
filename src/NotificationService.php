@@ -279,19 +279,25 @@ class NotificationService
             $facilityId = (int)($config['facility_id'] ?? $patient['pc_facility'] ?? 0);
 
             // -----------------------------------------------------------------
-            // OpenWA pre-send contact validation (initial notification only)
+            // OpenWA & WAHA pre-send contact validation (initial notification only)
             // Only runs for seq <= 1 (seq=1 = first scheduled slot, seq=0 = on-booking).
             // Recall / escalation sequences (seq > 1) skip this check.
             // -----------------------------------------------------------------
-            if ($vendor === 'openwa' && $seq <= 1) {
-                $owInstance = $config['openwa_instance'] ?? '';
-                $owApiKey   = $config['openwa_api_key']  ?? '';
-
-                $contactStatus = $this->wspSender->checkOpenWaContact($owInstance, $owApiKey, $phone);
+            if (($vendor === 'openwa' || $vendor === 'waha') && $seq <= 1) {
+                if ($vendor === 'waha') {
+                    $wahaBaseUrl = !empty($config['waha_base_url']) ? $config['waha_base_url'] : 'https://waha.origen.ar';
+                    $wahaSession = $config['waha_session'] ?? $config['waha_instance'] ?? 'default';
+                    $wahaApiKey  = $config['waha_api_key'] ?? '';
+                    $contactStatus = $this->wspSender->checkWahaContact($wahaBaseUrl, $wahaSession, $wahaApiKey, $phone);
+                } else {
+                    $owInstance = $config['openwa_instance'] ?? '';
+                    $owApiKey   = $config['openwa_api_key']  ?? '';
+                    $contactStatus = $this->wspSender->checkOpenWaContact($owInstance, $owApiKey, $phone);
+                }
 
                 if ($contactStatus === 'not_found') {
                     // Number is NOT on WhatsApp → log and deliver via email fallback
-                    $msg = "OpenWA contact check: phone={$phone} NOT on WhatsApp — triggering email fallback (seq={$seq}).";
+                    $msg = strtoupper($vendor) . " contact check: phone={$phone} NOT on WhatsApp — triggering email fallback (seq={$seq}).";
                     echo "    [CONTACT-CHECK] {$msg}\n";
                     error_log($msg);
 
@@ -322,15 +328,15 @@ class NotificationService
                     return;
 
                 } elseif ($contactStatus === 'service_unavailable') {
-                    // OpenWA did not confirm the session — fail-closed: no WSP, no email fallback
-                    $msg = "OpenWA contact check: phone={$phone} returned service_unavailable (503) — will retry on next cron run (seq={$seq}).";
+                    // Provider did not confirm the session — fail-closed: no WSP, no email fallback
+                    $msg = strtoupper($vendor) . " contact check: phone={$phone} returned service_unavailable (503) — will retry on next cron run (seq={$seq}).";
                     echo "    [CONTACT-CHECK] {$msg}\n";
                     error_log($msg);
 
                     // NOTE: Intentionally NOT inserting into notification_log here.
                     // The NOT EXISTS filter in getPatientsForSlot() will include this
                     // patient again on the next cron run, giving automatic retry
-                    // once the OpenWA session recovers. Only write to the module log
+                    // once the provider session recovers. Only write to the module log
                     // for traceability without blocking the retry cycle.
                     $logLine = date('Y-m-d H:i:s') . " [CHECK_UNAVAILABLE] pid={$patient['pid']} pc_eid={$patient['pc_eid']} phone={$phone} seq={$seq} — will retry automatically\n";
                     $logFile = __DIR__ . '/../logs/wsp_notify.log';
@@ -346,7 +352,7 @@ class NotificationService
                 }
 
                 // $contactStatus === 'exists' → continue with normal send flow below
-                error_log("WspSender::checkOpenWaContact — phone={$phone} exists on WhatsApp, proceeding with send.");
+                error_log("WspSender::checkContact — phone={$phone} exists on WhatsApp ({$vendor}), proceeding with send.");
             }
 
             // Rate limiting + delay aleatorio antes de enviar

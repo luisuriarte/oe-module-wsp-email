@@ -115,7 +115,7 @@ class FacilityConfig
         }
 
         // Save gateway credentials if present
-        $knownGateways = ['ultramsg', 'wasenderapi', 'openwa', 'evolution-go', 'httpsms'];
+        $knownGateways = ['ultramsg', 'wasenderapi', 'openwa', 'evolution-go', 'httpsms', 'waha'];
         foreach ($knownGateways as $gw) {
             $gwKey = "gateway_config_{$gw}";
             if (isset($data[$gwKey]) && is_array($data[$gwKey])) {

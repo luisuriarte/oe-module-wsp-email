@@ -413,6 +413,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                     elseif ($vendor === 'openwa') $vendorBadgeColor = 'bg-warning';
                     elseif ($vendor === 'wasenderapi') $vendorBadgeColor = 'bg-info';
                     elseif ($vendor === 'ultramsg') $vendorBadgeColor = 'bg-primary';
+                    elseif ($vendor === 'waha') $vendorBadgeColor = 'bg-info';
                     ?>
                     <?php if (!empty($vendor)): ?>
                     <span class="badge <?php echo $vendorBadgeColor; ?> mt-1"><?php echo text($vendor); ?></span>
@@ -697,6 +698,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                                 <option value="wasenderapi">WaSenderAPI</option>
                                 <option value="openwa">OpenWA</option>
                                 <option value="evolution-go">Evolution-Go</option>
+                                <option value="waha">WAHA</option>
                             </select>
                             <small class="text-muted"><?php echo xlt('Active vendor for sending WhatsApp messages'); ?></small>
                         </div>
@@ -824,6 +826,52 @@ while ($pRow = sqlFetchArray($provRes)) {
                                            value="<?php echo attr($serverOrigin); ?>/webhook/evolution-go/webhook.php"
                                            onclick="this.select()">
                                     <small class="text-muted"><?php echo xlt('Copy this URL to your Evolution-Go instance webhook settings.'); ?></small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- WAHA Configuration -->
+                        <div id="wahaConfig" style="display:none;">
+                            <h6 class="text-info"><i class="fab fa-whatsapp me-1"></i><?php echo xlt('WAHA Credentials'); ?></h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Base URL'); ?></label>
+                                    <input type="text" name="waha_base_url" id="cfgWahaBaseUrl" class="form-control form-control-sm" autocomplete="off" placeholder="https://waha.origen.ar">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Session Name (Instance)'); ?></label>
+                                    <input type="text" name="waha_session" id="cfgWahaSession" class="form-control form-control-sm" autocomplete="off" placeholder="default">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('API Key'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="waha_api_key" id="cfgWahaApiKey" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleWahaApiKey()" title="Show/Hide API Key">
+                                            <i class="fas fa-eye" id="wahaApiKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="wahaApiKeyHint" style="display:none;">Current API key is set</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label"><?php echo xlt('Webhook Secret / Token'); ?></label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="password" name="waha_webhook_secret" id="cfgWahaWebhook" class="form-control" autocomplete="off" placeholder="Leave blank to keep existing">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="toggleWahaWebhook()" title="Show/Hide Webhook Secret">
+                                            <i class="fas fa-eye" id="wahaWebhookIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted" id="wahaWebhookHint" style="display:none;">Current webhook secret is set</small>
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label"><?php echo xlt('Webhook URL (configure in WAHA dashboard/session)'); ?></label>
+                                    <input type="text" class="form-control form-control-sm bg-light" readonly
+                                           value="<?php echo attr($serverOrigin); ?>/webhook/waha/webhook.php"
+                                           onclick="this.select()">
+                                    <small class="text-muted"><?php echo xlt('Copy this URL to your WAHA webhook settings (e.g. https://hcd.origen.ar/webhook/waha/webhook.php).'); ?></small>
                                 </div>
                             </div>
                         </div>
@@ -1192,6 +1240,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                         <option value="wasenderapi">WaSenderAPI</option>
                         <option value="openwa">OpenWA</option>
                         <option value="evolution-go">Evolution-Go</option>
+                        <option value="waha">WAHA</option>
                         <option value="all"><?php echo xlt('All (global)'); ?></option>
                     </select>
                 </div>
@@ -1359,6 +1408,7 @@ while ($pRow = sqlFetchArray($provRes)) {
                             <option value="wasenderapi">WaSenderAPI</option>
                             <option value="openwa">OpenWA</option>
                             <option value="evolution-go">Evolution-Go</option>
+                            <option value="waha">WAHA</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -1870,6 +1920,8 @@ function loadFacilityConfig(facilityId) {
                 vendorBadge = '<span class="badge bg-warning ms-2 small">OpenWA Active</span>';
             } else if (activeVendor === 'evolution-go') {
                 vendorBadge = '<span class="badge bg-secondary ms-2 small">Evolution-Go Active</span>';
+            } else if (activeVendor === 'waha') {
+                vendorBadge = '<span class="badge bg-info ms-2 small">WAHA Active</span>';
             } else if (activeVendor === 'httpsms') {
                 vendorBadge = '<span class="badge bg-dark ms-2 small">HttpSMS Active</span>';
             }
@@ -2003,6 +2055,38 @@ function loadFacilityConfig(facilityId) {
                 evoWebhookInput.value = '';
                 evoWebhookHint.style.display = 'none';
                 evoWebhookInput.required = false;
+            }
+
+            // WAHA credentials
+            document.getElementById('cfgWahaBaseUrl').value = c.waha_base_url || 'https://waha.origen.ar';
+            document.getElementById('cfgWahaSession').value = c.waha_session || c.waha_instance || 'default';
+
+            const wahaApiKeyInput = document.getElementById('cfgWahaApiKey');
+            const wahaApiKeyHint = document.getElementById('wahaApiKeyHint');
+            if (c.waha_api_key && c.waha_api_key.length > 0) {
+                wahaApiKeyInput.dataset.fullKey = c.waha_api_key;
+                wahaApiKeyInput.value = '••••••••' + c.waha_api_key.slice(-8);
+                wahaApiKeyHint.style.display = 'block';
+                wahaApiKeyInput.required = false;
+            } else {
+                delete wahaApiKeyInput.dataset.fullKey;
+                wahaApiKeyInput.value = '';
+                wahaApiKeyHint.style.display = 'none';
+                wahaApiKeyInput.required = false;
+            }
+
+            const wahaWebhookInput = document.getElementById('cfgWahaWebhook');
+            const wahaWebhookHint = document.getElementById('wahaWebhookHint');
+            if (c.waha_webhook_secret && c.waha_webhook_secret.length > 0) {
+                wahaWebhookInput.dataset.fullKey = c.waha_webhook_secret;
+                wahaWebhookInput.value = '••••••••' + c.waha_webhook_secret.slice(-8);
+                wahaWebhookHint.style.display = 'block';
+                wahaWebhookInput.required = false;
+            } else {
+                delete wahaWebhookInput.dataset.fullKey;
+                wahaWebhookInput.value = '';
+                wahaWebhookHint.style.display = 'none';
+                wahaWebhookInput.required = false;
             }
 
             // HttpSMS credentials
@@ -2619,6 +2703,42 @@ function toggleHttpsmsSigningKey() {
     }
 }
 
+function toggleWahaApiKey() {
+    const input = document.getElementById('cfgWahaApiKey');
+    const icon = document.getElementById('wahaApiKeyIcon');
+    if (input && icon) {
+        if (input.type === 'password') {
+            input.type = 'text';
+            input.value = input.dataset.fullKey || input.value;
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            if (input.dataset.fullKey) {
+                input.value = '••••••••' + input.dataset.fullKey.slice(-8);
+            }
+            icon.className = 'fas fa-eye';
+        }
+    }
+}
+
+function toggleWahaWebhook() {
+    const input = document.getElementById('cfgWahaWebhook');
+    const icon = document.getElementById('wahaWebhookIcon');
+    if (input && icon) {
+        if (input.type === 'password') {
+            input.type = 'text';
+            input.value = input.dataset.fullKey || input.value;
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            if (input.dataset.fullKey) {
+                input.value = '••••••••' + input.dataset.fullKey.slice(-8);
+            }
+            icon.className = 'fas fa-eye';
+        }
+    }
+}
+
 /**
  * Show/hide sections based on selected active vendor
  */
@@ -2628,8 +2748,9 @@ function handleVendorChange() {
     const wasenderConfig = document.getElementById('wasenderConfig');
     const openwaConfig   = document.getElementById('openwaConfig');
     const evoConfig      = document.getElementById('evolutionGoConfig');
+    const wahaConfig     = document.getElementById('wahaConfig');
 
-    const sections = [ultramsgConfig, wasenderConfig, openwaConfig, evoConfig];
+    const sections = [ultramsgConfig, wasenderConfig, openwaConfig, evoConfig, wahaConfig];
     sections.forEach(s => { if (s) s.style.display = 'none'; });
 
     if (vendor === 'ultramsg') {
@@ -2640,6 +2761,8 @@ function handleVendorChange() {
         if (openwaConfig) openwaConfig.style.display = 'block';
     } else if (vendor === 'evolution-go') {
         if (evoConfig) evoConfig.style.display = 'block';
+    } else if (vendor === 'waha') {
+        if (wahaConfig) wahaConfig.style.display = 'block';
     }
 }
 

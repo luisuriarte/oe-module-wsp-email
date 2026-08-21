@@ -117,6 +117,12 @@ INSERT IGNORE INTO `lang_custom` (`lang_description`, `lang_code`, `constant_nam
 ('Spanish (Latin American)', 'el', 'Webhook URL (configure in Evolution-Go dashboard)', 'URL del Webhook (configurar en el panel de Evolution-Go)'),
 ('Spanish (Latin American)', 'el', 'Copy this URL to your Evolution-Go instance webhook settings.', 'Copie esta URL en la configuración del webhook de su instancia Evolution-Go.'),
 
+-- WAHA
+('Spanish (Latin American)', 'el', 'WAHA Credentials',                                'Credenciales WAHA'),
+('Spanish (Latin American)', 'el', 'Session Name (Instance)',                         'Nombre de Sesión (Instancia)'),
+('Spanish (Latin American)', 'el', 'Webhook URL (configure in WAHA dashboard/session)', 'URL del Webhook (configurar en el panel/sesión de WAHA)'),
+('Spanish (Latin American)', 'el', 'Copy this URL to your WAHA webhook settings (e.g. https://hcd.origen.ar/webhook/waha/webhook.php).', 'Copie esta URL en la configuración de webhook de WAHA (ej. https://hcd.origen.ar/webhook/waha/webhook.php).'),
+
 -- Email config
 ('Spanish (Latin American)', 'el', 'Email',                                      'Email'),
 ('Spanish (Latin American)', 'el', 'Email Logo',                                 'Logo de Email'),

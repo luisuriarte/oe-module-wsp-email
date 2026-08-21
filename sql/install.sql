@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS `wsp_email_facility_config` (
 CREATE TABLE `wsp_email_gateways_config` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `facility_id` int(11) NOT NULL,
-  `gateway_name` varchar(50) NOT NULL COMMENT 'ultramsg|wasenderapi|openwa|evolution-go',
+  `gateway_name` varchar(50) NOT NULL COMMENT 'ultramsg|wasenderapi|openwa|evolution-go|httpsms|waha',
   `enabled` tinyint(1) NOT NULL DEFAULT 0,
   `config_json` text NOT NULL COMMENT 'JSON with credentials per gateway',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,

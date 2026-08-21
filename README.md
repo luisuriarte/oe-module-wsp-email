@@ -7,7 +7,7 @@ Multi-vendor, per-facility configuration, interactive dashboard, webhook status 
 
 ## Features
 
-- **WhatsApp** — Multi-vendor abstraction: UltraMsg, WaSenderAPI, OpenWA.
+- **WhatsApp** — Multi-vendor abstraction: UltraMsg, WaSenderAPI, OpenWA, Evolution-Go, WAHA.
 - **Email** — Rich HTML with embedded logo, .ics calendar attachment, Google Calendar & Maps links.
 - **Dashboard** — Chart.js analytics, searchable patient log, status timeline, manual resend/sync.
 - **Scheduling** — On-booking (immediate), cron-based (N hours before), manual (from dashboard).
@@ -15,7 +15,7 @@ Multi-vendor, per-facility configuration, interactive dashboard, webhook status 
 - **Per-facility** — Independent credentials, logos, coordinates, channel toggles, and templates.
 - **Templates** — Three-level fallback (exact → category → wildcard), token replacement.
 - **Status tracking** — Canonical status normalization across all vendors, webhook updates.
-- **Security** — HMAC SHA256 (OpenWA), shared secret (WaSenderAPI) webhook validation.
+- **Security** — HMAC SHA256 (OpenWA / WAHA), shared secret (WaSenderAPI / Evolution-Go / WAHA) webhook validation.
 
 ---
 
@@ -26,6 +26,8 @@ Multi-vendor, per-facility configuration, interactive dashboard, webhook status 
 | **UltraMsg** | `instance_id` + `api_key` | Official PHP SDK | Polling REST API |
 | **WaSenderAPI** | `api_key` (Bearer) | Guzzle REST | Placeholder |
 | **OpenWA** | `session_id` + `api_key` (X-API-Key) | Guzzle REST | Webhook (HMAC) |
+| **Evolution-Go** | `base_url` + `instance` + `api_key` | Guzzle REST | Webhook |
+| **WAHA** | `base_url` + `session` + `api_key` (X-Api-Key) | Guzzle REST | Webhook (ACKs / Status) |
 
 ---
 

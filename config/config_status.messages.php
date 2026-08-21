@@ -205,6 +205,43 @@ return [
         ],
 
         /**
+         * WAHA (WhatsApp HTTP API)
+         * https://waha.devlike.pro/
+         * Events: message.ack, message.status, message.sent, message.failed, message.revoked
+         * Acks: 0 (ERROR), 1 (PENDING), 2 (SERVER), 3 (DEVICE), 4 (READ), 5 (PLAYED)
+         */
+        'waha' => [
+            'pending'       => 'QUEUED',
+            'queued'        => 'QUEUED',
+            'sending'       => 'SENT',
+            'server'        => 'SENT',
+            'sent'          => 'SENT',
+            'success'       => 'SENT',
+            'device'        => 'DELIVERED',
+            'delivered'     => 'DELIVERED',
+            'read'          => 'READ',
+            'played'        => 'READ',
+            'failed'        => 'FAILED',
+            'error'         => 'FAILED',
+            'revoked'       => 'UNSENT',
+
+            // ACK Names
+            'ack'           => 'SENT',
+            'ack_sent'      => 'SENT',
+            'ack_delivered' => 'DELIVERED',
+            'ack_read'      => 'READ',
+
+            // ACK numeric codes
+            '0'  => 'FAILED',
+            '1'  => 'QUEUED',
+            '2'  => 'SENT',
+            '3'  => 'DELIVERED',
+            '4'  => 'READ',
+            '5'  => 'READ',
+            '-1' => 'FAILED',
+        ],
+
+        /**
          * Estado por defecto si no se reconoce
          */
         'default' => [

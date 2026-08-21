@@ -109,6 +109,15 @@ $data['gateway_config_httpsms'] = [
     'signing_key'   => resolveCredential('httpsms_signing_key',  $_POST, $current),
 ];
 
+// WAHA
+$data['gateway_config_waha'] = [
+    'base_url'        => !empty($_POST['waha_base_url']) ? trim($_POST['waha_base_url']) : ($current['waha_base_url'] ?? ''),
+    'session'         => !empty($_POST['waha_session']) ? trim($_POST['waha_session']) : (!empty($_POST['waha_instance']) ? trim($_POST['waha_instance']) : ($current['waha_session'] ?? $current['waha_instance'] ?? 'default')),
+    'instance'        => !empty($_POST['waha_session']) ? trim($_POST['waha_session']) : (!empty($_POST['waha_instance']) ? trim($_POST['waha_instance']) : ($current['waha_instance'] ?? $current['waha_session'] ?? 'default')),
+    'api_key'         => resolveCredential('waha_api_key', $_POST, $current),
+    'webhook_secret'  => resolveCredential('waha_webhook_secret', $_POST, $current),
+];
+
 // -- Handle File Uploads --
 $uploadDir = $GLOBALS['fileroot'] . '/public/images/wsp_email/';
 $types = ['logo_wsp', 'logo_email'];
@@ -145,7 +154,7 @@ if (!empty($uploadErrors)) {
 }
 
 // Validate vendor value
-$allowedVendors = ['wasenderapi', 'ultramsg', 'openwa', 'evolution-go'];
+$allowedVendors = ['wasenderapi', 'ultramsg', 'openwa', 'evolution-go', 'waha'];
 if (!in_array($data['current_vendor'], $allowedVendors, true)) {
     echo json_encode(['success' => false, 'error' => 'Invalid vendor']);
     exit;
