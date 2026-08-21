@@ -289,6 +289,19 @@ class StatusNormalizer
                 }
                 break;
 
+            case 'evolution-go':
+                // Status may ride at payload top-level, flattened (data.keyId + data.status),
+                // nested (data.status), or batched v1 style (data[].update.status)
+                $nativeStatus = (string)($webhookData['status'] ?? '');
+                if ($nativeStatus === '') {
+                    $d = $webhookData['data'] ?? [];
+                    if (isset($d[0]) && is_array($d[0])) {
+                        $d = $d[0];
+                    }
+                    $nativeStatus = (string)($d['status'] ?? $d['update']['status'] ?? 'unknown');
+                }
+                break;
+
             case 'twilio':
                 $nativeStatus = $webhookData['message_status'] ?? '';
                 break;
