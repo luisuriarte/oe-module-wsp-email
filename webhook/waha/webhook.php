@@ -227,7 +227,10 @@ if (!$isAuthorized) {
 wahaLog('Webhook request authorized successfully.');
 
 // --- Handle events ---
-$supportedEvents = ['message.ack', 'message.status', 'message.sent', 'message.failed', 'message.revoked', 'message'];
+// Note: 'message' (incoming only) is intentionally NOT supported — patient replies
+// must never touch delivery status. 'message.any' IS supported as an ack fallback
+// because the GOWS engine may not emit dedicated message.ack/message.status events.
+$supportedEvents = ['message.ack', 'message.status', 'message.sent', 'message.failed', 'message.revoked', 'message.any'];
 
 if (in_array($event, $supportedEvents, true)) {
     $payload = $webhookData['payload'] ?? $webhookData['data'] ?? [];
@@ -248,6 +251,16 @@ if (in_array($event, $supportedEvents, true)) {
         exit;
     }
 
+    // message.any fires for ALL messages (incoming AND outgoing).
+    // Only track OUR outgoing messages (fromMe) — ignore patient replies.
+    $fromMe = $payload['fromMe'] ?? null;
+    if ($event === 'message.any' && $fromMe !== true) {
+        wahaLog('Ignored: message.any for incoming message (patient reply).');
+        http_response_code(200);
+        echo json_encode(['status' => 'ok', 'skipped' => 'incoming_message']);
+        exit;
+    }
+
     if (!empty($msgId)) {
         // Extract native status
         $rawStatus = '';
@@ -261,8 +274,20 @@ if (in_array($event, $supportedEvents, true)) {
             $rawStatus = (string)($payload['ackName'] ?? (isset($payload['ack']) ? $payload['ack'] : ($payload['status'] ?? 'ack')));
         } elseif ($event === 'message.status') {
             $rawStatus = (string)($payload['status'] ?? $payload['ackName'] ?? 'status');
+        } elseif ($event === 'message.any') {
+            // GOWS/NOWEB fallback: ack info rides on the message payload itself
+            $rawStatus = (string)($payload['ackName'] ?? ($payload['ack'] ?? ''));
         } else {
             $rawStatus = (string)($payload['status'] ?? $payload['ackName'] ?? (isset($payload['ack']) ? $payload['ack'] : 'unknown'));
+        }
+
+        // Never feed empty/unknown statuses into the normalizer — they would map to
+        // ERROR (priority 5) and could clobber a valid DELIVERED/READ state.
+        if (trim($rawStatus) === '' || strtolower(trim($rawStatus)) === 'unknown') {
+            wahaLog("Ignored: no ack/status info in '$event' payload.");
+            http_response_code(200);
+            echo json_encode(['status' => 'ok', 'skipped' => 'no_status_info']);
+            exit;
         }
 
         $notifLog = new NotificationLog();
@@ -270,10 +295,16 @@ if (in_array($event, $supportedEvents, true)) {
         $canonical = StatusNormalizer::normalize('waha', $rawStatus);
         $incomingPriority = StatusNormalizer::getPriority($canonical);
 
+        // Track HOW the log entry was matched — determines whether msg_id may be rewritten
+        $matchedBy = '';
+
         $existing = sqlQuery(
             "SELECT iLogId, pc_eid, pid, msg_id, status_priority, status_current FROM notification_log WHERE msg_id = ?",
             [$msgId]
         );
+        if ($existing && !empty($existing['iLogId'])) {
+            $matchedBy = 'exact';
+        }
 
         // Fallback search 1: if full serialized msgId (e.g. false_5493404540440@c.us_3EB0...) is received, try matching suffix
         if ((!$existing || empty($existing['iLogId'])) && strpos($msgId, '_') !== false) {
@@ -285,7 +316,8 @@ if (in_array($event, $supportedEvents, true)) {
                     [$shortId, '%' . $shortId]
                 );
                 if ($matchedLog && !empty($matchedLog['iLogId'])) {
-                    $existing = $matchedLog;
+                    $existing   = $matchedLog;
+                    $matchedBy  = 'shortid';
                     wahaLog("Matched short msgId='$shortId' for incoming msgId='$msgId' -> iLogId={$existing['iLogId']}");
                 }
             }
@@ -294,6 +326,18 @@ if (in_array($event, $supportedEvents, true)) {
         // Fallback search 2: match recent log entry sent to the same phone number in the last 15 minutes
         if (!$existing || empty($existing['iLogId'])) {
             $phone = preg_replace('/\D/', '', explode('@', $chatId)[0] ?? '');
+
+            // Never track self-addressed messages (sent TO the gateway's own number):
+            // WhatsApp emits no DEVICE/READ ack transitions for those, and phone-matching
+            // here would hijack unrelated records.
+            $ownNumber = preg_replace('/\D/', '', explode('@', (string)($webhookData['me']['id'] ?? ''))[0] ?? '');
+            if (!empty($ownNumber) && !empty($phone) && substr($phone, -10) === substr($ownNumber, -10)) {
+                wahaLog("Ignored: message addressed to own gateway number ($ownNumber) — no ack tracking possible.");
+                http_response_code(200);
+                echo json_encode(['status' => 'ok', 'skipped' => 'self_addressed_message']);
+                exit;
+            }
+
             if (!empty($phone) && strlen($phone) >= 8) {
                 $shortPhone = substr($phone, -10);
                 $recentLog = sqlQuery(
@@ -306,7 +350,8 @@ if (in_array($event, $supportedEvents, true)) {
                     ["%{$shortPhone}%", "%{$shortPhone}%"]
                 );
                 if ($recentLog && !empty($recentLog['iLogId'])) {
-                    $existing = $recentLog;
+                    $existing  = $recentLog;
+                    $matchedBy = 'phone';
                     wahaLog("Matched recent log entry by shortPhone={$shortPhone} -> iLogId={$existing['iLogId']}");
                 }
             }
@@ -333,8 +378,12 @@ if (in_array($event, $supportedEvents, true)) {
 
         $targetMsgId = !empty($existing['msg_id']) ? $existing['msg_id'] : $msgId;
 
-        // Reconcile message ID if needed
-        if (!empty($msgId) && $msgId !== $targetMsgId && !empty($existing['iLogId'])) {
+        // Reconcile message ID ONLY on high-confidence matches (exact / shortId).
+        // Phone-based matches are ambiguous: rewriting their msg_id would hijack
+        // the record's original vendor ID (observed with self-addressed tests).
+        if (in_array($matchedBy, ['exact', 'shortid'], true)
+            && !empty($msgId) && $msgId !== $targetMsgId && !empty($existing['iLogId'])
+        ) {
             sqlStatement(
                 "UPDATE notification_log SET msg_id = ? WHERE iLogId = ?",
                 [$msgId, $existing['iLogId']]
