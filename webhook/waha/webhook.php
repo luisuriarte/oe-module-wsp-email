@@ -72,6 +72,7 @@ function wahaLog(string $message): void
 {
     global $moduleRoot;
     $line = date('Y-m-d H:i:s') . ' — ' . $message . "\n";
+    error_log("WAHA_WEBHOOK: " . $message);
 
     // 1. Module main logs folder
     if (!empty($moduleRoot)) {

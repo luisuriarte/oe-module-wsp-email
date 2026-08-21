@@ -236,11 +236,11 @@ return [
             'ack_pending'   => 'QUEUED',
             'ack_error'     => 'FAILED',
 
-            // ACK numeric codes
+            // ACK numeric codes (WAHA standard: 1=SERVER, 2=DEVICE, 3=READ, 4=PLAYED)
             '0'  => 'FAILED',
-            '1'  => 'QUEUED',
-            '2'  => 'SENT',
-            '3'  => 'DELIVERED',
+            '1'  => 'SENT',
+            '2'  => 'DELIVERED',
+            '3'  => 'READ',
             '4'  => 'READ',
             '5'  => 'READ',
             '-1' => 'FAILED',
